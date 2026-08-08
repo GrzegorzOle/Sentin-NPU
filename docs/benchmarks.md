@@ -129,6 +129,22 @@ runs on a dedicated thread reached over a channel, so it does not block the toki
 timeout is resolved by operator policy — fail-open by default, because a stalled model must not
 become an outage.
 
+**Reproducing this on another device.** The harness takes the device and the model directory, so
+the same metric can be taken for NPU, GPU and CPU on one machine:
+
+```bash
+sentin-bench --device NPU --model-dir /path/to/models/seq128 --m2b-only
+```
+
+`--m2b-only` drops the streaming section, which does not depend on the inference device. A release
+bundle carries `sentin-bench` and `./run.sh` already runs all three devices, writing one
+`results/bench-m2b-<device>.json` each.
+
+**Read `device_used`, not `device_requested`.** Asking for a device you do not have does not fail —
+it falls back, and on this machine `--device NPU` returns the dGPU's ~119 ms looking every bit like
+an NPU measurement. The harness prints both, warns when they differ, and scores the result against
+the budget for the device that actually ran (80 ms for NPU, 150 ms otherwise).
+
 ### M2c — streaming, and the decision for B2
 
 The mock emits 40 SSE events 12 ms apart (~0.5 s of generation), ending a sentence every eighth

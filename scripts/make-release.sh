@@ -31,10 +31,13 @@ build_linux() {
             -e CARGO_TARGET_DIR=/w/gateway/target-bullseye rust:1-bullseye \
             cargo build ${flag} -p sentin-diag --bin sentin-doctor
     done
-    # The gateway itself, so a release is something you can run and not only diagnose.
+    # The gateway itself, so a release is something you can run and not only diagnose, and the
+    # bench harness, without which M2b cannot be measured on a machine that has no Rust toolchain
+    # -- which is every test machine. sentin-doctor times the inference; only this times the
+    # pipeline a request actually goes through.
     docker run --rm -v "${REPO}":/w:z -w /w/gateway \
         -e CARGO_TARGET_DIR=/w/gateway/target-bullseye rust:1-bullseye \
-        cargo build --release -p sentin-proxy --bin sentin-gateway
+        cargo build --release -p sentin-proxy --bin sentin-gateway --bin sentin-bench
 }
 
 build_windows() {
@@ -87,7 +90,7 @@ Self-contained. Nothing needs installing: no Rust, no Python, no OpenVINO, no ne
 
 Results are written to results/ and collected into a single archive to send back.
 
-Two binaries are included. Measurements use the optimised one; ${dbg} runs a debug
+The diagnostic ships twice. Measurements use the optimised build; ${dbg} runs a debug
 build with full backtraces, for when something crashes and a number matters less than
 knowing why.
 
@@ -110,6 +113,7 @@ stage_linux() {
     ( cd "${stage}/lib"; for f in *.so.*; do [ -e "$f" ] && ln -sf "$f" "${f%%.so.*}.so"; done ) || true
 
     cp "${REPO}/gateway/target-bullseye/release/sentin-gateway" "${stage}/sentin-gateway"
+    cp "${REPO}/gateway/target-bullseye/release/sentin-bench" "${stage}/sentin-bench"
     mkdir -p "${stage}/systemd"
     cp "${REPO}/packaging/systemd/sentin-npu.service" "${stage}/systemd/"
     cp "${REPO}/scripts/install.sh" "${stage}/install.sh"
@@ -122,7 +126,7 @@ stage_linux() {
     copy_models "${stage}/models"
     cp "${REPO}/scripts/run-diagnostics.sh" "${stage}/run.sh"
     chmod +x "${stage}/run.sh" "${stage}/install.sh" "${stage}/sentin-doctor" \
-             "${stage}/sentin-doctor-debug" "${stage}/sentin-gateway"
+             "${stage}/sentin-doctor-debug" "${stage}/sentin-gateway" "${stage}/sentin-bench"
     write_readme "${stage}" "Linux x86-64 (glibc 2.30+)" \
         "./run.sh              # device report
     ./run.sh --power      # also energy per device" "sentin-doctor-debug"

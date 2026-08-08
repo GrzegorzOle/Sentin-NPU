@@ -73,6 +73,23 @@ if [ -f "${MODEL512}" ]; then
     run "'${HERE}/sentin-doctor' --model '${MODEL512}' --json '${RESULTS}/doctor-seq512.json'"
 fi
 
+# M2b — the latency a request actually pays, per device. sentin-doctor times the inference alone;
+# this times the whole pipeline, which is the metric Phase 5 has to report next to the power table.
+#
+# All three devices are attempted rather than only the ones enumerated, and deliberately so: the
+# harness prints the device it actually ran on, so an absent or refusing NPU shows up as a recorded
+# attempt that fell back, which is the result this project exists to collect. Parsing the device
+# list out of the JSON first would need jq, which a clean test machine may not have.
+section "pipeline latency per device (M2b)"
+if [ -f "${HERE}/sentin-bench" ] && [ -f "${MODEL}" ]; then
+    for dev in NPU GPU CPU; do
+        run "'${HERE}/sentin-bench' --device ${dev} --model-dir '${HERE}/models/seq128' \
+             --m2b-only --json '${RESULTS}/bench-m2b-${dev}.json'"
+    done
+else
+    echo "(no sentin-bench in this bundle, or no model — M2b not measured)"
+fi
+
 if [ "${WITH_POWER}" = "1" ] && [ -f "${MODEL}" ]; then
     section "energy per device"
     if [ -r /sys/class/powercap/intel-rapl:0/energy_uj ]; then

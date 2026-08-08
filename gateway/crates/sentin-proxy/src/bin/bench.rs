@@ -8,7 +8,17 @@
 //! ```text
 //! cargo run --release -p sentin-proxy --bin sentin-bench
 //! cargo run --release -p sentin-proxy --bin sentin-bench -- --json results.json
+//!
+//! # M2b on a specific inference device, against a model outside the source tree.
+//! # This is how the Intel session gets M2b for NPU, GPU and CPU on one machine:
+//! sentin-bench --device NPU --model-dir /path/to/models/seq128 --m2b-only
 //! ```
+//!
+//! `--m2b-only` drops the streaming section, which does not depend on the inference device.
+//!
+//! `--device` and `--model-dir` exist because M2b used to hard-code `CPU` and a source-tree
+//! path. On a release bundle the model lives at `models/seq128`, so the metric silently skipped;
+//! and no amount of running it on Intel hardware would have measured anything but the CPU.
 //!
 //! Everything runs against the in-process mock upstream, so the number reported is the gateway's
 //! own cost rather than the internet's variance. The comparison that defines M2a is
@@ -42,6 +52,21 @@ async fn main() {
             .and_then(|w| w[1].parse().ok())
             .unwrap_or(default)
     };
+    let str_flag = |name: &str, default: &str| -> String {
+        args.windows(2)
+            .find(|w| w[0] == name)
+            .map(|w| w[1].clone())
+            .unwrap_or_else(|| default.to_string())
+    };
+
+    // The inference device M2b runs on, and where its IR lives. The defaults reproduce the
+    // source-tree behaviour, so an existing invocation keeps measuring exactly what it did.
+    let device = str_flag("--device", "CPU");
+    let model_dir = str_flag("--model-dir", "models/herbert/int8/seq128");
+    // Streaming does not touch the inference device, so re-running M2c once per device would
+    // re-measure identical numbers at about 48 s a time on a borrowed machine. M2a stays: it is
+    // sub-second against an in-process mock and it provides the baseline M2b subtracts.
+    let m2b_only = args.iter().any(|a| a == "--m2b-only");
 
     let (upstream, _received) = mock::spawn(StreamShape::default()).await;
     let client = reqwest::Client::new();
@@ -126,17 +151,17 @@ async fn main() {
 
     // ---- M2b: full pipeline, layer 1 + layer 2 ---------------------------------------------
     // Only meaningful when the IR is present; skipping is reported rather than silently omitted.
-    let model_dir = std::path::Path::new("models/herbert/int8/seq128");
-    if model_dir.join("openvino_model.xml").exists() {
+    let model_path = std::path::Path::new(&model_dir);
+    if model_path.join("openvino_model.xml").exists() {
         let ner_payload = json!({"model": "bench", "messages": [{"role": "user",
             "content": "Klient Marek Nowak z Warszawy zlozyl wniosek o kredyt w Alterna Logistyka."}]});
-        let gateway_l2 = spawn_gateway_with_model(
+        let (gateway_l2, resolved) = spawn_gateway_with_model(
             &upstream,
             "true",
             "passthrough",
             "mask",
-            "models/herbert/int8/seq128",
-            "CPU",
+            &model_dir,
+            &device,
         )
         .await;
         let l2 = measure(
@@ -154,7 +179,23 @@ async fn main() {
         )
         .await;
 
-        println!("\nM2b — full pipeline (L1+L2), device CPU, seq 128");
+        // Report what ran, not what was asked for. On a machine with no NPU, `--device NPU`
+        // quietly produces the GPU's numbers; labelling those "NPU" would put a fabricated NPU
+        // result into the one archive the Intel session exists to produce.
+        let (actual, fell_back) = resolved
+            .clone()
+            .unwrap_or_else(|| ("layer 2 not running".to_string(), false));
+        println!("\nM2b — full pipeline (L1+L2), model: {model_dir}");
+        println!("  device requested: {device}    device used: {actual}");
+        // AUTO resolving to something concrete is the feature working, not a surprise; only a
+        // named device that did not get used is worth shouting about.
+        let asked_for_a_specific_device = !device.eq_ignore_ascii_case("AUTO");
+        if asked_for_a_specific_device && (fell_back || !actual.eq_ignore_ascii_case(&device)) {
+            println!(
+                "  !! {device} was not used. These numbers describe {actual} and must not be \
+                 quoted as a {device} result."
+            );
+        }
         println!(
             "  {:<34}{:>10}{:>10}",
             "configuration", "p50 (ms)", "p95 (ms)"
@@ -171,26 +212,56 @@ async fn main() {
             );
             results.push(json!({
                 "metric": "M2b", "configuration": label,
+                "device_requested": device, "device_used": actual, "model_dir": model_dir,
                 "p50_ms": stats.p50.as_secs_f64() * 1000.0,
                 "p95_ms": stats.p95.as_secs_f64() * 1000.0,
             }));
         }
         let added_p95 = sub_ms(l2.p95, direct.p95);
+        // Section 3 sets two budgets, not one: 150 ms on CPU, 80 ms on NPU. It follows the device
+        // that ran — scoring a fallback-to-GPU run against the NPU budget invents a failure.
+        let budget = if actual.eq_ignore_ascii_case("NPU") {
+            80.0
+        } else {
+            150.0
+        };
         println!(
-            "  added p95 vs direct: {added_p95:+.2} ms   [{}]",
-            if added_p95 < 150.0 {
-                "PASS (< 150 ms on CPU)"
-            } else {
-                "FAIL"
-            }
+            "  added p95 vs direct: {added_p95:+.2} ms   [{} (budget {budget:.0} ms for {actual})]",
+            if added_p95 < budget { "PASS" } else { "FAIL" }
         );
+        results.push(json!({
+            "metric": "M2b", "configuration": "added p95 vs direct",
+            "device_requested": device, "device_used": actual, "model_dir": model_dir,
+            "added_p95_ms": added_p95, "budget_ms": budget,
+            "verdict": if added_p95 < budget { "PASS" } else { "FAIL" },
+        }));
     } else {
-        println!(
-            "\nM2b — SKIPPED: no IR at models/herbert/int8/seq128 (run tools/prepare_model.py)"
-        );
+        println!("\nM2b — SKIPPED: no openvino_model.xml under {model_dir}");
+        println!("  pass --model-dir, or run tools/prepare_model.py for the source-tree default");
     }
 
     // ---- M2c: streaming, time to first token ----------------------------------------------
+    if m2b_only {
+        println!("\nM2c — skipped (--m2b-only); streaming does not depend on the inference device");
+    } else {
+        run_m2c(&client, &upstream, &mut results).await;
+    }
+
+    if let Some(path) = json_out {
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&results).unwrap_or_default(),
+        )
+        .unwrap_or_else(|err| eprintln!("could not write {path}: {err}"));
+        println!("\nwrote {path}");
+    }
+}
+
+/// M2c — streaming time to first token, for each of the three inspection strategies.
+///
+/// Split out of `main` so `--m2b-only` can skip it by not calling it, rather than by wrapping
+/// forty lines in an `if` and re-indenting them.
+async fn run_m2c(client: &reqwest::Client, upstream: &str, results: &mut Vec<Value>) {
     println!("\nM2c — streaming, time to first byte reaching the client");
     println!(
         "  mock emits {} events, {} ms apart, sentence every 8th event",
@@ -203,7 +274,7 @@ async fn main() {
     );
 
     let baseline_ttft = {
-        let stats = measure_stream(&client, &format!("{upstream}/v1/chat/completions")).await;
+        let stats = measure_stream(client, &format!("{upstream}/v1/chat/completions")).await;
         println!(
             "  {:<34}{:>12.1}{:>12.1}{:>12.1}",
             "direct to upstream (baseline)",
@@ -215,8 +286,8 @@ async fn main() {
     };
 
     for strategy in ["passthrough", "buffer", "sliding_window"] {
-        let gateway = spawn_gateway(&upstream, "true", strategy, "mask").await;
-        let stats = measure_stream(&client, &format!("{gateway}/openai/v1/chat/completions")).await;
+        let gateway = spawn_gateway(upstream, "true", strategy, "mask").await;
+        let stats = measure_stream(client, &format!("{gateway}/openai/v1/chat/completions")).await;
         let delta = sub_ms(stats.ttft_p50, baseline_ttft);
         println!(
             "  {:<34}{:>12.1}{:>12.1}{:>12.1}   ({delta:+.1} ms vs baseline)",
@@ -232,15 +303,6 @@ async fn main() {
             "total_p50_ms": stats.total_p50.as_secs_f64() * 1000.0,
             "ttft_delta_vs_baseline_ms": delta,
         }));
-    }
-
-    if let Some(path) = json_out {
-        std::fs::write(
-            &path,
-            serde_json::to_string_pretty(&results).unwrap_or_default(),
-        )
-        .unwrap_or_else(|err| eprintln!("could not write {path}: {err}"));
-        println!("\nwrote {path}");
     }
 }
 
@@ -270,10 +332,21 @@ fn payload_of_roughly(target: usize) -> Value {
 }
 
 async fn spawn_gateway(upstream: &str, inspect: &str, strategy: &str, mode: &str) -> String {
-    spawn_gateway_with_model(upstream, inspect, strategy, mode, "", "CPU").await
+    spawn_gateway_with_model(upstream, inspect, strategy, mode, "", "CPU")
+        .await
+        .0
 }
 
+/// What layer 2 actually came up on: the device name, and whether it is not the one requested.
+///
+/// `None` when layer 2 is not running at all.
+type Resolved = Option<(String, bool)>;
+
 /// Same, but with layer 2 loaded from `model_dir` (empty disables it).
+///
+/// Returns the resolved device alongside the URL. Requesting a device is not the same as getting
+/// it — an absent NPU falls back silently — and a latency figure labelled with the *request* is a
+/// figure attributed to hardware that may never have run it.
 async fn spawn_gateway_with_model(
     upstream: &str,
     inspect: &str,
@@ -281,7 +354,7 @@ async fn spawn_gateway_with_model(
     mode: &str,
     model_dir: &str,
     device: &str,
-) -> String {
+) -> (String, Resolved) {
     let yaml = format!(
         "providers:\n  openai:\n    prefix: /openai\n    upstream: {upstream}\n\
          detectors:\n  pesel: {{ mode: {mode} }}\n  email: {{ mode: {mode} }}\n  \
@@ -295,10 +368,15 @@ async fn spawn_gateway_with_model(
         .await
         .expect("bind gateway");
     let address = listener.local_addr().expect("addr");
+    let state = AppState::with_inference(config);
+    let resolved = state
+        .ner
+        .as_ref()
+        .map(|ner| (ner.device().to_string(), ner.fell_back()));
     tokio::spawn(async move {
-        let _ = sentin_proxy::serve(listener, AppState::with_inference(config)).await;
+        let _ = sentin_proxy::serve(listener, state).await;
     });
-    format!("http://{address}")
+    (format!("http://{address}"), resolved)
 }
 
 struct Stats {
