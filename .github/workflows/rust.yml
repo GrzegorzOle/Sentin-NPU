@@ -36,3 +36,10 @@ jobs:
         run: cargo build --workspace
       - name: Test
         run: cargo test --workspace
+      # Every crate carries #![warn(missing_docs)], and clippy already fails on an undocumented
+      # public item. This catches the other half: a doc comment that builds but whose intra-doc
+      # links point at something that no longer exists, which clippy does not see.
+      - name: Docs
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
