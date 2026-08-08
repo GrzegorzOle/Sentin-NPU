@@ -11,6 +11,7 @@
 
 pub mod checksums;
 pub mod deterministic;
+pub mod ner;
 pub mod ov;
 pub mod testdata;
 
