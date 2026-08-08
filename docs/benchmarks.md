@@ -24,14 +24,90 @@ A number without that context is not a result.
 | ID | Metric | PoC threshold | Status |
 |---|---|---|---|
 | M1 | L1 throughput (MB/s) | > 100 MB/s | **PASS** — 296-1252 MB/s, see below |
-| M2a | Proxy overhead, no inspection | p95 < 5 ms | not measured |
-| M2b | Full pipeline overhead (L1+L2) | p95 < 150 ms CPU / < 80 ms NPU | not measured |
-| M2c | Streaming TTFT impact | decided by B2; always reported | not measured |
+| M2a | Proxy overhead, no inspection | p95 < 5 ms | **PASS** — +0.07 ms |
+| M2b | Full pipeline overhead (L1+L2) | p95 < 150 ms CPU / < 80 ms NPU | awaits L2 (Phase 4) |
+| M2c | Streaming TTFT impact | decided by B2; always reported | **measured** — see B2 |
 | M3 | INT8 quality degradation | ΔF1 < 2 pp | **PASS** — see B1 below |
 | M4 | NER quality PL+EN | reported, no hard threshold | preliminary, see B1 |
 | M5 | Power draw per device | no threshold — **headline result** | not measured |
 | M6 | Gateway resource use | RSS < 50 MB without model | not measured |
 | M7 | L1 false positives | 0 for checksum detectors | **PASS** on prose; see caveat below |
+
+## Gateway proxy (M2a, M2c) and research question B2 — measured 2026-08-08
+
+Conditions: dev machine (AMD Ryzen AI 7 350), Fedora Linux, rustc 1.96.0, release build.
+Client, gateway and upstream all on loopback. 500 samples per configuration after 50 discarded
+warm-up requests; 25 streams per strategy after one discarded warm-up. Three independent runs of
+the whole harness agreed to within ±0.02 ms (M2a) and ±0.6 ms (M2c).
+
+Reproduce with:
+
+```bash
+cargo run --release -p sentin-proxy --bin sentin-bench
+```
+
+**Why a mock upstream rather than a real provider.** M2a is trying to resolve an overhead of
+tens of microseconds. A round trip to `api.anthropic.com` varies by tens of *milliseconds* — three
+orders of magnitude more — so a measurement against the real API would report network weather, not
+gateway cost. The mock removes that variable, needs no API key, and makes the result reproducible
+by anyone who clones the repo.
+
+### M2a — request-path overhead (threshold p95 < 5 ms)
+
+~1 KB payload, non-streaming, no identifiers in the text.
+
+| Configuration | p50 (ms) | p95 (ms) |
+|---|---|---|
+| Direct to upstream (baseline) | 0.038 | 0.053 |
+| Via gateway, inspection off | 0.075 | 0.121 |
+| Via gateway, L1 inspection on | 0.075 | 0.110 |
+
+**Added p95: +0.07 ms — PASS, with roughly 70× headroom against the 5 ms threshold.**
+
+The L1-on and L1-off columns are indistinguishable, and that is expected rather than suspicious:
+scanning 1 KB at the measured layer-1 throughput takes about a microsecond, against ~70 µs of
+proxy overhead. The difference between those two rows is run-to-run noise, not a speed-up from
+enabling inspection.
+
+### M2c — streaming, and the decision for B2
+
+The mock emits 40 SSE events 12 ms apart (~0.5 s of generation), ending a sentence every eighth
+event — a short answer from a fast local model.
+
+| Strategy | TTFT p50 (ms) | TTFT p95 (ms) | Total p50 (ms) | TTFT vs baseline |
+|---|---|---|---|---|
+| Direct to upstream (baseline) | 0.3 | 0.4 | 511.0 | — |
+| Gateway, `passthrough` | 0.4 | 0.6 | 510.8 | **+0.1 ms** |
+| Gateway, `sliding_window` | 92.5 | 93.2 | 511.3 | **+92 ms** |
+| Gateway, `buffer` | 511.0 | 512.9 | 511.0 | **+511 ms** |
+
+Total time is unchanged in every case — no strategy makes generation slower. What changes is
+*when the user sees the first character*, and that is the entire user experience of a streaming
+answer.
+
+**The decisive point is not the size of each penalty but how it scales.**
+
+- `buffer` costs the **whole generation time**. Here that is 511 ms because the mock answer is
+  short. For a 2 000-token reply at the same rate it would be roughly 24 seconds of blank screen.
+  The penalty is unbounded in response length, which makes it unusable for interactive work
+  regardless of how safe it is.
+- `sliding_window` costs **one sentence**, whatever the answer's total length: 8 events × 12 ms ≈
+  96 ms predicted, 92 ms measured. Bounded, and roughly constant.
+- `passthrough` costs nothing measurable, and inspects the request only.
+
+**B2 decision: `passthrough` is the PoC default; `sliding_window` is the supported opt-in;
+`buffer` is implemented for this comparison but recommended against.** Request-side inspection is
+what the threat model is actually about — data leaving the device — and it is free. Response-side
+inspection buys defence against a model echoing sensitive data back, which matters mainly for the
+prompt-injection→exfiltration path that is explicitly roadmap, and `sliding_window` prices that at
+about one sentence of latency for operators who want it.
+
+All three strategies are covered by a test asserting they deliver **byte-identical** responses;
+they may differ in *when* bytes arrive, never in what arrives.
+
+Caveat: response-side findings are currently detected and logged, not masked. Rewriting a stream
+the client is already rendering is out of PoC scope. The latency above is therefore the cost of
+*detection*, which is the part that governs the design choice; masking would add rewriting on top.
 
 ## Layer 1 — deterministic detectors (M1, M7) — measured 2026-08-08
 

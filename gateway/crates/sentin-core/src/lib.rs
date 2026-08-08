@@ -42,16 +42,24 @@ impl Layer {
 ///
 /// Ordered from least to most restrictive; `Ord` reflects that ordering so a decision can be
 /// clamped against [`Layer::max_decision`].
+///
+/// Each variant also accepts its imperative spelling when deserialised, because configuration
+/// reads as an instruction (`mode: block`) while an audit event reads as a record of what
+/// happened (`"decision": "blocked"`). One type serves both without forcing either to sound wrong.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Decision {
     /// Logged only; the request passes through untouched.
+    #[serde(alias = "observe")]
     Observed,
     /// The user was warned; the request passes through.
+    #[serde(alias = "advise")]
     Advised,
     /// Sensitive spans were replaced before forwarding.
+    #[serde(alias = "mask")]
     Masked,
     /// The request was refused. Reachable only from [`Layer::Deterministic`].
+    #[serde(alias = "block")]
     Blocked,
 }
 

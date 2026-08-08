@@ -47,10 +47,19 @@ detectors:
   organization: { layer: ner, mode: advise }
   location:     { layer: ner, mode: observe }
 
-# Response-side inspection is deferred pending research question B2.
+# Request-side inspection is the threat model — data leaving the device — and costs +0.07 ms p95.
+#
+# stream_strategy decides how a streamed response is inspected (research question B2, closed):
+#   passthrough    — request-side only. +0.1 ms to first token. The PoC default.
+#   sliding_window — inspect at sentence boundaries. Costs ~one sentence (+92 ms measured),
+#                    bounded regardless of how long the answer is.
+#   buffer         — hold the whole response, then emit. Its penalty *is* the generation time
+#                    (+511 ms on a 0.5 s answer, ~24 s on a 2000-token one). Not recommended.
+# Numbers and reasoning: docs/benchmarks.md.
 inspect:
   request: true
   response: false
+  stream_strategy: passthrough
 
 audit:
   jsonl:

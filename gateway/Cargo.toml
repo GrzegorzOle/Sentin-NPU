@@ -18,12 +18,28 @@ authors = ["Grzegorz Oleksy"]
 [workspace.dependencies]
 sentin-core = { path = "crates/sentin-core" }
 sentin-detect = { path = "crates/sentin-detect" }
+sentin-proxy = { path = "crates/sentin-proxy" }
 sentin-audit = { path = "crates/sentin-audit" }
 
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
+
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "signal"] }
+reqwest = { version = "0.13", default-features = false, features = [
+    "json",
+    "stream",
+    "http2",
+    "rustls",
+    "rustls-native-certs",
+] }
+futures-util = "0.3"
+bytes = "1"
+# serde_yaml is archived upstream; serde_yaml_ng is the maintained fork.
+serde_yaml_ng = "0.10"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 proptest = "1"
 criterion = "0.7"

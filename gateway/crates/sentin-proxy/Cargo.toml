@@ -10,6 +10,30 @@ authors.workspace = true
 
 [dependencies]
 sentin-core = { workspace = true }
+sentin-detect = { workspace = true }
+
+axum = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+futures-util = { workspace = true }
+bytes = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[[bin]]
+name = "sentin-gateway"
+path = "src/bin/gateway.rs"
+
+# Latency measurement lives in a binary rather than a criterion bench: M2a and M2c are defined as
+# p50/p95 over raw samples, and criterion reports a bootstrapped mean. One command, real
+# percentiles, and the mock upstream keeps the numbers free of network noise.
+[[bin]]
+name = "sentin-bench"
+path = "src/bin/bench.rs"
 
 [lints]
 workspace = true
