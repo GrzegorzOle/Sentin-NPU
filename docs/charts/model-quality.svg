@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 546 454" width="546" height="454" role="img" aria-label="NER quality: why HerBERT, and what INT8 costs">
+<rect width="546" height="454" fill="#fcfcfb"/>
+<text x="32.0" y="40.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" fill="#0b0b0b" text-anchor="start">NER quality: why HerBERT, and what INT8 costs</text>
+<text x="32.0" y="64.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="start">WikiANN, 500 sentences per language, exact span match on PER/ORG/LOC. F1.</text>
+<rect x="32" y="80" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="48.0" y="89.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">Polish</text>
+<rect x="100" y="80" width="10" height="10" rx="2" fill="#eb6834"/>
+<text x="116.0" y="89.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#52514e" text-anchor="start">English</text>
+<line x1="72" y1="358.0" x2="522" y2="358.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="60.0" y="362.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">0</text>
+<line x1="72" y1="298.0" x2="522" y2="298.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="60.0" y="302.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">25</text>
+<line x1="72" y1="238.0" x2="522" y2="238.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="60.0" y="242.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">50</text>
+<line x1="72" y1="178.0" x2="522" y2="178.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="60.0" y="182.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">75</text>
+<line x1="72" y1="118.0" x2="522" y2="118.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="60.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">100</text>
+<line x1="72" y1="358.0" x2="522" y2="358.0" stroke="#c3c2b7" stroke-width="1"/>
+<g fill="#2a78d6"><path d="M 124.0 358.0 V 150.7 A 4 4 0 0 1 128.0 146.7 H 142.0 A 4 4 0 0 1 146.0 150.7 V 358.0 Z"/></g>
+<text x="135.0" y="138.7" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#0b0b0b" text-anchor="middle">88.06</text>
+<g fill="#eb6834"><path d="M 148.0 358.0 V 220.5 A 4 4 0 0 1 152.0 216.5 H 166.0 A 4 4 0 0 1 170.0 220.5 V 358.0 Z"/></g>
+<text x="159.0" y="208.5" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#0b0b0b" text-anchor="middle">58.97</text>
+<text x="147.0" y="380.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#52514e" text-anchor="middle">HerBERT</text>
+<text x="147.0" y="396.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">FP32, 476 MB</text>
+<g fill="#2a78d6"><path d="M 274.0 358.0 V 151.8 A 4 4 0 0 1 278.0 147.8 H 292.0 A 4 4 0 0 1 296.0 151.8 V 358.0 Z"/></g>
+<text x="285.0" y="139.8" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#0b0b0b" text-anchor="middle">87.57</text>
+<g fill="#eb6834"><path d="M 298.0 358.0 V 219.2 A 4 4 0 0 1 302.0 215.2 H 316.0 A 4 4 0 0 1 320.0 219.2 V 358.0 Z"/></g>
+<text x="309.0" y="207.2" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#0b0b0b" text-anchor="middle">59.51</text>
+<text x="297.0" y="380.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#52514e" text-anchor="middle">HerBERT</text>
+<text x="297.0" y="396.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">INT8, 123 MB</text>
+<g fill="#2a78d6"><path d="M 424.0 358.0 V 211.7 A 4 4 0 0 1 428.0 207.7 H 442.0 A 4 4 0 0 1 446.0 211.7 V 358.0 Z"/></g>
+<text x="435.0" y="199.7" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#0b0b0b" text-anchor="middle">62.62</text>
+<g fill="#eb6834"><path d="M 448.0 358.0 V 233.9 A 4 4 0 0 1 452.0 229.9 H 466.0 A 4 4 0 0 1 470.0 233.9 V 358.0 Z"/></g>
+<text x="459.0" y="221.9" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="650" fill="#0b0b0b" text-anchor="middle">53.36</text>
+<text x="447.0" y="380.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#52514e" text-anchor="middle">XLM-R</text>
+<text x="447.0" y="396.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">INT8, 284 MB</text>
+<text x="32.0" y="430.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">Quantization is free at this scale; English is the model&#x27;s real weakness, and a stated limitation.</text>
+</svg>

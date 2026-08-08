@@ -12,6 +12,12 @@ SPDX-License-Identifier: Apache-2.0
 Every result recorded here states: **date, commit, hardware, OpenVINO version, driver version**.
 A number without that context is not a result.
 
+The charts are generated from the figures in this document by
+`tools/.venv/bin/python tools/bench/plot.py`, which writes `docs/charts/*.svg` and then checks
+that each headline number still appears here — so a chart cannot quietly drift away from the
+measurement it illustrates. Every chart's values are also printed on its marks and stated in the
+table beside it; nothing is readable only as a coloured bar.
+
 ## Method
 
 - ≥5 runs; discard the first (warm-up / model compilation); report median and p95.
@@ -114,7 +120,10 @@ HerBERT INT8, sequence 128, payload containing a person, a location and an organ
 
 **Added p95 versus direct: +10.8 ms — PASS, roughly 14× headroom against the 150 ms budget.**
 
-The figure tracks the steady-state inference time `--doctor` reports for the same model (11.7 ms),
+![Added p95 latency: +0.07 ms for the proxy alone and +10.8 ms with both detection layers, against
+a 150 ms budget](charts/latency-budget.svg)
+
+The figure tracks the steady-state inference time `--doctor` reports for the same model (11.8 ms),
 which is the reassuring outcome: the pipeline costs one inference and almost nothing else. Layer 2
 runs on a dedicated thread reached over a channel, so it does not block the tokio workers, and a
 timeout is resolved by operator policy — fail-open by default, because a stalled model must not
@@ -131,6 +140,9 @@ event — a short answer from a fast local model.
 | Gateway, `passthrough` | 0.4 | 0.6 | 510.8 | **+0.1 ms** |
 | Gateway, `sliding_window` | 92.5 | 93.2 | 511.3 | **+92 ms** |
 | Gateway, `buffer` | 511.0 | 512.9 | 511.0 | **+511 ms** |
+
+![Time to first token by strategy: 0.4 ms for passthrough, 92.5 ms for sliding_window, 511 ms for
+buffer, against a 0.3 ms baseline](charts/streaming-ttft.svg)
 
 Total time is unchanged in every case — no strategy makes generation slower. What changes is
 *when the user sees the first character*, and that is the entire user experience of a streaming
@@ -159,6 +171,26 @@ they may differ in *when* bytes arrive, never in what arrives.
 Caveat: response-side findings are currently detected and logged, not masked. Rewriting a stream
 the client is already rendering is out of PoC scope. The latency above is therefore the cost of
 *detection*, which is the part that governs the design choice; masking would add rewriting on top.
+
+### Per-device inference on the dev machine — measured 2026-08-08
+
+From `sentin-gateway --doctor`, which compiles and executes the real IR on every enumerated device
+rather than reporting what the device claims to support. Raw report: `docs/doctor-dev-amd.json`.
+HerBERT INT8, sequence 128, OpenVINO 2026.3.0.
+
+| Device | Full name | Compile | First inference | Steady |
+|---|---|---|---|---|
+| CPU | AMD Ryzen AI 7 350 | 651 ms | 14.0 ms | **11.8 ms** |
+| GPU | NVIDIA RTX 5070 Laptop (dGPU, via OpenCL) | 2 450 ms | 116.2 ms | **116.1 ms** |
+| NPU | — | \- | \- | not measured: no OpenVINO-visible NPU on this machine |
+
+![Steady-state inference per device: 11.8 ms on CPU, 116.1 ms on the NVIDIA GPU, and an empty row
+for the Intel NPU](charts/device-latency.svg)
+
+The GPU row is not a disappointing result for Intel iGPUs; it is a *different device* — an NVIDIA
+dGPU that OpenVINO reaches through the OpenCL ICD loader, advertising no FP16. It is in the table
+because leaving it out would hide why `AUTO` resolves to something 10× slower than CPU here, which
+is a trap for anyone reproducing M2b on this machine. See `docs/npu-compat.md`.
 
 ## M6 — gateway resource use — measured 2026-08-08
 
@@ -194,6 +226,9 @@ criterion 100 samples per case. Reproduce with `cargo bench -p sentin-detect`.
 | Prose, no identifiers | 1.22 GiB/s | 1.22 GiB/s |
 | Prose with identifiers (~1 per 200 B) | 904 MiB/s | 934 MiB/s |
 | Digit noise (every token a candidate) | 296 MiB/s | 308 MiB/s |
+
+![Layer 1 throughput on 100 KB inputs: 1 249 MiB/s on clean prose, 934 with identifiers, 308 on
+digit noise, against a 100 MB/s threshold](charts/layer1-throughput.svg)
 
 **PASS — the worst case is ~3× the threshold.** Throughput is essentially independent of input
 size, as a single-pass scanner should be.
@@ -257,6 +292,9 @@ comparison measures quality rather than class count).
 | | | 512 | INT8 | 87.16 | 63.74 | 123.4 | |
 | `Davlan/xlm-roberta-base-ner-hrl` | AFL-3.0 | 128 | FP32 | 64.30 | 53.14 | 1075.1 | no |
 | | | 128 | INT8 | 62.62 | 53.36 | 283.5 | |
+
+![F1 by model and precision: HerBERT scores 88.06 Polish and 58.97 English at FP32, 87.57 and
+59.51 at INT8; XLM-R scores 62.62 and 53.36 at INT8](charts/model-quality.svg)
 
 ### M3 — INT8 quality degradation (threshold ΔF1 < 2 pp)
 

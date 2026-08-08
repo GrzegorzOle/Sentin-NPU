@@ -185,10 +185,13 @@ Measured with `--doctor` on the dev machine (HerBERT INT8, sequence 128):
 
 | Device | Compile | First inference | Steady |
 |---|---|---|---|
-| CPU — AMD Ryzen AI 7 350 | 686 ms | 14.3 ms | **11.7 ms** |
-| GPU — NVIDIA dGPU via OpenCL | 706 ms | 116.5 ms | 116.0 ms |
+| CPU — AMD Ryzen AI 7 350 | 651 ms | 14.0 ms | **11.8 ms** |
+| GPU — NVIDIA dGPU via OpenCL | 2 450 ms | 116.2 ms | 116.1 ms |
 
-The NPU column is missing on purpose. It is the column this project exists to fill.
+![Steady-state inference per device: 11.8 ms on CPU, 116.1 ms on the NVIDIA GPU, and an empty row
+for the Intel NPU](docs/charts/device-latency.svg)
+
+The NPU row is empty on purpose. It is the row this project exists to fill.
 
 ### Benchmarks
 

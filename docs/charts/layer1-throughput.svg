@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 326" width="780" height="326" role="img" aria-label="Deterministic layer throughput, by what the text contains">
+<rect width="780" height="326" fill="#fcfcfb"/>
+<text x="32.0" y="40.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" fill="#0b0b0b" text-anchor="start">Deterministic layer throughput, by what the text contains</text>
+<text x="32.0" y="64.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="start">100 KB inputs, criterion, 100 samples per case. Throughput is flat in input size.</text>
+<line x1="232.0" y1="88.0" x2="232.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="232.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">0</text>
+<line x1="322.4" y1="88.0" x2="322.4" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="322.4" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">250</text>
+<line x1="412.8" y1="88.0" x2="412.8" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="412.8" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">500</text>
+<line x1="503.2" y1="88.0" x2="503.2" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="503.2" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">750</text>
+<line x1="593.6" y1="88.0" x2="593.6" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="593.6" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">1000</text>
+<line x1="684.0" y1="88.0" x2="684.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="684.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">1250</text>
+<line x1="232.0" y1="88.0" x2="232.0" y2="228.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="748.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">MiB/s</text>
+<text x="216.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">Prose, no identifiers</text>
+<g fill="#2a78d6"><path d="M 232.0 107.0 H 679.6 A 4 4 0 0 1 683.6 111.0 V 125.0 A 4 4 0 0 1 679.6 129.0 H 232.0 Z" /></g>
+<text x="693.6" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">1 249 MiB/s</text>
+<text x="216.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">Prose with identifiers</text>
+<g fill="#2a78d6"><path d="M 232.0 151.0 H 565.7 A 4 4 0 0 1 569.7 155.0 V 169.0 A 4 4 0 0 1 565.7 173.0 H 232.0 Z" /></g>
+<text x="579.7" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">934 MiB/s</text>
+<text x="216.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">Digit noise (worst case)</text>
+<g fill="#2a78d6"><path d="M 232.0 195.0 H 339.4 A 4 4 0 0 1 343.4 199.0 V 213.0 A 4 4 0 0 1 339.4 217.0 H 232.0 Z" /></g>
+<text x="353.4" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">308 MiB/s</text>
+<line x1="268.2" y1="88.0" x2="268.2" y2="228.0" stroke="#898781" stroke-width="1.5"/>
+<text x="274.2" y="266.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">threshold 100 MB/s</text>
+<text x="32.0" y="302.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">Every token in the worst case is a checksum candidate. Real traffic looks like the first two rows.</text>
+</svg>

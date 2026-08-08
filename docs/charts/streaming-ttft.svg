@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 344" width="780" height="344" role="img" aria-label="Time to first token, by streaming inspection strategy">
+<rect width="780" height="344" fill="#fcfcfb"/>
+<text x="32.0" y="40.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" fill="#0b0b0b" text-anchor="start">Time to first token, by streaming inspection strategy</text>
+<text x="32.0" y="64.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="start">Total generation time is identical in all four cases (~511 ms). Only the wait for the first character moves.</text>
+<line x1="248.0" y1="88.0" x2="248.0" y2="272.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="248.0" y="292.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">0</text>
+<line x1="335.2" y1="88.0" x2="335.2" y2="272.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="335.2" y="292.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">100</text>
+<line x1="422.4" y1="88.0" x2="422.4" y2="272.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="422.4" y="292.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">200</text>
+<line x1="509.6" y1="88.0" x2="509.6" y2="272.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="509.6" y="292.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">300</text>
+<line x1="596.8" y1="88.0" x2="596.8" y2="272.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="596.8" y="292.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">400</text>
+<line x1="684.0" y1="88.0" x2="684.0" y2="272.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="684.0" y="292.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">500</text>
+<line x1="248.0" y1="88.0" x2="248.0" y2="272.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="748.0" y="292.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">ms, p50</text>
+<text x="232.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">Direct to upstream (baseline)</text>
+<g fill="#2a78d6"><rect x="248.0" y="107.0" width="1.5" height="22" /></g>
+<text x="258.3" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">0.3 ms</text>
+<text x="232.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">passthrough — the default</text>
+<g fill="#2a78d6"><rect x="248.0" y="151.0" width="1.5" height="22" /></g>
+<text x="258.3" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">0.4 ms</text>
+<text x="232.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">sliding_window</text>
+<g fill="#2a78d6"><path d="M 248.0 195.0 H 324.7 A 4 4 0 0 1 328.7 199.0 V 213.0 A 4 4 0 0 1 324.7 217.0 H 248.0 Z" /></g>
+<text x="338.7" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">92.5 ms</text>
+<text x="397.1" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">one sentence, whatever the length</text>
+<text x="232.0" y="254.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">buffer</text>
+<g fill="#2a78d6"><path d="M 248.0 239.0 H 689.6 A 4 4 0 0 1 693.6 243.0 V 257.0 A 4 4 0 0 1 689.6 261.0 H 248.0 Z" /></g>
+<text x="703.6" y="254.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">511 ms</text>
+<text x="681.6" y="254.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#ffffff" text-anchor="end">the whole generation</text>
+<text x="32.0" y="320.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">buffer&#x27;s penalty scales with the answer: a 2 000-token reply would mean roughly 24 seconds of blank screen.</text>
+</svg>
