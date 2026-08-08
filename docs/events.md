@@ -5,9 +5,13 @@ SPDX-License-Identifier: Apache-2.0
 
 # SIEM event schema
 
-> **Status: field contract fixed, emitters not implemented.** Phase 6 delivers CEF/syslog, OTLP
-> and JSONL emitters. The field set below is already binding — any PR that changes it updates this
-> file in the same commit (see `CONTRIBUTING.md`).
+> **Status: implemented.** JSONL, CEF over syslog (UDP) and OTLP/HTTP-JSON emitters all ship, and
+> the gateway emits from the real request path. The field set below is binding — any PR that
+> changes it updates this file in the same commit (see `CONTRIBUTING.md`).
+>
+> Verified on a live gateway: one request carrying a PESEL, an email and an IBAN produced three
+> `pii_detected` events with three different verdicts plus one `decision_made`, all sharing a
+> content hash for correlation, and **no occurrence of any detected value**.
 
 ## The rule that governs everything here
 
