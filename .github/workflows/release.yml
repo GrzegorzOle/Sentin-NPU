@@ -1,0 +1,61 @@
+name: release
+
+# Builds the release artefacts on a tag so a release stops depending on one laptop having docker,
+# the right containers and a populated models/ directory.
+#
+# The models are the awkward part: they are gitignored (hundreds of MB) and produced by the Python
+# toolchain, so the workflow regenerates them rather than expecting them to be checked out.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Build the model toolchain and produce the IR
+        run: |
+          python -m venv tools/.venv
+          tools/.venv/bin/pip install --quiet -r tools/requirements.txt
+          tools/.venv/bin/python tools/prepare_model.py --model herbert
+          tools/.venv/bin/python tools/quantize.py      --model herbert
+
+      - name: Build bundles
+        env:
+          # Windows DLLs come from the OpenVINO wheel; a wheel is a zip, so no pip needed.
+          OV_WINDOWS_LIBS: ${{ github.workspace }}/ovwin/openvino/libs
+        run: |
+          python - <<'PY'
+          import json, urllib.request, zipfile, io, pathlib
+          meta = json.load(urllib.request.urlopen("https://pypi.org/pypi/openvino/2026.3.0/json"))
+          url = next(u["url"] for u in meta["urls"] if "cp311-cp311-win_amd64" in u["filename"])
+          data = urllib.request.urlopen(url).read()
+          z = zipfile.ZipFile(io.BytesIO(data))
+          z.extractall("ovwin", [n for n in z.namelist() if n.startswith("openvino/libs/")])
+          PY
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends zip
+          ./scripts/make-release.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Checksums
+        run: |
+          cd dist && sha256sum *.tar.gz *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          prerelease: true
+          fail_on_unmatched_files: true
