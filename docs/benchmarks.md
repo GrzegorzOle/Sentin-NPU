@@ -226,6 +226,75 @@ sentences split evenly between PL and EN) — the `--weights-only` fallback was 
   and these numbers say what that fallback costs.
 - spaCy `pl_core_news_lg` was deliberately skipped; it returns in Phase 8 as article material.
 
+## Energy (M5, M5b) — methodology fixed 2026-08-08, results pending hardware
+
+Two different questions, deliberately kept apart:
+
+- **M5** — how much power each *inference device* draws (NPU vs iGPU vs CPU) running the NER
+  model. This is the article's headline comparison and needs an Intel Core Ultra machine.
+- **M5b** — how much energy the *gateway itself* costs by sitting in the request path. Independent
+  of which device runs inference, measurable on any machine, and the number an operator asks for
+  when deciding whether to deploy this on a fleet of laptops.
+
+### Running it
+
+```bash
+cargo run --release -p sentin-proxy --bin sentin-bench -- --energy
+cargo run --release -p sentin-proxy --bin sentin-bench -- --energy --rps 1 --duration 60
+```
+
+Three phases of equal length — idle, direct-to-upstream, via-gateway — at a **fixed request rate**
+rather than at saturation. A saturation test measures how fast the machine can spin; deployments
+run at some rate and want the cost of that rate. Idle is subtracted from both workloads, and the
+reported overhead is the *difference between the two workload phases*, so the mock upstream, the
+HTTP client and the OS cancel out.
+
+### What RAPL can and cannot tell you
+
+| | |
+|---|---|
+| Interface | Linux powercap, `/sys/class/powercap/intel-rapl:*/energy_uj` |
+| Works on | Intel **and** AMD — the `intel_rapl_msr` driver name is historical |
+| Domains on the dev machine (2026-08-08) | `package-0`, `core` — **no `psys`, no NPU domain** |
+| Counter behaviour | cumulative, wraps at `max_energy_range_uj` (65 532 610 987 µJ here); the reader handles wraparound, and there is a unit test for it |
+
+**The caveat that governs every energy claim in this project: RAPL is package-scoped, and the NPU
+does not get its own powercap domain.** You can measure what the whole SoC drew while a workload
+ran; you cannot read "NPU watts". NPU energy has to be obtained by *differencing* — the same
+workload at `device=NPU` and at `device=CPU`, subtracted — and attributed. Any figure presented as
+NPU power that came straight out of a RAPL domain is actually package power. The harness prints
+the domains it found so each report records what was really available on that machine rather than
+assuming it generalises across Core Ultra generations.
+
+### Permissions
+
+Since the PLATYPUS side-channel disclosure, `energy_uj` is root-readable only, so the harness
+cannot run unprivileged out of the box. It **refuses to start and prints the fix** rather than
+silently reporting zeros:
+
+```bash
+sudo chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj          # until reboot
+# or persistently, as root:
+echo 'SUBSYSTEM=="powercap", ACTION=="add", RUN+="/bin/chmod a+r /sys%p/energy_uj"' \
+  > /etc/udev/rules.d/99-rapl-readable.rules
+```
+
+Windows has no RAPL sysfs. Intel PCM or an HWiNFO CSV log is the fallback; the two are not
+interchangeable, so the method belongs in the result.
+
+### M5b results
+
+| Machine | Rate | Domain | Idle (W) | Direct (W) | Gateway (W) | Overhead (mJ/req) |
+|---|---|---|---|---|---|---|
+| dev (AMD Ryzen AI 7 350) | — | — | — | — | — | not yet run — `energy_uj` is root-only on this machine |
+| Intel Core Ultra / Linux | — | — | — | — | — | pending hardware |
+| Intel Core Ultra / Windows | — | — | — | — | — | pending; needs Intel PCM |
+
+### M5 results — per inference device (B4)
+
+Phase 5 fills this in, on one Intel Core Ultra machine. NPU rows are differenced against the CPU
+row, per the caveat above, not read from a domain.
+
 ## Device characterization (B4)
 
 Phase 5 fills this in, on one Intel Core Ultra machine.

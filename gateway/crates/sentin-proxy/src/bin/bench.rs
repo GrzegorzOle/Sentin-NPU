@@ -31,14 +31,31 @@ const STREAM_SAMPLES: usize = 25;
 
 #[tokio::main]
 async fn main() {
-    let json_out = std::env::args()
-        .collect::<Vec<_>>()
+    let args: Vec<String> = std::env::args().collect();
+    let json_out = args
         .windows(2)
         .find(|w| w[0] == "--json")
         .map(|w| w[1].clone());
+    let flag = |name: &str, default: u64| -> u64 {
+        args.windows(2)
+            .find(|w| w[0] == name)
+            .and_then(|w| w[1].parse().ok())
+            .unwrap_or(default)
+    };
 
     let (upstream, _received) = mock::spawn(StreamShape::default()).await;
     let client = reqwest::Client::new();
+
+    if args.iter().any(|a| a == "--energy") {
+        energy_mode(
+            &client,
+            &upstream,
+            flag("--rps", 10),
+            flag("--duration", 30),
+        )
+        .await;
+        return;
+    }
 
     println!("Sentin-NPU proxy latency harness");
     println!("  upstream (mock): {upstream}");
@@ -272,4 +289,161 @@ fn percentile(samples: &mut [Duration], quantile: f64) -> Duration {
     // reproduce in another language when someone checks the article's numbers.
     let rank = ((samples.len() as f64) * quantile).ceil() as usize;
     samples[rank.clamp(1, samples.len()) - 1]
+}
+
+// ---------------------------------------------------------------------------------------------
+// M5b — energy overhead of having the gateway in the path
+// ---------------------------------------------------------------------------------------------
+
+/// Measure package energy for three phases at a fixed request rate, and report the difference.
+///
+/// A fixed rate rather than saturation is what makes the number meaningful for a report: real
+/// deployments run at some request rate and want to know the cost of that rate, whereas a
+/// saturation test measures how fast the machine can spin, which nobody deploys.
+///
+/// The three phases are idle, direct-to-upstream, and via-gateway. Idle is subtracted from both
+/// workloads, and the *difference between the two workloads* is the gateway's own cost — anything
+/// common to both (the mock, the HTTP client, the OS) cancels out.
+async fn energy_mode(client: &reqwest::Client, upstream: &str, rps: u64, duration_s: u64) {
+    use sentin_proxy::energy::{Measurement, Reader};
+
+    println!("Sentin-NPU energy harness (M5b)\n");
+
+    let reader = match Reader::new() {
+        Ok(reader) => reader,
+        Err(err) => {
+            eprintln!("Cannot read RAPL counters.\n\n{err}\n");
+            eprintln!(
+                "Domains present on this machine: {:?}",
+                sentin_proxy::energy::domains()
+                    .iter()
+                    .map(|d| d.name.clone())
+                    .collect::<Vec<_>>()
+            );
+            std::process::exit(2);
+        }
+    };
+
+    println!("  RAPL domains : {:?}", reader.domain_names());
+    println!("  rate         : {rps} rps");
+    println!("  phase length : {duration_s} s each (idle, direct, gateway)\n");
+
+    let payload = payload_of_roughly(1024);
+    let gateway = spawn_gateway(upstream, "true", "passthrough", "mask").await;
+
+    // Phase 1 — idle. Nothing but the harness itself, so the baseline includes the mock sitting
+    // idle exactly as it does during the workload phases.
+    let idle = run_phase(client, None, &payload, rps, duration_s, &reader).await;
+    let idle_watts: Vec<(String, f64)> =
+        idle.iter().map(|m| (m.domain.clone(), m.watts())).collect();
+
+    let direct = run_phase(
+        client,
+        Some(&format!("{upstream}/v1/chat/completions")),
+        &payload,
+        rps,
+        duration_s,
+        &reader,
+    )
+    .await;
+
+    let via = run_phase(
+        client,
+        Some(&format!("{gateway}/openai/v1/chat/completions")),
+        &payload,
+        rps,
+        duration_s,
+        &reader,
+    )
+    .await;
+
+    let requests = (rps * duration_s) as f64;
+    println!(
+        "  {:<12}{:>12}{:>12}{:>12}{:>16}",
+        "domain", "idle (W)", "direct (W)", "gateway (W)", "overhead"
+    );
+
+    for measurement in &via {
+        let name = &measurement.domain;
+        let idle_w = idle_watts
+            .iter()
+            .find(|(n, _)| n == name)
+            .map_or(0.0, |(_, w)| *w);
+        let direct_w = direct
+            .iter()
+            .find(|m| &m.domain == name)
+            .map_or(0.0, Measurement::watts);
+        let gateway_w = measurement.watts();
+
+        let direct_active = direct
+            .iter()
+            .find(|m| &m.domain == name)
+            .map_or(0.0, |m| m.active_energy_j(idle_w));
+        let gateway_active = measurement.active_energy_j(idle_w);
+        let overhead_mj_per_request = (gateway_active - direct_active) * 1000.0 / requests;
+
+        println!(
+            "  {name:<12}{idle_w:>12.2}{direct_w:>12.2}{gateway_w:>12.2}{overhead_mj_per_request:>13.3} mJ/req"
+        );
+    }
+
+    println!(
+        "\n  Requests per phase: {requests:.0}. Overhead is (gateway - direct) after removing idle,"
+    );
+    println!("  so the mock upstream, the HTTP client and the OS cancel out of the figure.");
+    println!(
+        "  Mean added power at {rps} rps: {:.3} W\n",
+        via.first()
+            .zip(direct.first())
+            .map(|(g, d)| g.watts() - d.watts())
+            .unwrap_or(0.0)
+    );
+    println!("  Caveat: package RAPL includes every block on the SoC. On an Intel Core Ultra that");
+    println!("  means the NPU too, with no separate domain — NPU energy has to be obtained by");
+    println!("  differencing workloads, never read directly. See docs/benchmarks.md.");
+}
+
+/// Drive `url` at a fixed rate for `duration_s`, sampling energy across the interval.
+/// `None` runs the idle phase: same duration, no requests.
+async fn run_phase(
+    client: &reqwest::Client,
+    url: Option<&str>,
+    payload: &Value,
+    rps: u64,
+    duration_s: u64,
+    reader: &sentin_proxy::energy::Reader,
+) -> Vec<sentin_proxy::energy::Measurement> {
+    use sentin_proxy::energy::{elapsed, Measurement};
+
+    // Let the previous phase's heat and turbo state settle before sampling.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let start = reader.sample();
+    match url {
+        None => tokio::time::sleep(Duration::from_secs(duration_s)).await,
+        Some(url) => {
+            let period = Duration::from_secs_f64(1.0 / rps as f64);
+            let mut ticker = tokio::time::interval(period);
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            let deadline = Instant::now() + Duration::from_secs(duration_s);
+            while Instant::now() < deadline {
+                ticker.tick().await;
+                if let Ok(response) = client.post(url).json(payload).send().await {
+                    let _ = response.bytes().await;
+                }
+            }
+        }
+    }
+    let end = reader.sample();
+
+    let duration = elapsed(&start, &end);
+    reader
+        .delta_uj(&start, &end)
+        .into_iter()
+        .map(|(domain, uj)| Measurement {
+            domain,
+            energy_j: uj as f64 / 1_000_000.0,
+            duration,
+        })
+        .collect()
 }
