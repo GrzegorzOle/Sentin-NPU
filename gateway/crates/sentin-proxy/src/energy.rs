@@ -33,10 +33,34 @@ use std::time::{Duration, Instant};
 
 const POWERCAP: &str = "/sys/class/powercap";
 
+/// Name of the energy backend, recorded with every measurement.
+///
+/// Numbers from different backends are **not** interchangeable — RAPL counts package energy in
+/// silicon, Intel PCM reads the same counters through a kernel driver with its own sampling, and a
+/// battery gauge measures the whole platform including the screen. Putting them in one column
+/// would be a category error, so the name travels with the result.
+pub const BACKEND: &str = if cfg!(target_os = "linux") {
+    "powercap-rapl"
+} else {
+    "unavailable"
+};
+
 #[derive(Debug, thiserror::Error)]
 pub enum EnergyError {
     #[error("no RAPL domains found under {POWERCAP} — this kernel or CPU does not expose them")]
     Unsupported,
+    #[error(
+        "no energy backend on this platform.\n\
+         Windows has no powercap sysfs; RAPL is reachable only through a signed kernel driver.\n\
+         Options, in order of preference for this project:\n  \
+           1. Run the energy measurements on the Intel Core Ultra *Linux* installation — same\n     \
+              powercap interface as the dev machine, so the numbers are directly comparable.\n  \
+           2. Intel PCM (`pcm-power.exe`, needs its driver and an elevated shell), recorded as a\n     \
+              separate backend and never mixed into a RAPL column.\n  \
+           3. HWiNFO CSV logging, for indicative figures only.\n\
+         Windows remains the platform for functional verification (Phase 5)."
+    )]
+    UnsupportedPlatform,
     #[error(
         "RAPL counters are root-readable only (PLATYPUS mitigation).\n\
          Grant read access once with:\n  \
@@ -127,6 +151,9 @@ impl Reader {
     /// [`EnergyError::Unsupported`] when no domains exist, [`EnergyError::PermissionDenied`] when
     /// they exist but cannot be read.
     pub fn new() -> Result<Self, EnergyError> {
+        if !cfg!(target_os = "linux") {
+            return Err(EnergyError::UnsupportedPlatform);
+        }
         let domains = domains();
         if domains.is_empty() {
             return Err(EnergyError::Unsupported);

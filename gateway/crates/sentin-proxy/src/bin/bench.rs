@@ -52,6 +52,7 @@ async fn main() {
             &upstream,
             flag("--rps", 10),
             flag("--duration", 30),
+            json_out,
         )
         .await;
         return;
@@ -304,17 +305,24 @@ fn percentile(samples: &mut [Duration], quantile: f64) -> Duration {
 /// The three phases are idle, direct-to-upstream, and via-gateway. Idle is subtracted from both
 /// workloads, and the *difference between the two workloads* is the gateway's own cost — anything
 /// common to both (the mock, the HTTP client, the OS) cancels out.
-async fn energy_mode(client: &reqwest::Client, upstream: &str, rps: u64, duration_s: u64) {
+async fn energy_mode(
+    client: &reqwest::Client,
+    upstream: &str,
+    rps: u64,
+    duration_s: u64,
+    json_out: Option<String>,
+) {
     use sentin_proxy::energy::{Measurement, Reader};
+    use sentin_proxy::fingerprint::Machine;
 
     println!("Sentin-NPU energy harness (M5b)\n");
 
     let reader = match Reader::new() {
         Ok(reader) => reader,
         Err(err) => {
-            eprintln!("Cannot read RAPL counters.\n\n{err}\n");
+            eprintln!("Cannot measure energy on this machine.\n\n{err}\n");
             eprintln!(
-                "Domains present on this machine: {:?}",
+                "Domains present: {:?}",
                 sentin_proxy::energy::domains()
                     .iter()
                     .map(|d| d.name.clone())
@@ -324,9 +332,23 @@ async fn energy_mode(client: &reqwest::Client, upstream: &str, rps: u64, duratio
         }
     };
 
-    println!("  RAPL domains : {:?}", reader.domain_names());
+    let machine = Machine::detect(sentin_proxy::energy::BACKEND, reader.domain_names());
+    println!("  machine      : {}", machine.label());
+    println!("  domains      : {:?}", machine.energy_domains);
     println!("  rate         : {rps} rps");
-    println!("  phase length : {duration_s} s each (idle, direct, gateway)\n");
+    println!("  phase length : {duration_s} s each (idle, direct, gateway)");
+
+    // Say this before spending three phases producing a number nobody can compare with anything.
+    let warnings = machine.comparability_warnings();
+    if warnings.is_empty() {
+        println!("  comparability: OK\n");
+    } else {
+        println!("\n  COMPARABILITY WARNINGS - the result is valid for this configuration only:");
+        for warning in &warnings {
+            println!("    * {warning}");
+        }
+        println!();
+    }
 
     let payload = payload_of_roughly(1024);
     let gateway = spawn_gateway(upstream, "true", "passthrough", "mask").await;
@@ -401,6 +423,41 @@ async fn energy_mode(client: &reqwest::Client, upstream: &str, rps: u64, duratio
     println!("  Caveat: package RAPL includes every block on the SoC. On an Intel Core Ultra that");
     println!("  means the NPU too, with no separate domain — NPU energy has to be obtained by");
     println!("  differencing workloads, never read directly. See docs/benchmarks.md.");
+
+    if let Some(path) = json_out {
+        // The fingerprint says whose result this is. Reports are per-machine on purpose: the
+        // question is what the gateway costs on *this* hardware, not how two CPUs compare.
+        let report = json!({
+            "metric": "M5b",
+            "machine": machine,
+            "comparability_warnings": warnings,
+            "rate_rps": rps,
+            "phase_duration_s": duration_s,
+            "requests_per_phase": requests,
+            "domains": via.iter().map(|m| {
+                let name = &m.domain;
+                let idle_w = idle_watts.iter().find(|(n, _)| n == name).map_or(0.0, |(_, w)| *w);
+                let direct_w = direct.iter().find(|d| &d.domain == name)
+                    .map_or(0.0, Measurement::watts);
+                let direct_active = direct.iter().find(|d| &d.domain == name)
+                    .map_or(0.0, |d| d.active_energy_j(idle_w));
+                json!({
+                    "domain": name,
+                    "idle_w": idle_w,
+                    "direct_w": direct_w,
+                    "gateway_w": m.watts(),
+                    "overhead_mj_per_request":
+                        (m.active_energy_j(idle_w) - direct_active) * 1000.0 / requests,
+                })
+            }).collect::<Vec<_>>(),
+        });
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&report).unwrap_or_default(),
+        )
+        .unwrap_or_else(|err| eprintln!("could not write {path}: {err}"));
+        println!("\n  wrote {path}");
+    }
 }
 
 /// Drive `url` at a fixed rate for `duration_s`, sampling energy across the interval.

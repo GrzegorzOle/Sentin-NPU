@@ -282,13 +282,65 @@ echo 'SUBSYSTEM=="powercap", ACTION=="add", RUN+="/bin/chmod a+r /sys%p/energy_u
 Windows has no RAPL sysfs. Intel PCM or an HWiNFO CSV log is the fallback; the two are not
 interchangeable, so the method belongs in the result.
 
-### M5b results
+### Running M5b on another machine
 
-| Machine | Rate | Domain | Idle (W) | Direct (W) | Gateway (W) | Overhead (mJ/req) |
-|---|---|---|---|---|---|---|
-| dev (AMD Ryzen AI 7 350) | — | — | — | — | — | not yet run — `energy_uj` is root-only on this machine |
-| Intel Core Ultra / Linux | — | — | — | — | — | pending hardware |
-| Intel Core Ultra / Windows | — | — | — | — | — | pending; needs Intel PCM |
+**Reports are per-machine, not merged.** The question M5b answers is "what does the gateway cost on
+*this* hardware" — an Intel machine reports its own overhead, an AMD machine reports its own. There
+is no cross-architecture comparison table, because comparing gateway overhead between different
+silicon says more about the two CPUs than about the gateway, and neither number transfers to a
+third machine anyway.
+
+What *does* travel with each result is the machine fingerprint, so a number is never orphaned from
+the conditions that produced it:
+
+```json
+{ "cpu_model": "...", "os": "...", "kernel": "...",
+  "cpu_governor": "performance", "platform_profile": "performance",
+  "on_ac_power": true, "energy_backend": "powercap-rapl",
+  "energy_domains": ["core", "package-0"] }
+```
+
+Before measuring, the harness checks that fingerprint and **warns rather than silently producing an
+incomparable number**. Governor, ACPI profile and AC/battery each move the result enough to matter,
+and six months later nobody remembers how a given run was configured.
+
+Procedure on the Intel Core Ultra:
+
+```bash
+# 1. Rust, if not already present (the harness is built from source; a portable
+#    binary is Phase 7's job -- see the blocker note below)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 2. Unlock the counters (same PLATYPUS restriction as everywhere else)
+sudo chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj
+
+# 3. Pin the machine so the run is repeatable
+sudo cpupower frequency-set -g performance
+echo performance | sudo tee /sys/firmware/acpi/platform_profile     # if present
+#    leave it on mains
+
+# 4. Measure, into that machine's own report
+cargo run --release -p sentin-proxy --bin sentin-bench -- \
+    --energy --rps 10 --duration 60 --json docs/energy-intel-linux.json
+```
+
+Use the **Linux** installation on the Intel machine for energy work. Windows has no powercap sysfs;
+RAPL there is reachable only through a signed kernel driver (Intel PCM), which is a different
+backend with its own sampling, and its numbers must not be put in a column next to RAPL ones.
+Windows stays the platform for functional verification, as Phase 5 already plans.
+
+**Known blocker for a portable binary (Phase 7):** a static `x86_64-unknown-linux-musl` build fails
+because `aws-lc-sys`, the default rustls crypto provider, needs a C toolchain for musl. Either
+install `musl-gcc` on the build host or switch reqwest to `rustls-no-provider` and install the ring
+provider explicitly. Until that is resolved the test machine needs a Rust toolchain.
+
+### M5b results — per machine
+
+| Machine | Backend | Governor / profile | Rate | Domain | Idle (W) | Direct (W) | Gateway (W) | Overhead (mJ/req) |
+|---|---|---|---|---|---|---|---|---|
+| dev — AMD Ryzen AI 7 350, Fedora | powercap-rapl | powersave / balanced | — | — | — | — | — | not run: `energy_uj` root-only here |
+| Intel Core Ultra, Linux | powercap-rapl | — | — | — | — | — | — | pending |
+| Intel Core Ultra, Windows 11 | Intel PCM | — | — | — | — | — | — | pending; separate backend, not comparable to the rows above |
 
 ### M5 results — per inference device (B4)
 

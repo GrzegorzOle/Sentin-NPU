@@ -10,6 +10,7 @@
 pub mod adapters;
 pub mod config;
 pub mod energy;
+pub mod fingerprint;
 pub mod inspect;
 pub mod mock;
 pub mod stream;
