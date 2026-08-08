@@ -13,6 +13,7 @@ use serde_json::Value;
 
 use crate::adapters::{self, Provider};
 use crate::config::{detector_key, Config};
+use crate::ner_service::{NerService, Skipped};
 
 /// What inspection concluded about one request. Metadata only, never content.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +30,9 @@ pub struct Inspection {
     pub findings: Vec<FindingSummary>,
     /// Present only when something was actually rewritten.
     pub masked_body: Option<Value>,
+    /// Set when layer 2 did not contribute. The caller applies the timeout policy — inspection
+    /// reports what happened and does not decide to refuse traffic on its own.
+    pub ner_skipped: Option<Skipped>,
 }
 
 impl Inspection {
@@ -38,6 +42,7 @@ impl Inspection {
             decision: Decision::Observed,
             findings: Vec::new(),
             masked_body: None,
+            ner_skipped: None,
         }
     }
 
@@ -56,19 +61,38 @@ impl Inspection {
 }
 
 /// Inspect a parsed request body against the configured policy.
-#[must_use]
-pub fn inspect_request(body: &Value, provider: Provider, config: &Config) -> Inspection {
+///
+/// Layer 1 runs inline; layer 2, when a service is supplied, runs on its own thread with a
+/// timeout. A layer-2 timeout is reported through [`Inspection::ner_skipped`] rather than being
+/// resolved here, because whether that should forward or refuse the request is operator policy.
+pub async fn inspect_request(
+    body: &Value,
+    provider: Provider,
+    config: &Config,
+    ner: Option<&NerService>,
+) -> Inspection {
     let pointers = provider.text_pointers(body);
     let mut findings = Vec::new();
     let mut overall = Decision::Observed;
     let mut rewrites: Vec<(String, String)> = Vec::new();
+    let mut ner_skipped: Option<Skipped> = None;
 
     for pointer in pointers {
         let Some(text) = adapters::read_text(body, &pointer) else {
             continue;
         };
 
-        let detected = detect(text);
+        let mut detected = detect(text);
+        if let Some(service) = ner {
+            match service.inspect(text).await {
+                Ok(entities) => detected.extend(entities),
+                // Record the first reason and carry on with layer 1: partial inspection is worth
+                // more than none, and the caller still learns that layer 2 was incomplete.
+                Err(reason) => {
+                    ner_skipped.get_or_insert(reason);
+                }
+            }
+        }
         if detected.is_empty() {
             continue;
         }
@@ -108,6 +132,7 @@ pub fn inspect_request(body: &Value, provider: Provider, config: &Config) -> Ins
         decision: overall,
         findings,
         masked_body,
+        ner_skipped,
     }
 }
 
@@ -151,12 +176,12 @@ mod tests {
         .expect("valid config")
     }
 
-    #[test]
-    fn masking_replaces_the_identifier_and_nothing_else() {
+    #[tokio::test]
+    async fn masking_replaces_the_identifier_and_nothing_else() {
         let pesel = testdata::pesel(1944, 5, 14, 135);
         let body = json!({"messages": [{"role": "user", "content": format!("Mój PESEL to {pesel}, dziękuję.")}]});
 
-        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"));
+        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"), None).await;
 
         assert_eq!(result.decision, Decision::Masked);
         let masked = result.masked_body.expect("body was rewritten");
@@ -166,39 +191,39 @@ mod tests {
         );
     }
 
-    #[test]
-    fn masking_is_correct_with_several_findings_in_one_field() {
+    #[tokio::test]
+    async fn masking_is_correct_with_several_findings_in_one_field() {
         let first = testdata::pesel(1944, 5, 14, 135);
         let second = testdata::pesel(1985, 1, 1, 1234);
         let body = json!({"messages": [{"role": "user",
             "content": format!("A: {first} oraz B: {second} koniec")}]});
 
-        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"));
+        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"), None).await;
         assert_eq!(
             result.masked_body.expect("rewritten")["messages"][0]["content"],
             "A: [PESEL] oraz B: [PESEL] koniec"
         );
     }
 
-    #[test]
-    fn masking_preserves_multibyte_text_around_the_span() {
+    #[tokio::test]
+    async fn masking_preserves_multibyte_text_around_the_span() {
         let pesel = testdata::pesel(1944, 5, 14, 135);
         let body = json!({"messages": [{"role": "user",
             "content": format!("Zażółć gęślą jaźń {pesel} zażółć")}]});
 
-        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"));
+        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"), None).await;
         assert_eq!(
             result.masked_body.expect("rewritten")["messages"][0]["content"],
             "Zażółć gęślą jaźń [PESEL] zażółć"
         );
     }
 
-    #[test]
-    fn configured_block_is_honoured_for_checksum_findings() {
+    #[tokio::test]
+    async fn configured_block_is_honoured_for_checksum_findings() {
         let pesel = testdata::pesel(1944, 5, 14, 135);
         let body = json!({"messages": [{"role": "user", "content": pesel}]});
 
-        let result = inspect_request(&body, Provider::OpenAi, &config_with("block"));
+        let result = inspect_request(&body, Provider::OpenAi, &config_with("block"), None).await;
         assert_eq!(result.decision, Decision::Blocked);
         assert!(
             result.masked_body.is_none(),
@@ -206,11 +231,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn configured_block_cannot_block_a_pattern_only_finding() {
+    #[tokio::test]
+    async fn configured_block_cannot_block_a_pattern_only_finding() {
         let body = json!({"messages": [{"role": "user", "content": "pisz na jan@example.com"}]});
 
-        let result = inspect_request(&body, Provider::OpenAi, &config_with("block"));
+        let result = inspect_request(&body, Provider::OpenAi, &config_with("block"), None).await;
 
         // The operator asked for `block`; the evidence only supports masking.
         assert_eq!(result.decision, Decision::Masked);
@@ -220,12 +245,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn observe_mode_forwards_the_body_unchanged() {
+    #[tokio::test]
+    async fn observe_mode_forwards_the_body_unchanged() {
         let pesel = testdata::pesel(1944, 5, 14, 135);
         let body = json!({"messages": [{"role": "user", "content": pesel}]});
 
-        let result = inspect_request(&body, Provider::OpenAi, &config_with("observe"));
+        let result = inspect_request(&body, Provider::OpenAi, &config_with("observe"), None).await;
         assert_eq!(result.decision, Decision::Observed);
         assert!(result.masked_body.is_none());
         assert_eq!(
@@ -235,12 +260,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn summaries_never_contain_the_detected_text() {
+    #[tokio::test]
+    async fn summaries_never_contain_the_detected_text() {
         let pesel = testdata::pesel(1944, 5, 14, 135);
         let body = json!({"messages": [{"role": "user", "content": pesel.clone()}]});
 
-        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"));
+        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"), None).await;
         let summary = result.summary();
 
         assert!(
@@ -250,10 +275,10 @@ mod tests {
         assert_eq!(summary, "pesel:Masked");
     }
 
-    #[test]
-    fn clean_requests_are_not_copied() {
+    #[tokio::test]
+    async fn clean_requests_are_not_copied() {
         let body = json!({"messages": [{"role": "user", "content": "zwykłe pytanie o pogodę"}]});
-        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"));
+        let result = inspect_request(&body, Provider::OpenAi, &config_with("mask"), None).await;
 
         assert_eq!(result.decision, Decision::Observed);
         assert!(result.findings.is_empty());

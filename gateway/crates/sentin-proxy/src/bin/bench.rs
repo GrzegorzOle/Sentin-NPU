@@ -124,6 +124,72 @@ async fn main() {
     );
     println!("  added p95, L1 inspection  : {overhead_l1_p95:+.3} ms   (informational; M2b covers the full pipeline)");
 
+    // ---- M2b: full pipeline, layer 1 + layer 2 ---------------------------------------------
+    // Only meaningful when the IR is present; skipping is reported rather than silently omitted.
+    let model_dir = std::path::Path::new("models/herbert/int8/seq128");
+    if model_dir.join("openvino_model.xml").exists() {
+        let ner_payload = json!({"model": "bench", "messages": [{"role": "user",
+            "content": "Klient Marek Nowak z Warszawy zlozyl wniosek o kredyt w Alterna Logistyka."}]});
+        let gateway_l2 = spawn_gateway_with_model(
+            &upstream,
+            "true",
+            "passthrough",
+            "mask",
+            "models/herbert/int8/seq128",
+            "CPU",
+        )
+        .await;
+        let l2 = measure(
+            &client,
+            &format!("{gateway_l2}/openai/v1/chat/completions"),
+            &ner_payload,
+            SAMPLES / 5,
+        )
+        .await;
+        let l1_same_payload = measure(
+            &client,
+            &format!("{gateway_l1}/openai/v1/chat/completions"),
+            &ner_payload,
+            SAMPLES / 5,
+        )
+        .await;
+
+        println!("\nM2b — full pipeline (L1+L2), device CPU, seq 128");
+        println!(
+            "  {:<34}{:>10}{:>10}",
+            "configuration", "p50 (ms)", "p95 (ms)"
+        );
+        for (label, stats) in [
+            ("via gateway, L1 only", &l1_same_payload),
+            ("via gateway, L1 + L2 (NER)", &l2),
+        ] {
+            println!(
+                "  {:<34}{:>10.3}{:>10.3}",
+                label,
+                stats.p50.as_secs_f64() * 1000.0,
+                stats.p95.as_secs_f64() * 1000.0
+            );
+            results.push(json!({
+                "metric": "M2b", "configuration": label,
+                "p50_ms": stats.p50.as_secs_f64() * 1000.0,
+                "p95_ms": stats.p95.as_secs_f64() * 1000.0,
+            }));
+        }
+        let added_p95 = sub_ms(l2.p95, direct.p95);
+        println!(
+            "  added p95 vs direct: {added_p95:+.2} ms   [{}]",
+            if added_p95 < 150.0 {
+                "PASS (< 150 ms on CPU)"
+            } else {
+                "FAIL"
+            }
+        );
+    } else {
+        println!(
+            "\nM2b — SKIPPED: no IR at models/herbert/int8/seq128 (run tools/prepare_model.py)"
+        );
+    }
+
     // ---- M2c: streaming, time to first token ----------------------------------------------
     println!("\nM2c — streaming, time to first byte reaching the client");
     println!(
@@ -204,10 +270,25 @@ fn payload_of_roughly(target: usize) -> Value {
 }
 
 async fn spawn_gateway(upstream: &str, inspect: &str, strategy: &str, mode: &str) -> String {
+    spawn_gateway_with_model(upstream, inspect, strategy, mode, "", "CPU").await
+}
+
+/// Same, but with layer 2 loaded from `model_dir` (empty disables it).
+async fn spawn_gateway_with_model(
+    upstream: &str,
+    inspect: &str,
+    strategy: &str,
+    mode: &str,
+    model_dir: &str,
+    device: &str,
+) -> String {
     let yaml = format!(
         "providers:\n  openai:\n    prefix: /openai\n    upstream: {upstream}\n\
-         detectors:\n  pesel: {{ mode: {mode} }}\n  email: {{ mode: {mode} }}\n\
-         inspect:\n  request: {inspect}\n  stream_strategy: {strategy}\n"
+         detectors:\n  pesel: {{ mode: {mode} }}\n  email: {{ mode: {mode} }}\n  \
+           person: {{ mode: advise }}\n  organization: {{ mode: advise }}\n  \
+           location: {{ mode: observe }}\n\
+         inspect:\n  request: {inspect}\n  stream_strategy: {strategy}\n\
+         inference:\n  device: {device}\n  model_dir: {model_dir}\n  timeout_ms: 5000\n"
     );
     let config: Config = serde_yaml_ng::from_str(&yaml).expect("bench config parses");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -215,7 +296,7 @@ async fn spawn_gateway(upstream: &str, inspect: &str, strategy: &str, mode: &str
         .expect("bind gateway");
     let address = listener.local_addr().expect("addr");
     tokio::spawn(async move {
-        let _ = sentin_proxy::serve(listener, AppState::new(config)).await;
+        let _ = sentin_proxy::serve(listener, AppState::with_inference(config)).await;
     });
     format!("http://{address}")
 }

@@ -73,7 +73,7 @@ async fn main() -> ExitCode {
         "sentin-gateway listening"
     );
 
-    if let Err(err) = serve(listener, AppState::new(config)).await {
+    if let Err(err) = serve(listener, AppState::with_inference(config)).await {
         eprintln!("sentin-gateway: {err}");
         return ExitCode::FAILURE;
     }

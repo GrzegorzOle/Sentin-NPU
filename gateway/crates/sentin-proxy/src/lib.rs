@@ -14,6 +14,7 @@ pub mod energy;
 pub mod fingerprint;
 pub mod inspect;
 pub mod mock;
+pub mod ner_service;
 pub mod stream;
 
 use std::sync::Arc;
@@ -51,12 +52,50 @@ const SECRET_HEADERS: [&str; 3] = ["authorization", "x-api-key", "x-goog-api-key
 pub struct AppState {
     pub config: Arc<Config>,
     pub client: reqwest::Client,
+    /// Layer 2, when a model is configured and loads. `None` means layer 1 only — a missing or
+    /// broken model degrades the gateway rather than stopping it.
+    pub ner: Option<Arc<crate::ner_service::NerService>>,
 }
 
 impl AppState {
+    /// Build state without layer 2.
     #[must_use]
     pub fn new(config: Config) -> Self {
+        Self::with_ner(config, None)
+    }
+
+    /// Build state, starting layer 2 if the configuration enables it.
+    ///
+    /// A model that will not load is logged and skipped, not fatal: layer 1 catches structured
+    /// identifiers on its own, and refusing to start would turn a model problem into an outage.
+    #[must_use]
+    pub fn with_inference(config: Config) -> Self {
+        let ner = if config.inference.is_enabled() {
+            match crate::ner_service::NerService::start(&config.inference) {
+                Ok(service) => {
+                    tracing::info!(
+                        device = %service.device(),
+                        fell_back = service.fell_back(),
+                        policy = ?service.policy(),
+                        "layer 2 ready"
+                    );
+                    Some(Arc::new(service))
+                }
+                Err(err) => {
+                    tracing::warn!(error = %err, "layer 2 unavailable; continuing with layer 1");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        Self::with_ner(config, ner)
+    }
+
+    #[must_use]
+    pub fn with_ner(config: Config, ner: Option<Arc<crate::ner_service::NerService>>) -> Self {
         Self {
+            ner,
             config: Arc::new(config),
             // No timeout here: streamed completions legitimately run for minutes. Inspection has
             // its own timeout; the upstream call does not get to be the thing that gives up.
@@ -133,7 +172,25 @@ async fn proxy(State(state): State<AppState>, request: Request) -> Response {
             Provider::from_name(&provider_name),
             serde_json::from_slice::<Value>(&bytes),
         ) {
-            verdict = inspect_request(&json, schema, &state.config);
+            verdict = inspect_request(&json, schema, &state.config, state.ner.as_deref()).await;
+
+            // Layer 2 not contributing is an operator decision, not inspection's: fail-open
+            // forwards with a warning, fail-closed refuses.
+            if let Some(reason) = &verdict.ner_skipped {
+                match state.config.inference.timeout_policy {
+                    crate::config::TimeoutPolicy::FailOpen => tracing::warn!(
+                        ?reason,
+                        "layer 2 skipped; forwarding on layer 1 only (fail-open)"
+                    ),
+                    crate::config::TimeoutPolicy::FailClosed => {
+                        tracing::warn!(?reason, "layer 2 skipped; refusing (fail-closed)");
+                        return error(
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            "inspection could not complete and policy is fail-closed",
+                        );
+                    }
+                }
+            }
 
             if verdict.decision == Decision::Blocked {
                 tracing::info!(

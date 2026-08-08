@@ -19,6 +19,8 @@ pub struct Config {
     pub detectors: HashMap<String, DetectorRule>,
     #[serde(default)]
     pub inspect: Inspect,
+    #[serde(default)]
+    pub inference: Inference,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -42,6 +44,61 @@ impl Default for Listen {
 pub struct Provider {
     pub prefix: String,
     pub upstream: String,
+}
+
+/// Layer-2 inference settings.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Inference {
+    /// `NPU`, `GPU`, `CPU` or `AUTO`. Resolved at load time; the device that actually ran is
+    /// logged, because `AUTO` can pick something other than what the operator expected.
+    #[serde(default = "default_device")]
+    pub device: String,
+    /// Directory holding the IR. Empty disables layer 2 entirely.
+    #[serde(default)]
+    pub model_dir: String,
+    #[serde(default = "default_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default)]
+    pub timeout_policy: TimeoutPolicy,
+}
+
+impl Default for Inference {
+    fn default() -> Self {
+        Self {
+            device: default_device(),
+            model_dir: String::new(),
+            timeout_ms: default_timeout_ms(),
+            timeout_policy: TimeoutPolicy::default(),
+        }
+    }
+}
+
+impl Inference {
+    /// Layer 2 runs only when a model directory is configured.
+    #[must_use]
+    pub fn is_enabled(&self) -> bool {
+        !self.model_dir.is_empty()
+    }
+}
+
+fn default_device() -> String {
+    "AUTO".to_string()
+}
+
+fn default_timeout_ms() -> u64 {
+    250
+}
+
+/// What to do when inspection does not finish in time.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeoutPolicy {
+    /// Forward the request uninspected. The PoC default: the gateway sits in the path of real
+    /// work, and a slow model must not become an outage.
+    #[default]
+    FailOpen,
+    /// Refuse the request. Correct where policy demands inspection, at the cost of availability.
+    FailClosed,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]

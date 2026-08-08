@@ -25,7 +25,7 @@ A number without that context is not a result.
 |---|---|---|---|
 | M1 | L1 throughput (MB/s) | > 100 MB/s | **PASS** — 296-1252 MB/s, see below |
 | M2a | Proxy overhead, no inspection | p95 < 5 ms | **PASS** — +0.07 ms |
-| M2b | Full pipeline overhead (L1+L2) | p95 < 150 ms CPU / < 80 ms NPU | awaits L2 (Phase 4) |
+| M2b | Full pipeline overhead (L1+L2) | p95 < 150 ms CPU / < 80 ms NPU | **PASS on CPU** — +10.8 ms; NPU pending |
 | M2c | Streaming TTFT impact | decided by B2; always reported | **measured** — see B2 |
 | M3 | INT8 quality degradation | ΔF1 < 2 pp | **PASS** — see B1 below |
 | M4 | NER quality PL+EN | reported, no hard threshold | preliminary, see B1 |
@@ -95,6 +95,28 @@ The L1-on and L1-off columns are indistinguishable, and that is expected rather 
 scanning 1 KB at the measured layer-1 throughput takes about a microsecond, against ~70 µs of
 proxy overhead. The difference between those two rows is run-to-run noise, not a speed-up from
 enabling inspection.
+
+### M2b — full pipeline with layer 2 (threshold p95 < 150 ms on CPU)
+
+Device **CPU explicitly**, not `AUTO`: on this machine `AUTO` resolves to the NVIDIA dGPU reached
+through the OpenCL ICD, which runs the same model in ~116 ms against ~12 ms on CPU. The priority
+order (NPU > GPU > CPU) is right for Intel, where `GPU` means the iGPU, but here it would have
+measured the wrong device.
+
+HerBERT INT8, sequence 128, payload containing a person, a location and an organisation.
+
+| Configuration | p50 (ms) | p95 (ms) |
+|---|---|---|
+| Via gateway, layer 1 only | 0.063 | 0.127 |
+| Via gateway, layer 1 + layer 2 | 9.286 | 10.872 |
+
+**Added p95 versus direct: +10.8 ms — PASS, roughly 14× headroom against the 150 ms budget.**
+
+The figure tracks the steady-state inference time `--doctor` reports for the same model (11.7 ms),
+which is the reassuring outcome: the pipeline costs one inference and almost nothing else. Layer 2
+runs on a dedicated thread reached over a channel, so it does not block the tokio workers, and a
+timeout is resolved by operator policy — fail-open by default, because a stalled model must not
+become an outage.
 
 ### M2c — streaming, and the decision for B2
 
