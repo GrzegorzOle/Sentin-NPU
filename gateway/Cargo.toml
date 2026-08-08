@@ -39,6 +39,8 @@ futures-util = "0.3"
 bytes = "1"
 # serde_yaml is archived upstream; serde_yaml_ng is the maintained fork.
 serde_yaml_ng = "0.10"
+# runtime-linking: dlopen at startup, so no OpenVINO installation is needed to *build*.
+openvino = { version = "0.11", features = ["runtime-linking"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 proptest = "1"

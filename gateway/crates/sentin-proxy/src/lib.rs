@@ -9,6 +9,7 @@
 
 pub mod adapters;
 pub mod config;
+pub mod doctor;
 pub mod energy;
 pub mod fingerprint;
 pub mod inspect;

@@ -102,6 +102,65 @@ time.
 
 ---
 
+## Quantization silently destroys static shapes — check before blaming the NPU
+
+**The single most important finding so far for anyone taking a quantized model to an NPU.**
+
+`OVQuantizer.quantize()` returns a model whose inputs are **dynamic**, discarding a reshape applied
+before it:
+
+| Variant | Input shape |
+|---|---|
+| `fp32/seq128` | `[1,128]` — static, as exported |
+| `int8/seq128` *(before the fix)* | `[?,?]` — **dynamic** |
+
+Static shapes are an NPU requirement. Shipping the quantized model as produced would therefore
+have made the NPU reject it, and the symptom would have read as *"the NPU cannot run our model"*
+rather than *"our toolchain silently un-reshaped it"* — a wrong conclusion, drawn on scarce
+hardware, and quite possibly reported upstream as an OpenVINO defect.
+
+`tools/quantize.py` now re-applies the reshape after quantization and **verifies it took**, failing
+loudly if the model is still dynamic.
+
+Two further traps in the fix itself:
+
+- **Never re-save an IR into the directory it was loaded from.** OpenVINO keeps the weights file
+  mapped while the model is live, so saving in place truncates the `.bin` and leaves an IR that no
+  longer parses at all — `Unable to read the model ... Available frontends: ir jax onnx ...`, which
+  looks like a corrupt download rather than self-inflicted damage. Write to a sibling directory and
+  swap.
+- `save_pretrained` does not re-emit the tokenizer or `config.json`, so those must be copied across
+  or the model becomes unusable to the scorer.
+
+This was caught by `--doctor` on a machine with **no** NPU at all, which is the point of having it.
+
+## Diagnostics: `sentin-gateway --doctor`
+
+One command that reports what a machine can actually do, and the mechanism behind `npu-report`
+issues. It compiles and executes the real IR on every enumerated device rather than reading
+capability lists, because a device that enumerates may still refuse the model.
+
+```bash
+sentin-gateway --doctor \
+  --model models/herbert/int8/seq128/openvino_model.xml \
+  --json my-machine.json
+```
+
+Result on the dev machine (AMD, no NPU), OpenVINO 2026.3, HerBERT INT8 seq128:
+
+| Device | Compiles | Compile (ms) | First infer (ms) | Steady (ms) |
+|---|---|---|---|---|
+| CPU — AMD Ryzen AI 7 350 | yes | 686 | 14.3 | **11.7** |
+| GPU — NVIDIA RTX 5070 (via OpenCL ICD) | yes | 706 | 116.5 | 116.0 |
+
+The NVIDIA path runs the full transformer correctly but roughly ten times slower than CPU, which
+is what an unsupported configuration should be expected to look like. First-inference time is
+reported separately from steady state because on an NPU the first call includes graph setup and
+the difference is a deployment concern, not a rounding error.
+
+Without the OpenVINO libraries the command still produces a machine report and says exactly what
+is missing, rather than failing opaquely.
+
 ## Binding OpenVINO from Rust (verified 2026-08-08)
 
 The gateway runtime is Rust, so it reaches OpenVINO through the [`openvino`](https://crates.io/crates/openvino)

@@ -95,6 +95,47 @@ def build_calibration_dataset(
     return combined.remove_columns([c for c in combined.column_names if c not in wanted])
 
 
+def restore_static_shape(model_dir: Path, seq: int) -> None:
+    """Re-apply the static shape a quantized IR loses, and verify it took.
+
+    Written to a sibling directory and swapped in, never saved over the source. OpenVINO keeps the
+    weights file mapped while the model is loaded, so re-saving into the directory it was read from
+    truncates the ``.bin`` and leaves an IR that no longer parses at all.
+    """
+    staging = model_dir.with_name(model_dir.name + ".reshaped")
+    if staging.exists():
+        shutil.rmtree(staging)
+
+    model = OVModelForTokenClassification.from_pretrained(model_dir)
+    model.reshape(batch_size=1, sequence_length=seq)
+    model.save_pretrained(staging)
+    # Tokenizer and config live beside the weights and are not re-emitted by save_pretrained.
+    for name in (
+        "config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+        "vocab.json",
+        "merges.txt",
+    ):
+        source_file = model_dir / name
+        if source_file.exists() and not (staging / name).exists():
+            shutil.copy(source_file, staging / name)
+    del model
+
+    # Verify before destroying the original: this is the property the NPU depends on, and a silent
+    # regression would only surface on hardware that is hard to get hold of.
+    reloaded = ov.Core().read_model(staging / "openvino_model.xml")
+    if reloaded.is_dynamic():
+        shapes = [(i.get_any_name(), str(i.get_partial_shape())) for i in reloaded.inputs]
+        raise SystemExit(f"{staging}: shapes are still dynamic after reshape: {shapes}")
+    del reloaded
+
+    shutil.rmtree(model_dir)
+    staging.rename(model_dir)
+    logger.info("%s: static shape restored to [1, %d]", model_dir, seq)
+
+
 def quantize(key: str, seq: int, num_samples: int, *, weights_only: bool, overwrite: bool) -> None:
     source = reg.model_dir(key, "fp32", seq)
     target = reg.model_dir(key, "int8", seq)
@@ -124,6 +165,12 @@ def quantize(key: str, seq: int, num_samples: int, *, weights_only: bool, overwr
     # The scorer reads id2label from config.json; the quantizer does not always carry it over.
     if not (target / "config.json").exists():
         shutil.copy(source / "config.json", target / "config.json")
+
+    # Quantization discards the static shapes: a source IR of [1, seq] comes back as [?, ?].
+    # That matters far beyond tidiness — static shapes are an NPU requirement, so shipping the
+    # quantized model as produced would make the NPU reject it, and the failure would look like
+    # "the NPU cannot run our model" rather than "our toolchain silently un-reshaped it".
+    restore_static_shape(target, seq)
 
     fp32_mb, int8_mb = reg.dir_size_mb(source), reg.dir_size_mb(target)
     logger.info(

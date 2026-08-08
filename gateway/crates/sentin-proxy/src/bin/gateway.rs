@@ -20,8 +20,33 @@ async fn main() -> ExitCode {
         )
         .init();
 
-    let path = std::env::args()
-        .nth(1)
+    let args: Vec<String> = std::env::args().collect();
+
+    // --doctor is the diagnostic path: report what this machine can actually do and exit. It is
+    // deliberately available in the shipped binary rather than a dev-only tool, because the people
+    // with Intel NPUs are the ones who need to run it.
+    if args.iter().any(|a| a == "--doctor") {
+        let flag = |name: &str| args.windows(2).find(|w| w[0] == name).map(|w| w[1].clone());
+        let model = flag("--model").map(std::path::PathBuf::from);
+        let report = sentin_proxy::doctor::run(model.as_deref());
+        sentin_proxy::doctor::print(&report);
+
+        if let Some(path) = flag("--json") {
+            match serde_json::to_string_pretty(&report) {
+                Ok(text) => match std::fs::write(&path, text) {
+                    Ok(()) => println!("\nwrote {path}"),
+                    Err(err) => eprintln!("could not write {path}: {err}"),
+                },
+                Err(err) => eprintln!("could not serialise report: {err}"),
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+
+    let path = args
+        .get(1)
+        .filter(|a| !a.starts_with("--"))
+        .cloned()
         .unwrap_or_else(|| "config/default.yaml".to_string());
 
     let config = match Config::load(&path) {

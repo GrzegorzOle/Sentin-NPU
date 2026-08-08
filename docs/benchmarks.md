@@ -216,7 +216,7 @@ comparison measures quality rather than class count).
 
 | Model | seq | ΔF1 PL | ΔF1 EN | Verdict |
 |---|---|---|---|---|
-| herbert | 128 | −0.14 | +0.80 | PASS |
+| herbert | 128 | −0.49 | +0.54 | PASS |
 | herbert | 512 | −0.90 | +0.88 | PASS |
 | xlmr | 128 | −1.68 | +0.22 | PASS |
 

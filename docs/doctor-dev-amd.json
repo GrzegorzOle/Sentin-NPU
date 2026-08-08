@@ -1,0 +1,69 @@
+{
+  "sentin_version": "0.1.0",
+  "machine": {
+    "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+    "logical_cpus": 16,
+    "os": "linux",
+    "kernel": "7.1.6-201.fc44.x86_64",
+    "cpu_governor": "powersave",
+    "platform_profile": "balanced",
+    "on_ac_power": true,
+    "energy_backend": "powercap-rapl",
+    "energy_domains": [
+      "core",
+      "package-0"
+    ]
+  },
+  "accelerator_drivers": [
+    {
+      "name": "amdxdna",
+      "version": null,
+      "detail": "AMD XDNA NPU — not an OpenVINO target"
+    },
+    {
+      "name": "/dev/accel",
+      "version": null,
+      "detail": "accelerator device nodes: accel"
+    }
+  ],
+  "openvino": {
+    "runtime_version": "2026.3.0-22451-8a17657b995-releases/2026/3",
+    "available_devices": [
+      "CPU",
+      "GPU"
+    ],
+    "npu_present": false,
+    "model_probed": "models/herbert/int8/seq128/openvino_model.xml",
+    "devices": [
+      {
+        "device": "CPU",
+        "full_name": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+        "capabilities": "BF16 WINOGRAD FP32 INT8 BIN EXPORT_IMPORT",
+        "device_type": "integrated",
+        "architecture": "intel64",
+        "compiles": true,
+        "compile_ms": 651.002678,
+        "first_infer_ms": 13.980403,
+        "steady_infer_ms": 11.828992999999999,
+        "error": null
+      },
+      {
+        "device": "GPU",
+        "full_name": "NVIDIA GeForce RTX 5070 Laptop GPU (dGPU)",
+        "capabilities": "FP32 BIN INT8 EXPORT_IMPORT",
+        "device_type": "discrete",
+        "architecture": "GPU: vendor=0x10de arch=v12.0.0",
+        "compiles": true,
+        "compile_ms": 2449.844591,
+        "first_infer_ms": 116.17671899999999,
+        "steady_infer_ms": 116.123799,
+        "error": null
+      }
+    ],
+    "notes": [
+      "No NPU device. On Intel hardware this means a missing or mismatched NPU driver; on AMD or older Intel parts it is expected.",
+      "Operator-level fallback lists are not available from Rust (the openvino crate exposes neither query_model nor compiled-model properties). Use the Python toolchain for that."
+    ]
+  },
+  "openvino_error": null
+}

@@ -97,6 +97,7 @@ Useful extras:
 ```bash
 tools/.venv/bin/python tools/devices.py       # which OpenVINO devices this machine really has
 tools/.venv/bin/python tools/validate_model.py --model herbert --seq 128 --dataset wikiann
+./gateway/target/release/sentin-gateway --doctor --json my-machine.json  # device report
 ./gateway/target/release/sentin-bench             # latency (M2a, M2c)
 ./gateway/target/release/sentin-bench --energy    # energy overhead (M5b)
 ```
@@ -152,7 +153,7 @@ Model quality (WikiANN, 500 sentences per language, exact span match, PER/ORG/LO
 | Model | Licence | F1 PL | F1 EN | INT8 size |
 |---|---|---|---|---|
 | `herbert-base-ner` FP32 | CC-BY-4.0 | **88.06** | 58.97 | — |
-| `herbert-base-ner` INT8 | | **87.92** | 59.77 | 123 MB |
+| `herbert-base-ner` INT8 | | **87.57** | 59.51 | 123 MB |
 | `xlm-roberta-base-ner-hrl` INT8 | AFL-3.0 | 62.62 | 53.36 | 284 MB |
 
 Gateway cost, measured against a local mock upstream so the figures are the gateway's own and not
