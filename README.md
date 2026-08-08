@@ -90,7 +90,7 @@ cargo build --release --manifest-path gateway/Cargo.toml
 ```
 
 The listen address comes from the config file (`listen.host` / `listen.port`, default
-`127.0.0.1:4000`); change it there if port 4000 is already taken on your machine.
+`127.0.0.1:4141`). Port 4000 is deliberately avoided: LiteLLM and similar model routers commonly sit there.
 
 Useful extras:
 
@@ -105,14 +105,14 @@ Point your agent at the gateway:
 
 ```bash
 # Anthropic SDK
-export ANTHROPIC_BASE_URL=http://localhost:4000/anthropic
+export ANTHROPIC_BASE_URL=http://localhost:4141/anthropic
 
 # OpenAI-compatible (Ollama, LM Studio, vLLM)
-export OPENAI_BASE_URL=http://localhost:4000/openai
+export OPENAI_BASE_URL=http://localhost:4141/openai
 ```
 
 For Google GenAI the gateway serves `/google/*`; the SDK has no standard base-URL environment
-variable, so pass `http://localhost:4000/google` as the client's endpoint/base-URL option.
+variable, so pass `http://localhost:4141/google` as the client's endpoint/base-URL option.
 
 Your API key is forwarded upstream unchanged and is never written to a log — the gateway is a
 proxy, not a credential broker.

@@ -13,7 +13,10 @@ async fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "sentin_proxy=info".into()),
+                // Both targets: the library emits per-request lines as `sentin_proxy`, while this
+                // binary's own startup message is `sentin_gateway`. Filtering on the library alone
+                // meant the gateway came up completely silently, which reads as a failure to start.
+                .unwrap_or_else(|_| "sentin_proxy=info,sentin_gateway=info".into()),
         )
         .init();
 

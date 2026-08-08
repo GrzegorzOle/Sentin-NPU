@@ -4,18 +4,24 @@
 # Default gateway configuration. Phase 0 shape — keys are the contract the Rust
 # crates will deserialize; most are not read yet.
 
+# Port 4141 rather than the more obvious 4000: LiteLLM, the usual model router in this kind of
+# setup, listens on 4000, and a gateway that will not start because something else holds its port
+# is a poor first impression.
 listen:
   host: 127.0.0.1
-  port: 4000
+  port: 4141
 
 # Upstreams per adapter prefix. The caller's API key is forwarded verbatim and never logged.
 providers:
   anthropic:
     prefix: /anthropic
     upstream: https://api.anthropic.com
+  # Any OpenAI-compatible upstream: a model router such as LiteLLM (default below), or Ollama
+  # directly on http://localhost:11434, or LM Studio / vLLM. The caller's API key is forwarded
+  # unchanged, so the gateway needs no credentials of its own for any of them.
   openai:
     prefix: /openai
-    upstream: http://localhost:11434
+    upstream: http://localhost:4000
   google:
     prefix: /google
     upstream: https://generativelanguage.googleapis.com
