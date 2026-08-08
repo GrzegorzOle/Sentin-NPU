@@ -1994,6 +1994,7 @@ dependencies = [
  "futures-util",
  "openvino",
  "reqwest",
+ "sentin-audit",
  "sentin-core",
  "sentin-detect",
  "sentin-diag",

@@ -266,3 +266,126 @@ async fn unknown_paths_are_refused_clearly() {
         .expect("request reaches the gateway");
     assert_eq!(response.status(), 404);
 }
+
+#[tokio::test]
+async fn audit_events_are_written_and_never_contain_the_detected_value() {
+    // The claim this project makes to a SOC is that the trail is safe to ingest. That is only
+    // true if it is checked against a real request, on the real path, with a real identifier.
+    let (upstream, _received) = mock::spawn(StreamShape {
+        events: 2,
+        gap_ms: 0,
+    })
+    .await;
+
+    let audit_path =
+        std::env::temp_dir().join(format!("sentin-audit-e2e-{}.jsonl", std::process::id()));
+    let _ = std::fs::remove_file(&audit_path);
+
+    let yaml = format!(
+        "providers:\n  openai:\n    prefix: /openai\n    upstream: {upstream}\n\
+         detectors:\n  pesel: {{ mode: mask }}\n  email: {{ mode: advise }}\n\
+         audit:\n  jsonl:\n    enabled: true\n    path: {}\n",
+        audit_path.display()
+    );
+    let config: Config = serde_yaml_ng::from_str(&yaml).expect("config parses");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let address = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        let _ = sentin_proxy::serve(listener, AppState::new(config)).await;
+    });
+
+    let pesel = testdata::pesel(1944, 5, 14, 135);
+    let response = post(
+        &format!("http://{address}/openai/v1/chat/completions"),
+        &json!({"messages": [{"role": "user",
+            "content": format!("PESEL {pesel}, kontakt biuro@firma.pl")}]}),
+    )
+    .await;
+    assert_eq!(response.status(), 200);
+
+    // The sink writes synchronously on the request path, but give the OS a moment regardless.
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    let contents = std::fs::read_to_string(&audit_path).expect("audit file was created");
+    let lines: Vec<&str> = contents.lines().filter(|l| !l.is_empty()).collect();
+    assert!(!lines.is_empty(), "the request produced no audit events");
+
+    let mut kinds = Vec::new();
+    let mut decisions = Vec::new();
+    for line in &lines {
+        let event: Value = serde_json::from_str(line).expect("each line is one JSON object");
+        assert!(
+            !line.contains(&pesel),
+            "an audit event quoted the detected PESEL: {line}"
+        );
+        assert!(
+            !line.contains("biuro@firma.pl"),
+            "an audit event quoted the detected email: {line}"
+        );
+        if let Some(kind) = event["data_type"].as_str() {
+            kinds.push(kind.to_string());
+        }
+        if let Some(decision) = event["decision"].as_str() {
+            decisions.push(decision.to_string());
+        }
+        assert!(
+            event["content_sha256"]
+                .as_str()
+                .is_some_and(|h| h.starts_with("sha256:")),
+            "every event needs the correlating hash: {line}"
+        );
+    }
+
+    assert!(kinds.contains(&"PESEL".to_string()), "kinds were {kinds:?}");
+    assert!(kinds.contains(&"EMAIL".to_string()), "kinds were {kinds:?}");
+    assert!(
+        decisions.contains(&"masked".to_string()),
+        "decisions were {decisions:?}"
+    );
+    // One decision_made summarising the request, alongside the per-finding events.
+    assert!(
+        contents.contains("decision_made"),
+        "expected a decision_made event: {contents}"
+    );
+
+    let _ = std::fs::remove_file(&audit_path);
+}
+
+#[tokio::test]
+async fn a_clean_request_produces_no_audit_noise() {
+    // A SIEM full of events about nothing is worse than no SIEM: real signals get lost in it.
+    let (upstream, _received) = mock::spawn(StreamShape::default()).await;
+    let audit_path =
+        std::env::temp_dir().join(format!("sentin-audit-clean-{}.jsonl", std::process::id()));
+    let _ = std::fs::remove_file(&audit_path);
+
+    let yaml = format!(
+        "providers:\n  openai:\n    prefix: /openai\n    upstream: {upstream}\n\
+         detectors:\n  pesel: {{ mode: mask }}\n\
+         audit:\n  jsonl:\n    enabled: true\n    path: {}\n",
+        audit_path.display()
+    );
+    let config: Config = serde_yaml_ng::from_str(&yaml).expect("config parses");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let address = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        let _ = sentin_proxy::serve(listener, AppState::new(config)).await;
+    });
+
+    post(
+        &format!("http://{address}/openai/v1/chat/completions"),
+        &json!({"messages": [{"role": "user", "content": "Jaka jest pogoda w Krakowie?"}]}),
+    )
+    .await;
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    let contents = std::fs::read_to_string(&audit_path).unwrap_or_default();
+    assert!(
+        contents.trim().is_empty(),
+        "a request with no findings must produce no events, got: {contents}"
+    );
+    let _ = std::fs::remove_file(&audit_path);
+}

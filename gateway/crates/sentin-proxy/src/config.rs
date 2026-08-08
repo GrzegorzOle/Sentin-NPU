@@ -21,6 +21,8 @@ pub struct Config {
     pub inspect: Inspect,
     #[serde(default)]
     pub inference: Inference,
+    #[serde(default)]
+    pub audit: Audit,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -87,6 +89,55 @@ fn default_device() -> String {
 
 fn default_timeout_ms() -> u64 {
     250
+}
+
+/// Where audit events go. Every sink is off by default except the local file: a gateway that
+/// silently starts shipping events to a network collector nobody configured would be a surprise.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct Audit {
+    #[serde(default)]
+    pub jsonl: JsonlSink,
+    #[serde(default)]
+    pub syslog_cef: SyslogSink,
+    #[serde(default)]
+    pub otlp: OtlpSink,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct JsonlSink {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_audit_path")]
+    pub path: String,
+}
+
+impl Default for JsonlSink {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            path: default_audit_path(),
+        }
+    }
+}
+
+fn default_audit_path() -> String {
+    "./sentin-audit.jsonl".to_string()
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct SyslogSink {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub address: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct OtlpSink {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub endpoint: String,
 }
 
 /// What to do when inspection does not finish in time.

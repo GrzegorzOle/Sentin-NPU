@@ -8,6 +8,7 @@
 //! place that decides what crosses the boundary.
 
 pub mod adapters;
+pub mod audit_sink;
 pub mod config;
 
 /// Re-exported so existing callers keep working after diagnostics moved to their own crate.
@@ -15,6 +16,7 @@ pub use sentin_diag::{doctor, energy, fingerprint};
 pub mod inspect;
 pub mod mock;
 pub mod ner_service;
+pub mod otlp;
 pub mod stream;
 
 use std::sync::Arc;
@@ -55,6 +57,8 @@ pub struct AppState {
     /// Layer 2, when a model is configured and loads. `None` means layer 1 only — a missing or
     /// broken model degrades the gateway rather than stopping it.
     pub ner: Option<Arc<crate::ner_service::NerService>>,
+    /// Audit sinks. Always present, possibly empty.
+    pub audit: Arc<sentin_audit::emit::Fanout>,
 }
 
 impl AppState {
@@ -94,8 +98,13 @@ impl AppState {
 
     #[must_use]
     pub fn with_ner(config: Config, ner: Option<Arc<crate::ner_service::NerService>>) -> Self {
+        let audit = crate::audit_sink::build(&config.audit, env!("CARGO_PKG_VERSION"));
+        if !audit.is_empty() {
+            tracing::info!(sinks = ?audit.names(), "audit enabled");
+        }
         Self {
             ner,
+            audit,
             config: Arc::new(config),
             // No timeout here: streamed completions legitimately run for minutes. Inspection has
             // its own timeout; the upstream call does not get to be the thing that gives up.
@@ -192,6 +201,16 @@ async fn proxy(State(state): State<AppState>, request: Request) -> Response {
                 }
             }
 
+            let host = upstream_host(&upstream_base);
+            crate::audit_sink::record_request(
+                &state.audit,
+                &verdict,
+                &bytes,
+                &host,
+                state.config.inference.model_dir.rsplit('/').next(),
+                state.ner.as_ref().map(|n| n.device()),
+            );
+
             if verdict.decision == Decision::Blocked {
                 tracing::info!(
                     provider = %provider_name,
@@ -275,6 +294,19 @@ async fn relay(response: reqwest::Response, state: &AppState, decision: Decision
             "failed to build response",
         )
     })
+}
+
+/// Host part of an upstream URL. Audit events record the host, never the full URL: a query string
+/// can carry content, and an audit trail that quoted it would defeat its own purpose.
+fn upstream_host(upstream: &str) -> String {
+    let without_scheme = upstream
+        .split_once("://")
+        .map_or(upstream, |(_, rest)| rest);
+    without_scheme
+        .split('/')
+        .next()
+        .unwrap_or(without_scheme)
+        .to_string()
 }
 
 /// A refusal carries the data kinds involved, never the text that triggered it.
