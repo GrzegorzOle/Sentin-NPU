@@ -33,6 +33,33 @@ A number without that context is not a result.
 | M6 | Gateway resource use | RSS < 50 MB without model | not measured |
 | M7 | L1 false positives | 0 for checksum detectors | **PASS** on prose; see caveat below |
 
+## End-to-end against a real remote model — 2026-08-08
+
+The automated tests prove masking against a mock upstream, where the assertion is on what the mock
+recorded. This is the same thing demonstrated the other way round: through a real router, to a
+model running on someone else's infrastructure, with the model itself reporting what it received.
+
+Setup: client → Sentin-NPU gateway (`127.0.0.1:4141`, `pesel: mask`) → LiteLLM router
+(`127.0.0.1:4000`) → **OVH AI Endpoints**, model `Meta-Llama-3.3-70B-Instruct`.
+
+Prompt sent by the client, containing a synthetic PESEL:
+
+> Zacytuj dosłownie ciąg znaków, który widzisz w tym zdaniu w miejscu numeru PESEL:
+> 'Klient o numerze PESEL **44051401359** złożył wniosek.'
+
+Answer from the remote model:
+
+> W miejscu numeru PESEL widzę: **[PESEL]**.
+
+A second model, `ovh-qwen3-32b`, quoted the sentence back in its own reasoning as
+`'Klient o numerze PESEL [PESEL] zlozyl wniosek.'`
+
+The gateway logged `findings=pesel:Masked decision=Masked` — the data kind, never the value. The
+identifier never left the machine, and a model 70 billion parameters wide on remote infrastructure
+can only confirm that it saw the placeholder.
+
+This is the Phase 3 exit criterion satisfied against real infrastructure rather than a mock.
+
 ## Gateway proxy (M2a, M2c) and research question B2 — measured 2026-08-08
 
 Conditions: dev machine (AMD Ryzen AI 7 350), Fedora Linux, rustc 1.96.0, release build.
