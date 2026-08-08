@@ -45,8 +45,13 @@ pub const BACKEND: &str = if cfg!(target_os = "linux") {
     "unavailable"
 };
 
+/// Why energy cannot be measured here.
+///
+/// Each variant refuses rather than returning zeros: a wattage of 0.0 looks like a result and
+/// would be quoted as one.
 #[derive(Debug, thiserror::Error)]
 pub enum EnergyError {
+    /// The kernel exposes no powercap domains — an old kernel, a VM, or a CPU without RAPL.
     #[error("no RAPL domains found under {POWERCAP} — this kernel or CPU does not expose them")]
     Unsupported,
     #[error(
@@ -60,7 +65,10 @@ pub enum EnergyError {
            3. HWiNFO CSV logging, for indicative figures only.\n\
          Windows remains the platform for functional verification (Phase 5)."
     )]
+    /// Not Linux. The message lists the alternatives in the order this project prefers them.
     UnsupportedPlatform,
+    /// The counters exist but are root-only since the PLATYPUS mitigation. The message carries
+    /// both the one-off and the persistent fix.
     #[error(
         "RAPL counters are root-readable only (PLATYPUS mitigation).\n\
          Grant read access once with:\n  \
@@ -76,6 +84,8 @@ pub enum EnergyError {
 /// One RAPL domain, e.g. `package-0` or `core`.
 #[derive(Debug, Clone)]
 pub struct Domain {
+    /// Domain name as the kernel reports it, e.g. `package-0`, `core`, `uncore`. Which domains
+    /// exist differs between machines and must be recorded, never assumed.
     pub name: String,
     path: PathBuf,
     /// Counter wrap point. RAPL counters are cumulative and wrap; deltas must account for it.
@@ -164,6 +174,7 @@ impl Reader {
         Ok(Self { domains })
     }
 
+    /// Names of every readable domain, for recording alongside the numbers.
     #[must_use]
     pub fn domain_names(&self) -> Vec<String> {
         self.domains.iter().map(|d| d.name.clone()).collect()
@@ -219,8 +230,11 @@ pub fn elapsed(start: &Sample, end: &Sample) -> Duration {
 /// Energy accounting for one measured interval.
 #[derive(Debug, Clone)]
 pub struct Measurement {
+    /// Which RAPL domain this accounts for.
     pub domain: String,
+    /// Energy consumed over the interval, wrap-around already handled.
     pub energy_j: f64,
+    /// How long the interval lasted.
     pub duration: Duration,
 }
 

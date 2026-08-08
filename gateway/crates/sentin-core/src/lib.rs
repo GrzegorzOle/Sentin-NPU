@@ -7,6 +7,8 @@
 //! detection, proxy and audit crates cannot drift apart on them. In particular it encodes the
 //! *advisory-first* rule: only the deterministic layer, on a checksum-valid match, may block.
 
+#![warn(missing_docs)]
+
 use serde::{Deserialize, Serialize};
 
 /// Which detection layer produced a finding.
@@ -69,15 +71,31 @@ pub enum Decision {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DataKind {
+    /// Polish national identification number. Eleven digits carrying a birth date and a check
+    /// digit, so a match is arithmetically verifiable.
     Pesel,
+    /// Polish tax identification number (NIP), ten digits with a weighted check digit.
     Nip,
+    /// Polish business registry number (REGON), nine or fourteen digits, each length with its own
+    /// check digit.
     Regon,
+    /// International bank account number, validated by the mod-97 rule over the reordered string.
     Iban,
+    /// Payment card number: a known issuer prefix *and* a valid Luhn check digit. Luhn alone
+    /// accepts roughly one random digit string in ten, which is why the prefix is required too.
     PaymentCard,
+    /// Email address. Shape only — there is no checksum in an address, so this never blocks.
     Email,
+    /// Polish telephone number, recognised only with a `+48`/`0048` prefix or `123 456 789`
+    /// grouping. A bare nine-digit run is left to REGON, since guessing "phone" from it would fire
+    /// on every order id in every prompt.
     PhonePl,
+    /// A person's name, from layer 2. Probabilistic, and the class most affected by Polish
+    /// inflection.
     Person,
+    /// An organisation or company name, from layer 2.
     Organization,
+    /// A place name, from layer 2.
     Location,
 }
 
@@ -115,11 +133,15 @@ impl Validation {
 /// containing non-ASCII characters — which, for Polish, is most of it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Finding {
+    /// Byte range into the original text. See the type's note on why bytes, not characters.
     pub span: std::ops::Range<usize>,
+    /// What kind of sensitive data was found.
     pub kind: DataKind,
     /// 1.0 for checksum-validated deterministic matches; model score for NER.
     pub confidence: f32,
+    /// Which detection layer produced this finding.
     pub layer: Layer,
+    /// How well the finding is evidenced. Together with `layer` this bounds the verdict.
     pub validation: Validation,
 }
 
@@ -146,8 +168,14 @@ impl Finding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Device {
+    /// Intel NPU through the OpenVINO NPU plugin. Available only where an Intel NPU and its kernel
+    /// driver are present; no other vendor's NPU is an OpenVINO target.
     Npu,
+    /// Whatever OpenVINO's GPU plugin binds through the OpenCL ICD loader — an Intel iGPU on the
+    /// target hardware, but not necessarily elsewhere. On the dev machine it is an NVIDIA dGPU,
+    /// roughly ten times slower than CPU for this model.
     Gpu,
+    /// The OpenVINO CPU plugin. Always available, and the fallback everything else resolves to.
     Cpu,
     /// Try NPU, then GPU, then CPU. The device that actually executes must be logged.
     #[default]

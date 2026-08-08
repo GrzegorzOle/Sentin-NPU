@@ -17,9 +17,14 @@ use serde::{Deserialize, Serialize};
 /// Everything needed to decide whether two measurements may be compared.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Machine {
+    /// CPU as it names itself. Two measurements from different CPUs describe the CPUs, not the
+    /// thing being measured — which is why gateway-overhead results are never merged across them.
     pub cpu_model: String,
+    /// Logical CPU count, which sets how much parallelism the CPU inference path can use.
     pub logical_cpus: usize,
+    /// Operating system, since the energy backend and its meaning differ by platform.
     pub os: String,
+    /// Kernel version. Both the powercap permissions and the NPU driver depend on it.
     pub kernel: String,
     /// CPU frequency governor (Linux). `performance` and `powersave` are not comparable.
     pub cpu_governor: Option<String>,

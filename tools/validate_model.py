@@ -34,20 +34,25 @@ logger = logging.getLogger("validate_model")
 
 @dataclass(frozen=True)
 class Score:
+    """Exact-span-match counts for one evaluation, summable across languages and batches."""
+
     true_positives: int
     predicted: int
     gold: int
 
     @property
     def precision(self) -> float:
+        """Share of predicted spans that were correct. Zero when nothing was predicted."""
         return self.true_positives / self.predicted if self.predicted else 0.0
 
     @property
     def recall(self) -> float:
+        """Share of gold spans that were found. Zero when there were none."""
         return self.true_positives / self.gold if self.gold else 0.0
 
     @property
     def f1(self) -> float:
+        """Harmonic mean of precision and recall — the figure quoted as model quality."""
         p, r = self.precision, self.recall
         return 2 * p * r / (p + r) if p + r else 0.0
 
@@ -98,6 +103,13 @@ class NerRunner:
         return next(iter(self.compiled(inputs).values()))
 
     def predict(self, text: str) -> list[Span]:
+        """Run the model over one text and return character spans in the *original* string.
+
+        This is the reference implementation the Rust bridge has to reproduce: a label comes from
+        a word's first subword, but its extent must cover every subword, and offsets map back to
+        the untokenized text. Getting the extent wrong truncates entities mid-word and cost 63 F1
+        points before it was found.
+        """
         encoding = self.tokenizer(
             text,
             return_offsets_mapping=True,
@@ -165,6 +177,11 @@ def _merge_bio(words: list[tuple[int, int, str]]) -> list[Span]:
 
 
 def score(runner: NerRunner, examples: list[Example]) -> Score:
+    """Score one model over one language, counting only ``SCORED_ENTITIES``.
+
+    Candidates predict different label sets, so scoring their intersection is what makes the
+    comparison a measure of quality rather than of how many classes each one emits.
+    """
     total = Score(0, 0, 0)
     for example in examples:
         predicted = {s.key() for s in runner.predict(example.text)}
@@ -189,6 +206,7 @@ def evaluate(
     device: str,
     examples_by_lang: dict[str, list[Example]],
 ) -> dict[str, object] | None:
+    """Score one IR variant across every language, or return ``None`` if it is not built yet."""
     path = reg.model_dir(key, precision, seq)
     if not (path / "openvino_model.xml").exists():
         logger.warning("%s missing -- run prepare_model.py / quantize.py first", path)
@@ -214,6 +232,7 @@ def evaluate(
 
 
 def main() -> None:
+    """Score the requested variants and print the comparison table, including the M3 verdict."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="all", help="candidate key or 'all'")
     parser.add_argument("--seq", type=int, default=128)

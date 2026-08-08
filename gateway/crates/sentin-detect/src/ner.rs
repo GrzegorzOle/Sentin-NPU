@@ -29,22 +29,40 @@ use tokenizers::Tokenizer;
 
 use crate::ov;
 
+/// Why layer 2 could not be loaded, or could not run.
+///
+/// Every variant is survivable: the gateway logs it and keeps layer 1 running rather than refusing
+/// traffic over a missing optional component.
 #[derive(Debug, thiserror::Error)]
 pub enum NerError {
+    /// The tokenizer file is missing or unreadable. Usually a bundle without `tokenizer.json` —
+    /// the diagnostic only compiles the graph, so it does not catch this.
     #[error("loading tokenizer from {path}: {source}")]
     Tokenizer {
+        /// The path that was tried.
         path: String,
+        /// What the `tokenizers` crate reported.
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+    /// A model file could not be read.
     #[error("reading {path}: {source}")]
     Io {
+        /// The path that was tried.
         path: String,
+        /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
     },
+    /// `config.json` carries no `id2label`, so predicted class indices cannot be named and BIO
+    /// decoding has nothing to decode into.
     #[error("model config at {path} has no usable id2label map")]
-    Labels { path: String },
+    Labels {
+        /// The config that was read.
+        path: String,
+    },
+    /// The OpenVINO runtime refused: no loadable library, an unsupported graph, or a failed
+    /// inference. Carries the message verbatim, since it is the only diagnostic the C API gives.
     #[error("OpenVINO: {0}")]
     OpenVino(String),
 }
@@ -145,6 +163,7 @@ impl NerEngine {
         })
     }
 
+    /// The device that actually executed, which is not necessarily the one requested.
     #[must_use]
     pub fn device(&self) -> &str {
         &self.device
@@ -156,6 +175,8 @@ impl NerEngine {
         self.fell_back
     }
 
+    /// The static sequence length this IR was reshaped to. Longer input is truncated to it;
+    /// static shapes are an NPU requirement rather than a tuning choice.
     #[must_use]
     pub fn sequence_length(&self) -> usize {
         self.sequence_length

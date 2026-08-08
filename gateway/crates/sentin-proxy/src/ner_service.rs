@@ -73,16 +73,20 @@ impl NerService {
         })
     }
 
+    /// The device layer 2 actually runs on.
     #[must_use]
     pub fn device(&self) -> &str {
         &self.device
     }
 
+    /// True when the configured device was unavailable and another was used. Worth logging: a
+    /// silent fallback from NPU to CPU changes both the latency and the power story.
     #[must_use]
     pub fn fell_back(&self) -> bool {
         self.fell_back
     }
 
+    /// What to do when inspection outruns its timeout — fail open or fail closed.
     #[must_use]
     pub fn policy(&self) -> TimeoutPolicy {
         self.policy

@@ -14,8 +14,12 @@ use serde_json::Value;
 /// Which provider schema a request body follows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Provider {
+    /// Anthropic Messages API: text lives under `messages[].content`, as a string or as blocks.
     Anthropic,
+    /// OpenAI chat completions, and everything speaking that dialect — Ollama, LM Studio, vLLM,
+    /// and routers such as LiteLLM.
     OpenAi,
+    /// Google Generative Language API, whose text sits under `contents[].parts[].text`.
     Google,
 }
 

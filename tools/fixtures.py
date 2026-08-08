@@ -27,6 +27,13 @@ _MARKER = re.compile(r"\[(?P<type>[A-Z]+):(?P<text>[^\]]+)\]")
 
 @dataclass(frozen=True)
 class Span:
+    """One annotated entity: a half-open character range and its label.
+
+    Character offsets, not bytes — the Python tokenizer bindings report characters, while the Rust
+    ``tokenizers`` crate reports bytes. The two implementations index strings differently and each
+    must convert on its own side.
+    """
+
     start: int
     end: int
     label: str
@@ -38,6 +45,8 @@ class Span:
 
 @dataclass(frozen=True)
 class Example:
+    """One evaluation sentence with its gold spans."""
+
     lang: str
     text: str
     spans: tuple[Span, ...]
@@ -88,6 +97,7 @@ def load(lang: str) -> list[Example]:
 
 
 def load_all(languages: tuple[str, ...] = ("pl", "en")) -> dict[str, list[Example]]:
+    """Load every fixture language, keyed by language code."""
     return {lang: load(lang) for lang in languages}
 
 

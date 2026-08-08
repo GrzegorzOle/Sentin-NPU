@@ -9,6 +9,8 @@
 //! a static musl build, and a diagnostic that cannot be copied onto the target machine is useless
 //! however good its output.
 
+#![warn(missing_docs)]
+
 pub mod doctor;
 pub mod energy;
 pub mod fingerprint;

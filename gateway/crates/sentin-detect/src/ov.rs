@@ -24,8 +24,11 @@ use serde::{Deserialize, Serialize};
 /// Device preference order for `AUTO`: the whole point of the project is to prefer the NPU.
 pub const AUTO_ORDER: [&str; 3] = ["NPU", "GPU", "CPU"];
 
+/// Why the OpenVINO layer could not be used at all.
 #[derive(Debug, thiserror::Error)]
 pub enum OvError {
+    /// The runtime could not be dlopen'd. The message spells out the symlink trap, because the
+    /// error the C loader gives on its own names no cause.
     #[error(
         "OpenVINO runtime not loadable: {0}.\n\
          The crate links at run time (dlopen) and looks for *unversioned* sonames. An OpenVINO\n\
@@ -33,6 +36,8 @@ pub enum OvError {
          directory must be on LD_LIBRARY_PATH."
     )]
     Runtime(String),
+    /// No IR at the given path. Models are gitignored and ship through releases, so a fresh clone
+    /// has none until the toolchain has run.
     #[error("no IR found at {0} — run tools/prepare_model.py first")]
     NoModel(PathBuf),
 }
@@ -40,29 +45,48 @@ pub enum OvError {
 /// What one device did when asked to do real work.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceReport {
+    /// OpenVINO's name for the device, as passed to `compile_model` — `CPU`, `GPU`, `NPU`.
     pub device: String,
+    /// The device's own description of itself, e.g. `Intel(R) Core(TM) Ultra`. The field that
+    /// tells a reader whether `GPU` meant an integrated or a discrete card.
     pub full_name: Option<String>,
+    /// Precisions and features the plugin advertises, e.g. `FP32 INT8 EXPORT_IMPORT`. Advertised,
+    /// not proven — which is why this struct also records what happened when the model was run.
     pub capabilities: Option<String>,
+    /// Whether the plugin calls itself integrated or discrete.
     pub device_type: Option<String>,
+    /// Architecture string, useful mainly for telling GPU vendors apart (`vendor=0x10de`).
     pub architecture: Option<String>,
     /// None when no IR was available to try.
     pub compiles: Option<bool>,
+    /// Time to compile the graph for this device. On an NPU this is where an unsupported operator
+    /// shows up, either as a fallback or as a refusal.
     pub compile_ms: Option<f64>,
     /// First inference is reported separately: on the NPU it includes graph setup and is often
     /// far slower than steady state, which is exactly what a deployment needs to know.
     pub first_infer_ms: Option<f64>,
+    /// Median inference once warm — the number that belongs in a latency budget.
     pub steady_infer_ms: Option<f64>,
+    /// Why the device refused, when it did. A refusal is a result worth reporting, not a gap.
     pub error: Option<String>,
 }
 
 /// Everything `--doctor` knows about this machine's OpenVINO stack.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
+    /// The OpenVINO build that was actually loaded, not the one the build expected.
     pub runtime_version: Option<String>,
+    /// Everything `Core::available_devices` enumerated.
     pub available_devices: Vec<String>,
+    /// Whether an NPU appears among them. False on every AMD machine, which is the constraint the
+    /// whole project is arranged around.
     pub npu_present: bool,
+    /// The IR that was compiled and run, if one was given. Without it the report is enumeration
+    /// only, and enumeration proves nothing about whether the model runs.
     pub model_probed: Option<String>,
+    /// One entry per enumerated device.
     pub devices: Vec<DeviceReport>,
+    /// Human-readable observations for the person reading the report, e.g. why no NPU was found.
     pub notes: Vec<String>,
 }
 

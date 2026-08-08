@@ -78,6 +78,8 @@ class Row:
 
 @dataclass
 class Chart:
+    """One chart: its data, its axis, and the prose that frames it."""
+
     slug: str
     title: str
     subtitle: str
@@ -106,6 +108,7 @@ def text_el(
     weight: int = 400,
     anchor: str = "start",
 ) -> str:
+    """One SVG text node, with the font stack and escaping applied in one place."""
     return (
         f'<text x="{x:.1f}" y="{y:.1f}" font-family="{FONT}" font-size="{size}" '
         f'font-weight="{weight}" fill="{fill}" text-anchor="{anchor}">{esc(content)}</text>'
@@ -314,6 +317,7 @@ def render_columns(chart: Chart) -> str:
 
 
 def fmt(value: float) -> str:
+    """Format an axis tick: integers bare, everything else at its shortest faithful form."""
     if value == int(value):
         return str(int(value))
     return f"{value:g}"
@@ -450,6 +454,7 @@ def check_against_docs() -> int:
 
 
 def main() -> int:
+    """Render every chart, or with ``--check`` only verify the figures against the docs."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check", action="store_true", help="verify the figures against docs/benchmarks.md"

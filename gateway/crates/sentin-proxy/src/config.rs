@@ -9,25 +9,41 @@ use std::path::Path;
 use sentin_core::{DataKind, Decision};
 use serde::{Deserialize, Serialize};
 
+/// The whole gateway configuration, as read from YAML.
+///
+/// Every section defaults, so a partial file is valid and an absent one yields a working gateway
+/// with layer 1 only. That is deliberate: the failure mode of a strict parser here is a gateway
+/// that will not start, in front of someone's actual work.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
+    /// Address the gateway binds to.
     #[serde(default)]
     pub listen: Listen,
+    /// Upstreams by adapter name — `anthropic`, `openai`, `google`.
     #[serde(default)]
     pub providers: HashMap<String, Provider>,
+    /// Per-detector verdict ceiling. A detector missing from here defaults to `Observed`, so
+    /// adding one in code cannot silently start blocking traffic.
     #[serde(default)]
     pub detectors: HashMap<String, DetectorRule>,
+    /// Which side of the exchange is inspected, and how streams are handled.
     #[serde(default)]
     pub inspect: Inspect,
+    /// Layer-2 model and device settings.
     #[serde(default)]
     pub inference: Inference,
+    /// Audit sinks.
     #[serde(default)]
     pub audit: Audit,
 }
 
+/// Where the gateway listens.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Listen {
+    /// Bind address. `127.0.0.1` by default — this is a local privacy gateway, and exposing it on
+    /// a LAN is a decision an operator should have to make explicitly.
     pub host: String,
+    /// Bind port. 4141, not 4000, which model routers such as LiteLLM commonly hold.
     pub port: u16,
 }
 
@@ -42,9 +58,12 @@ impl Default for Listen {
     }
 }
 
+/// One upstream and the path prefix that routes to it.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Provider {
+    /// Path prefix the agent points at, e.g. `/anthropic`.
     pub prefix: String,
+    /// Where matching requests are forwarded, e.g. `https://api.anthropic.com`.
     pub upstream: String,
 }
 
@@ -58,8 +77,10 @@ pub struct Inference {
     /// Directory holding the IR. Empty disables layer 2 entirely.
     #[serde(default)]
     pub model_dir: String,
+    /// How long inspection may take before the timeout policy applies.
     #[serde(default = "default_timeout_ms")]
     pub timeout_ms: u64,
+    /// What to do when it does not finish in time.
     #[serde(default)]
     pub timeout_policy: TimeoutPolicy,
 }
@@ -95,18 +116,24 @@ fn default_timeout_ms() -> u64 {
 /// silently starts shipping events to a network collector nobody configured would be a surprise.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Audit {
+    /// Local JSON Lines file. On by default: it needs no infrastructure.
     #[serde(default)]
     pub jsonl: JsonlSink,
+    /// CEF over syslog, for a SIEM that speaks it.
     #[serde(default)]
     pub syslog_cef: SyslogSink,
+    /// OTLP over HTTP with JSON encoding.
     #[serde(default)]
     pub otlp: OtlpSink,
 }
 
+/// Append-only JSON Lines audit file.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JsonlSink {
+    /// Whether to write it. On by default.
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// Where to write it.
     #[serde(default = "default_audit_path")]
     pub path: String,
 }
@@ -124,18 +151,26 @@ fn default_audit_path() -> String {
     "./sentin-audit.jsonl".to_string()
 }
 
+/// CEF over syslog. Off unless configured, so the gateway never starts shipping events to a
+/// collector nobody asked for.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct SyslogSink {
+    /// Whether to send.
     #[serde(default)]
     pub enabled: bool,
+    /// Collector address, `host:port`.
     #[serde(default)]
     pub address: String,
 }
 
+/// OTLP over HTTP, JSON-encoded — which the spec permits, and which keeps protobuf codegen and a
+/// gRPC stack out of the gateway.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct OtlpSink {
+    /// Whether to send.
     #[serde(default)]
     pub enabled: bool,
+    /// Collector endpoint URL.
     #[serde(default)]
     pub endpoint: String,
 }
@@ -152,6 +187,7 @@ pub enum TimeoutPolicy {
     FailClosed,
 }
 
+/// The operator's ceiling for one detector.
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct DetectorRule {
     /// Strongest action this detector may request. Clamped again by the finding's own evidence,
@@ -164,10 +200,15 @@ pub struct DetectorRule {
 /// `response` defaults to off pending research question B2 — see [`StreamStrategy`].
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Inspect {
+    /// Inspect outbound requests. This is the threat model — data leaving the device — and it
+    /// costs +0.07 ms, so it is on by default.
     #[serde(default = "default_true")]
     pub request: bool,
+    /// Inspect responses. Findings are detected and audited; masking a stream mid-render is
+    /// roadmap, not PoC.
     #[serde(default)]
     pub response: bool,
+    /// How a streamed response is inspected.
     #[serde(default)]
     pub stream_strategy: StreamStrategy,
 }
@@ -200,17 +241,25 @@ pub enum StreamStrategy {
     SlidingWindow,
 }
 
+/// Why a configuration file could not be used. Both variants are startup errors: an unreadable or
+/// malformed config is worth refusing to start over, unlike a missing model.
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
+    /// The file could not be read.
     #[error("reading {path}: {source}")]
     Io {
+        /// The path that was tried.
         path: String,
+        /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
     },
+    /// The file is not valid YAML, or does not match the schema.
     #[error("parsing {path}: {source}")]
     Parse {
+        /// The path that was tried.
         path: String,
+        /// What the YAML parser reported, including the line.
         #[source]
         source: serde_yaml_ng::Error,
     },

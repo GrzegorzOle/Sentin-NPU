@@ -22,19 +22,34 @@ use crate::energy;
 
 use crate::fingerprint::Machine;
 
+/// Everything the diagnostic learned about one machine.
+///
+/// This is what a community `npu-report` issue attaches, so it is written to be readable by
+/// someone who has never seen the machine: hardware, drivers, and what OpenVINO did when asked to
+/// run the real model on each device.
 #[derive(Debug, Serialize)]
 pub struct DoctorReport {
+    /// The gateway build that produced the report.
     pub sentin_version: String,
+    /// Hardware, OS and power state — the conditions any number here has to be read against.
     pub machine: Machine,
+    /// NPU-capable kernel modules and accelerator device nodes found on the machine.
     pub accelerator_drivers: Vec<DriverInfo>,
+    /// The OpenVINO probe, when the runtime could be loaded.
     pub openvino: Option<ov::Report>,
+    /// Why the runtime could not be loaded, when it could not. Usually the unversioned-soname
+    /// trap, which is why the message spells that out.
     pub openvino_error: Option<String>,
 }
 
+/// One kernel-side driver or device node relevant to an NPU.
 #[derive(Debug, Serialize)]
 pub struct DriverInfo {
+    /// Module or node name, e.g. `intel_vpu`, `amdxdna`, `/dev/accel`.
     pub name: String,
+    /// Module version where the kernel reports one. The first question on any NPU bug report.
     pub version: Option<String>,
+    /// What was found, in words — including "not an OpenVINO target" where that applies.
     pub detail: String,
 }
 
@@ -228,25 +243,41 @@ mod tests {
 /// Energy and throughput for one device running the real model.
 #[derive(Debug, Clone, Serialize)]
 pub struct DevicePower {
+    /// The device the model ran on.
     pub device: String,
+    /// How many inferences the interval contained.
     pub inferences: u64,
+    /// Length of the measured interval.
     pub seconds: f64,
+    /// Throughput over the interval.
     pub inferences_per_second: f64,
+    /// Mean package power while working. Package-scoped: RAPL has no per-NPU domain, so an NPU
+    /// figure is only ever obtained by differencing this against the CPU run.
     pub package_w: f64,
+    /// Mean package power doing nothing, measured over the same duration. A laptop draws several
+    /// watts idle, which would otherwise swamp the signal entirely.
     pub idle_w: f64,
     /// Package power attributable to the workload, idle removed.
     pub active_w: f64,
     /// The number that makes devices comparable: energy for one inference.
     pub mj_per_inference: f64,
+    /// Why this device produced no figure, when it did not.
     pub error: Option<String>,
 }
 
+/// The per-device energy comparison: metric M5, and the project's headline result.
 #[derive(Debug, Clone, Serialize)]
 pub struct PowerReport {
+    /// Idle package power, subtracted from every device's figure.
     pub idle_w: f64,
+    /// Drift between the idle measured before and after the run. A device difference smaller than
+    /// this is noise, and reporting it as a result would be dishonest.
     pub noise_floor_w: f64,
+    /// How long each device was measured for.
     pub seconds_per_device: u64,
+    /// One entry per device that was tried.
     pub devices: Vec<DevicePower>,
+    /// Conditions and caveats that belong with the numbers.
     pub notes: Vec<String>,
 }
 

@@ -64,6 +64,7 @@ def build_calibration_dataset(
     """Draw an equal number of PL and EN sentences and tokenize them to the static shape."""
 
     def preprocess(examples: dict) -> dict:
+        """Tokenize one batch of calibration sentences to the model's static shape."""
         # WikiANN stores pre-tokenized words; rejoin them so the model's own tokenizer decides
         # the subword split, exactly as it will at inference time.
         texts = [" ".join(tokens) for tokens in examples["tokens"]]
@@ -137,6 +138,12 @@ def restore_static_shape(model_dir: Path, seq: int) -> None:
 
 
 def quantize(key: str, seq: int, num_samples: int, *, weights_only: bool, overwrite: bool) -> None:
+    """Quantize one FP32 IR variant to INT8, then restore the static shape and verify it.
+
+    The restore is not optional. ``OVQuantizer.quantize`` returns dynamic ``[?, ?]`` inputs even
+    when the source was reshaped, and static shapes are an NPU requirement — so without it the
+    model would be rejected on Intel hardware and the symptom would read as an NPU defect.
+    """
     source = reg.model_dir(key, "fp32", seq)
     target = reg.model_dir(key, "int8", seq)
     if not (source / "openvino_model.xml").exists():
@@ -184,6 +191,7 @@ def quantize(key: str, seq: int, num_samples: int, *, weights_only: bool, overwr
 
 
 def main() -> None:
+    """Quantize the requested variants, or run ``--doctor`` over the ones already built."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="all", help="candidate key or 'all'")
     parser.add_argument("--seq", type=int, action="append", help="sequence length; repeatable")

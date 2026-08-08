@@ -24,11 +24,13 @@ use serde_json::Value;
 pub struct Received(Arc<Mutex<Vec<Value>>>);
 
 impl Received {
+    /// Every body the mock received, in order.
     #[must_use]
     pub fn all(&self) -> Vec<Value> {
         self.0.lock().expect("mock state not poisoned").clone()
     }
 
+    /// The most recent body, which is what a single-request test asserts against.
     #[must_use]
     pub fn last(&self) -> Option<Value> {
         self.all().last().cloned()
@@ -48,7 +50,10 @@ impl Received {
 /// How many SSE events the mock emits, and how long it waits between them.
 #[derive(Clone, Copy, Debug)]
 pub struct StreamShape {
+    /// Number of SSE events in the response.
     pub events: usize,
+    /// Delay between events, which is what makes generation time realistic enough for a
+    /// time-to-first-token measurement to mean anything.
     pub gap_ms: u64,
 }
 

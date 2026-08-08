@@ -13,6 +13,8 @@
 //! stands in for it, and it hashes the *whole inspected payload* rather than the finding, so it
 //! cannot be brute-forced back to a short identifier the way a hash of "44051401359" could.
 
+#![warn(missing_docs)]
+
 pub mod cef;
 pub mod emit;
 
@@ -31,7 +33,9 @@ pub enum EventKind {
     InspectionTimeout,
     /// The requested device was unavailable, or execution fell back to another.
     DeviceFallback,
+    /// The gateway finished starting and is accepting requests.
     GatewayStart,
+    /// The gateway is shutting down. Its absence in a SIEM is itself a signal.
     GatewayStop,
 }
 
@@ -58,21 +62,26 @@ pub struct Event {
     /// RFC 3339 UTC. Supplied by the caller so tests are deterministic and the crate stays free of
     /// a clock dependency.
     pub ts: String,
+    /// What happened.
     pub event: EventKind,
     /// Which detector fired, e.g. `pesel`, `iban`, `ner_npu`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detector: Option<String>,
+    /// The class of data involved — the type, never an instance of it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_type: Option<DataKind>,
     /// Upstream the request was bound for, e.g. `api.anthropic.com`. Host only — a full URL can
     /// carry query parameters, and those can carry content.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_host: Option<String>,
+    /// The verdict reached, after clamping to what the layer and the evidence allow.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision: Option<Decision>,
     /// Hash of the whole inspected payload, never the payload and never the finding.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_sha256: Option<String>,
+    /// Which model produced a layer-2 finding, e.g. `herbert-base-ner-int8-128`. Two events with
+    /// different quality are otherwise indistinguishable after a model change.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
     /// The device that *actually* executed, which `AUTO` makes worth recording.
@@ -102,42 +111,49 @@ impl Event {
         }
     }
 
+    /// Record which detector fired.
     #[must_use]
     pub fn detector(mut self, detector: impl Into<String>) -> Self {
         self.detector = Some(detector.into());
         self
     }
 
+    /// Record the class of data involved.
     #[must_use]
     pub fn data_type(mut self, kind: DataKind) -> Self {
         self.data_type = Some(kind);
         self
     }
 
+    /// Record the upstream host. Pass a host, never a full URL.
     #[must_use]
     pub fn target_host(mut self, host: impl Into<String>) -> Self {
         self.target_host = Some(host.into());
         self
     }
 
+    /// Record the verdict reached.
     #[must_use]
     pub fn decision(mut self, decision: Decision) -> Self {
         self.decision = Some(decision);
         self
     }
 
+    /// Record the digest of the whole inspected payload.
     #[must_use]
     pub fn content_sha256(mut self, digest: impl Into<String>) -> Self {
         self.content_sha256 = Some(digest.into());
         self
     }
 
+    /// Record which model produced the finding.
     #[must_use]
     pub fn model_id(mut self, model: impl Into<String>) -> Self {
         self.model_id = Some(model.into());
         self
     }
 
+    /// Record the device that actually executed the inference.
     #[must_use]
     pub fn device(mut self, device: Device) -> Self {
         self.device = Some(device);

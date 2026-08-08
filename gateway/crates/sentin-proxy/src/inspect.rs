@@ -18,15 +18,19 @@ use crate::ner_service::{NerService, Skipped};
 /// What inspection concluded about one request. Metadata only, never content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FindingSummary {
+    /// What kind of data was found. The class, never an instance of it.
     pub kind: DataKind,
     /// The action this finding justified, after clamping by evidence and configuration.
     pub decision: Decision,
 }
 
+/// The result of inspecting one request: what was found, what to do, and what to forward.
 #[derive(Debug, Clone)]
 pub struct Inspection {
     /// The strongest action any finding justified.
     pub decision: Decision,
+    /// One entry per finding, each with its own clamped verdict — a request can hold a blocking
+    /// PESEL and an advisory name at once.
     pub findings: Vec<FindingSummary>,
     /// Present only when something was actually rewritten.
     pub masked_body: Option<Value>,
@@ -36,6 +40,7 @@ pub struct Inspection {
 }
 
 impl Inspection {
+    /// The result for a request nothing was found in: forward it untouched, and emit no event.
     #[must_use]
     pub fn clean() -> Self {
         Self {

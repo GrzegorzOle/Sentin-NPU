@@ -7,6 +7,8 @@
 //! forwarded verbatim and **never logged** — see [`forwardable_headers`], which is the single
 //! place that decides what crosses the boundary.
 
+#![warn(missing_docs)]
+
 pub mod adapters;
 pub mod audit_sink;
 pub mod config;
@@ -50,9 +52,12 @@ const HOP_BY_HOP: [&str; 8] = [
 /// Headers whose values are secrets. They are forwarded, but never appear in a log line.
 const SECRET_HEADERS: [&str; 3] = ["authorization", "x-api-key", "x-goog-api-key"];
 
+/// Everything a request handler needs, cloned per request.
 #[derive(Clone, Debug)]
 pub struct AppState {
+    /// The parsed configuration, shared rather than copied.
     pub config: Arc<Config>,
+    /// The outbound HTTP client, reused so connections are pooled across requests.
     pub client: reqwest::Client,
     /// Layer 2, when a model is configured and loads. `None` means layer 1 only — a missing or
     /// broken model degrades the gateway rather than stopping it.
@@ -96,6 +101,10 @@ impl AppState {
         Self::with_ner(config, ner)
     }
 
+    /// Build the state with a layer-2 service already constructed.
+    ///
+    /// Separate from [`AppState::new`] so tests can inject a service, or deliberately run without
+    /// one, without the loading path being involved.
     #[must_use]
     pub fn with_ner(config: Config, ner: Option<Arc<crate::ner_service::NerService>>) -> Self {
         let audit = crate::audit_sink::build(&config.audit, env!("CARGO_PKG_VERSION"));

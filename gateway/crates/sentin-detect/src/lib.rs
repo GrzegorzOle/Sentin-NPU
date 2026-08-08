@@ -9,6 +9,8 @@
 //! - `ner` (layer 2, Phase 4): token classification over an OpenVINO IR model, with spans mapped
 //!   back to the original text.
 
+#![warn(missing_docs)]
+
 pub mod checksums;
 pub mod deterministic;
 #[cfg(feature = "ner")]

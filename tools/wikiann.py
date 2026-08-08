@@ -65,6 +65,7 @@ def load(lang: str, num_samples: int = 500, split: str = "test") -> list[Example
 
 
 def load_all(languages: tuple[str, ...] = ("pl", "en"), num_samples: int = 500) -> dict:
+    """Load a slice of WikiANN per language — the set large enough for quantitative claims."""
     return {lang: load(lang, num_samples) for lang in languages}
 
 

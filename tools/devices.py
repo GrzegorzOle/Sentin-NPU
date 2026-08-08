@@ -76,6 +76,7 @@ def inventory() -> dict[str, Any]:
 
 
 def main() -> None:
+    """Probe every OpenVINO device on this machine and print, or emit, the inventory."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args()

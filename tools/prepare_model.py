@@ -61,6 +61,7 @@ def export(key: str, sequence_lengths: tuple[int, ...], *, overwrite: bool) -> N
 
 
 def main() -> None:
+    """Convert the requested candidates from Hugging Face to OpenVINO IR at both shapes."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--model",

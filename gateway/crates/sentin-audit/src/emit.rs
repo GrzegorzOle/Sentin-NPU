@@ -80,17 +80,20 @@ pub struct Fanout {
 }
 
 impl Fanout {
+    /// An empty fan-out, which discards everything until an emitter is added.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Add a sink. Order is preserved but carries no meaning: every sink sees every event.
     #[must_use]
     pub fn with(mut self, emitter: Box<dyn Emitter>) -> Self {
         self.emitters.push(emitter);
         self
     }
 
+    /// Whether no sink is configured — the case where auditing is effectively off.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.emitters.is_empty()
@@ -122,11 +125,16 @@ pub struct MemoryEmitter {
 }
 
 impl MemoryEmitter {
+    /// An empty collector.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// A snapshot of everything recorded so far.
+    ///
+    /// Returns an empty vector if the lock is poisoned: a test assertion that fails is a better
+    /// outcome than a panic inside an emitter, which must never take a request down.
     #[must_use]
     pub fn events(&self) -> Vec<Event> {
         self.events.lock().map(|e| e.clone()).unwrap_or_default()
