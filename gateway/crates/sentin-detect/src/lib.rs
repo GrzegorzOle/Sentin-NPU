@@ -3,25 +3,15 @@
 
 //! Detection layers.
 //!
-//! - `deterministic` (Phase 2): regex + checksum for PESEL, NIP, REGON, IBAN, payment cards,
-//!   email and PL phone numbers. The only source of blocking findings.
-//! - `ner` (Phase 4): token classification over an OpenVINO IR model, with spans mapped back to
-//!   the original text.
-//!
-//! Both converge on `detect(text) -> Vec<Finding>` from [`sentin_core`].
+//! - [`deterministic`] (layer 1): regex-free single-pass scanning plus checksum validation for
+//!   PESEL, NIP, REGON, IBAN, payment cards, email and Polish phone numbers. The only source of
+//!   findings that may justify blocking a request — and then only the checksum-backed ones.
+//! - `ner` (layer 2, Phase 4): token classification over an OpenVINO IR model, with spans mapped
+//!   back to the original text.
 
-pub use sentin_core::{DataKind, Finding, Layer};
+pub mod checksums;
+pub mod deterministic;
+pub mod testdata;
 
-/// Placeholder for the Phase 2 deterministic detectors.
-pub mod deterministic {
-    use super::Finding;
-
-    /// Scan `text` for checksum-validated identifiers.
-    ///
-    /// Phase 2 will implement this; the empty result keeps the pipeline compiling and honest —
-    /// no detector claims coverage it does not have.
-    #[must_use]
-    pub fn detect(_text: &str) -> Vec<Finding> {
-        Vec::new()
-    }
-}
+pub use deterministic::detect;
+pub use sentin_core::{DataKind, Decision, Finding, Layer, Validation};

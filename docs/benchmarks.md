@@ -23,7 +23,7 @@ A number without that context is not a result.
 
 | ID | Metric | PoC threshold | Status |
 |---|---|---|---|
-| M1 | L1 throughput (MB/s) | > 100 MB/s | not measured |
+| M1 | L1 throughput (MB/s) | > 100 MB/s | **PASS** — 296-1252 MB/s, see below |
 | M2a | Proxy overhead, no inspection | p95 < 5 ms | not measured |
 | M2b | Full pipeline overhead (L1+L2) | p95 < 150 ms CPU / < 80 ms NPU | not measured |
 | M2c | Streaming TTFT impact | decided by B2; always reported | not measured |
@@ -31,7 +31,64 @@ A number without that context is not a result.
 | M4 | NER quality PL+EN | reported, no hard threshold | preliminary, see B1 |
 | M5 | Power draw per device | no threshold — **headline result** | not measured |
 | M6 | Gateway resource use | RSS < 50 MB without model | not measured |
-| M7 | L1 false positives | 0 for checksum detectors | not measured |
+| M7 | L1 false positives | 0 for checksum detectors | **PASS** on prose; see caveat below |
+
+## Layer 1 — deterministic detectors (M1, M7) — measured 2026-08-08
+
+Conditions: dev machine (AMD Ryzen AI 7 350), Fedora Linux, rustc 1.96.0, release profile,
+criterion 100 samples per case. Reproduce with `cargo bench -p sentin-detect`.
+
+### M1 — throughput (threshold > 100 MB/s)
+
+| Corpus | 1 KB | 100 KB |
+|---|---|---|
+| Prose, no identifiers | 1.22 GiB/s | 1.22 GiB/s |
+| Prose with identifiers (~1 per 200 B) | 904 MiB/s | 934 MiB/s |
+| Digit noise (every token a candidate) | 296 MiB/s | 308 MiB/s |
+
+**PASS — the worst case is ~3× the threshold.** Throughput is essentially independent of input
+size, as a single-pass scanner should be.
+
+The digit-noise case is the honest worst case: every token is a candidate, so every token pays for
+digit collection and at least one checksum. Real traffic looks like the first two rows.
+
+One measurement worth recording because it was a 4× swing: an early version of the IBAN scanner
+attempted a match at every alphabetic token start, which dropped clean-prose throughput to
+335 MiB/s. Requiring the canonical `XX00` opening (uppercase country code, two check digits)
+before scanning rejects ordinary words on the first byte and took it to 1.22 GiB/s.
+
+### M7 — false positives (threshold 0 for checksum detectors)
+
+| Corpus | Size | Checksum-backed findings |
+|---|---|---|
+| PII-free business prose (dates, prices, quantities, times, versions) | 1 MB | **0** |
+| Text with no digits at all | 25 KB | 0 |
+| Adversarial: uniform random 9-19 digit runs | 20 000 numbers | **710 (3.55 %)** |
+
+**PASS on the corpus M7 is defined against**, and both cases are kept as tests
+(`tests/false_positives.rs`) so a regression fails the build rather than a review.
+
+**The 3.55 % on random digit runs is not a bug and will not go to zero.** REGON and NIP are mod-11
+checks, so roughly one random nine- or ten-digit string in eleven satisfies them arithmetically.
+The guards that exist — PESEL must also parse as a real date, cards need a known issuer prefix on
+top of Luhn, and every candidate must sit on a token boundary — bring a naive rate of well over
+10 % down to 3.55 %, but a checksum cannot distinguish a valid REGON from a random number that
+happens to satisfy the same equation. This is the ceiling of what layer 1 can promise, and it is
+why the architecture treats layer 1 as *evidence for* a decision rather than proof.
+
+Practical consequence: a document consisting mostly of bare nine-digit numbers will produce
+spurious REGON findings. Ordinary prose will not.
+
+### Behaviour worth knowing
+
+- Spans are **byte** offsets. All layer-1 patterns are ASCII, so they always land on character
+  boundaries even in Polish text; layer 2 will have to convert the tokenizer's character offsets.
+- Email and Polish phone numbers carry `Validation::Pattern` and **cannot reach a blocking
+  decision** — there is no checksum to appeal to. This is enforced in the type system
+  (`sentin_core::Finding::max_decision`), not by configuration.
+- A bare nine-digit run is offered to REGON, not to the phone detector. Phone numbers are only
+  recognised with a `+48`/`0048` prefix or `123 456 789` grouping, because guessing "phone" from
+  an unformatted nine-digit number would fire on every order id in every prompt.
 
 ## Model selection (B1) — decided 2026-08-08
 

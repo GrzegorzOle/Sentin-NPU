@@ -11,5 +11,13 @@ authors.workspace = true
 [dependencies]
 sentin-core = { workspace = true }
 
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "throughput"
+harness = false
+
 [lints]
 workspace = true
