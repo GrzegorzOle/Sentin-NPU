@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/sentin-core",
+    "crates/sentin-diag",
     "crates/sentin-detect",
     "crates/sentin-proxy",
     "crates/sentin-audit",
@@ -18,6 +19,7 @@ authors = ["Grzegorz Oleksy"]
 [workspace.dependencies]
 sentin-core = { path = "crates/sentin-core" }
 sentin-detect = { path = "crates/sentin-detect" }
+sentin-diag = { path = "crates/sentin-diag" }
 sentin-proxy = { path = "crates/sentin-proxy" }
 sentin-audit = { path = "crates/sentin-audit" }
 

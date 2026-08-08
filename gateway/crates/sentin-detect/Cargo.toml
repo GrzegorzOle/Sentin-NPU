@@ -8,12 +8,19 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+# The NER layer needs a tokenizer, whose regex backend needs a C compiler. Diagnostics and the
+# deterministic layer do not, and sentin-doctor ships as a static musl binary to machines with no
+# toolchain — so layer 2 is opt-in rather than an unavoidable build dependency.
+default = ["ner"]
+ner = ["dep:tokenizers"]
+
 [dependencies]
 sentin-core = { workspace = true }
 openvino = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
-tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 serde_json.workspace = true
 
 [dev-dependencies]

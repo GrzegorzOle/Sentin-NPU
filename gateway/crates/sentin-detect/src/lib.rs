@@ -11,6 +11,7 @@
 
 pub mod checksums;
 pub mod deterministic;
+#[cfg(feature = "ner")]
 pub mod ner;
 pub mod ov;
 pub mod testdata;

@@ -247,6 +247,65 @@ fn compile_and_run(
     })
 }
 
+/// Run inference on `device` as fast as possible for `duration`, returning how many completed.
+///
+/// This is the loop behind the per-device power comparison: energy per inference only means
+/// something if the inferences are counted, and a device that is merely idle-waiting would
+/// otherwise look wonderfully efficient.
+///
+/// # Errors
+/// Returns the device's own refusal message when the model will not compile or run there.
+pub fn run_for(xml: &Path, device: &str, duration: Duration) -> Result<(u64, Duration), String> {
+    let mut core = Core::new().map_err(|err| err.to_string())?;
+    let bin = xml.with_extension("bin");
+    let model = core
+        .read_model_from_file(&xml.to_string_lossy(), &bin.to_string_lossy())
+        .map_err(|err| format!("read_model: {err}"))?;
+    let mut compiled = core
+        .compile_model(&model, DeviceType::from(device))
+        .map_err(|err| format!("compile_model: {err}"))?;
+
+    let inputs = compiled
+        .get_input_size()
+        .map_err(|err| format!("get_input_size: {err}"))?;
+    let mut tensors = Vec::with_capacity(inputs);
+    for index in 0..inputs {
+        let node = compiled
+            .get_input_by_index(index)
+            .map_err(|err| format!("get_input_by_index: {err}"))?;
+        let shape = node
+            .get_shape()
+            .map_err(|err| format!("get_shape: {err}"))?;
+        let element = node
+            .get_element_type()
+            .map_err(|err| format!("get_element_type: {err}"))?;
+        tensors.push(Tensor::new(element, &shape).map_err(|err| format!("tensor alloc: {err}"))?);
+    }
+
+    let mut request = compiled
+        .create_infer_request()
+        .map_err(|err| format!("create_infer_request: {err}"))?;
+    for (index, tensor) in tensors.iter().enumerate() {
+        request
+            .set_input_tensor_by_index(index, tensor)
+            .map_err(|err| format!("set_input_tensor: {err}"))?;
+    }
+
+    // One warm-up outside the measured window: the first call pays for graph setup, which on an
+    // NPU can dwarf steady state and would otherwise be smeared across the average.
+    request.infer().map_err(|err| format!("infer: {err}"))?;
+
+    let started = Instant::now();
+    let mut count = 0u64;
+    while started.elapsed() < duration {
+        request
+            .infer()
+            .map_err(|err| format!("infer (loop): {err}"))?;
+        count += 1;
+    }
+    Ok((count, started.elapsed()))
+}
+
 /// Resolve a requested device to one that is actually present.
 ///
 /// `AUTO` walks [`AUTO_ORDER`], which is NPU first by design. Returns the chosen name and whether

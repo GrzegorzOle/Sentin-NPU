@@ -11,6 +11,7 @@ authors.workspace = true
 [dependencies]
 sentin-core = { workspace = true }
 sentin-detect = { workspace = true }
+sentin-diag = { workspace = true }
 openvino = { workspace = true }
 
 axum = { workspace = true }

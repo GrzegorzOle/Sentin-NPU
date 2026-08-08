@@ -9,9 +9,9 @@
 
 pub mod adapters;
 pub mod config;
-pub mod doctor;
-pub mod energy;
-pub mod fingerprint;
+
+/// Re-exported so existing callers keep working after diagnostics moved to their own crate.
+pub use sentin_diag::{doctor, energy, fingerprint};
 pub mod inspect;
 pub mod mock;
 pub mod ner_service;

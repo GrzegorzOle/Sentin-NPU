@@ -18,27 +18,23 @@ body:
 
         ### How to produce the report
 
+        **You need nothing installed** — no Rust, no Python, no OpenVINO, no network. Download the
+        diagnostic bundle from the latest release, then:
+
         ```bash
-        git clone https://github.com/GrzegorzOle/Sentin-NPU.git
-        cd Sentin-NPU
-
-        # 1. Build the gateway (Rust stable, MSRV 1.82)
-        cargo build --release --manifest-path gateway/Cargo.toml
-
-        # 2. Get an IR to test with (Python 3.11+)
-        python3.11 -m venv tools/.venv
-        tools/.venv/bin/pip install -r tools/requirements.txt
-        tools/.venv/bin/python tools/prepare_model.py --model herbert
-        tools/.venv/bin/python tools/quantize.py      --model herbert
-
-        # 3. Run the report
-        ./gateway/target/release/sentin-gateway --doctor \
-            --model models/herbert/int8/seq128/openvino_model.xml \
-            --json npu-report.json
+        tar xzf sentin-npu-diag.tar.gz
+        cd sentin-npu-diag
+        ./run.sh              # device report, about a minute
+        ./run.sh --power      # also energy per device, a few minutes more
         ```
 
-        If the binary cannot find `libopenvino_c.so`, the OpenVINO libraries need **unversioned**
-        symlinks and to be on `LD_LIBRARY_PATH` — see `docs/npu-compat.md`.
+        It writes everything to `results/` and packs it into a single `.tar.gz` to attach here.
+
+        Energy measurement needs readable RAPL counters. If they are not, the script says so and
+        prints the one-line fix; the device report works either way.
+
+        If you would rather build from source, `scripts/make-bundle.sh` produces the same bundle
+        and the repository README documents the toolchain.
 
         The report contains hardware, OS, driver versions and timings. **It contains no personal
         data and no text you have processed** — it never touches the inspection path.

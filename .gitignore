@@ -13,6 +13,10 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 
+# Build artefacts of the diagnostic bundle (hundreds of MB; rebuilt by scripts/make-bundle.sh)
+dist/
+gateway/target-bullseye/
+
 # Model artifacts — IR ships as GitHub Release assets, never in the repo
 models/*
 !models/.gitkeep

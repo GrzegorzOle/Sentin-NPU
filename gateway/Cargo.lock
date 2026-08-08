@@ -1973,6 +1973,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentin-diag"
+version = "0.1.0"
+dependencies = [
+ "openvino",
+ "sentin-core",
+ "sentin-detect",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tracing",
+]
+
+[[package]]
 name = "sentin-proxy"
 version = "0.1.0"
 dependencies = [
@@ -1983,6 +1996,7 @@ dependencies = [
  "reqwest",
  "sentin-core",
  "sentin-detect",
+ "sentin-diag",
  "serde",
  "serde_json",
  "serde_yaml_ng",

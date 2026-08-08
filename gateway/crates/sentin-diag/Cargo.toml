@@ -1,0 +1,31 @@
+[package]
+name = "sentin-diag"
+description = "Diagnostics and measurement for Sentin-NPU: device probing, energy, machine fingerprint"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+# Deliberately dependency-light. This crate ships as a static binary to machines that have no
+# toolchain, so it must not drag in the proxy's async stack: tokio and reqwest are what blocked
+# the musl build (aws-lc-sys needs a C toolchain for musl).
+[dependencies]
+sentin-core = { workspace = true }
+# Declared directly rather than inherited: cargo ignores `default-features = false`
+# on a workspace-inherited dependency, which silently pulled the tokenizer (and its C
+# regex backend) back in and broke the static build.
+sentin-detect = { path = "../sentin-detect", default-features = false }
+openvino = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[[bin]]
+name = "sentin-doctor"
+path = "src/bin/doctor.rs"
+
+[lints]
+workspace = true
