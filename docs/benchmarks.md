@@ -252,7 +252,7 @@ comparison measures quality rather than class count).
 | Model | Licence | seq | Precision | F1 PL | F1 EN | Size MB | `tokenizer.json` |
 |---|---|---|---|---|---|---|---|
 | `pczarnik/herbert-base-ner` | CC-BY-4.0 | 128 | FP32 | **88.06** | 58.97 | 476.4 | yes |
-| | | 128 | INT8 | **87.92** | 59.77 | **123.4** | |
+| | | 128 | INT8 | **87.57** | 59.51 | **123.4** | |
 | | | 512 | FP32 | 88.06 | 62.86 | 476.4 | |
 | | | 512 | INT8 | 87.16 | 63.74 | 123.4 | |
 | `Davlan/xlm-roberta-base-ner-hrl` | AFL-3.0 | 128 | FP32 | 64.30 | 53.14 | 1075.1 | no |
@@ -265,6 +265,9 @@ comparison measures quality rather than class count).
 | herbert | 128 | −0.49 | +0.54 | PASS |
 | herbert | 512 | −0.90 | +0.88 | PASS |
 | xlmr | 128 | −1.68 | +0.22 | PASS |
+
+(The seq-128 INT8 row above carried pre-reshape-fix figures for a while — 87.92 / 59.77 — which
+contradicted these deltas. Re-measured 2026-08-08 on the shipped IR: 87.57 / 59.51, matching them.)
 
 INT8 costs essentially nothing in quality while cutting the model to **~26 % of FP32 size**. Both
 candidates quantize cleanly with full PTQ (weights *and* activations, calibrated on 300 WikiANN
@@ -330,7 +333,7 @@ pins it — if either side drifts the test fails and names the three usual cause
 the next person to rediscover them.
 
 **Which numbers to quote, and for what.** These fixture figures are far higher than the WikiANN
-results in B1 (87.92 PL / 59.77 EN at the same precision and sequence length) because the fixtures
+results in B1 (87.57 PL / 59.51 EN at the same precision and sequence length) because the fixtures
 are short, unambiguous sentences written for offline sanity checking — no nested entities, no
 ambiguous capitalisation, no rare surnames. A reader who took 95.52 as this model's Polish quality
 would be badly misled.

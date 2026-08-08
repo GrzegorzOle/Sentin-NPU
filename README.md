@@ -10,14 +10,21 @@ only on unambiguous policy violations.
 
 > ⚠️ **Status: Proof of Concept.** Not production-ready. See [Roadmap](#roadmap).
 >
-> Working today: the proxy with adapters for all three provider APIs, the deterministic
-> detection layer, request masking and blocking, and the model toolchain that produces the
-> OpenVINO IR. **The NER layer is not wired into the gateway yet** — the model is chosen,
-> converted and quantized, but layer 2 inference from Rust is in progress, so the running
-> gateway currently inspects with layer 1 only. NPU execution is unverified: it needs Intel
-> hardware, which is a separate phase.
+> Working today, end to end: the proxy with adapters for all three provider APIs, both detection
+> layers — deterministic checksums *and* NER inference through OpenVINO — request masking and
+> blocking, SIEM audit events over CEF/OTLP/JSONL, and release bundles that install on a machine
+> with no Rust and no Python.
+>
+> **The one thing not verified is the thing the project is named after.** Every measurement here
+> was taken with `device = CPU`, because the development machine has an AMD NPU that OpenVINO
+> cannot address. Intel NPU execution needs a session on Intel hardware — see
+> [Help wanted](#help-wanted-npu-reports). Response-side masking is not implemented either;
+> responses are inspected and logged, not rewritten.
 
-<!-- TODO: badges: license, CI -->
+[![rust](https://github.com/GrzegorzOle/Sentin-NPU/actions/workflows/rust.yml/badge.svg)](https://github.com/GrzegorzOle/Sentin-NPU/actions/workflows/rust.yml)
+[![python](https://github.com/GrzegorzOle/Sentin-NPU/actions/workflows/python.yml/badge.svg)](https://github.com/GrzegorzOle/Sentin-NPU/actions/workflows/python.yml)
+[![release](https://img.shields.io/github/v/release/GrzegorzOle/Sentin-NPU?include_prereleases&sort=semver)](https://github.com/GrzegorzOle/Sentin-NPU/releases)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ---
 
@@ -34,24 +41,7 @@ only on unambiguous policy violations.
 
 ## Architecture
 
-```
-┌──────────────┐     ┌──────────────────────────────────────┐     ┌─────────────────┐
-│  LLM agent   │     │            Sentin-NPU gateway        │     │   LLM provider  │
-│ (Claude SDK, │────▶│                                      │────▶│  api.anthropic  │
-│  Gemini SDK, │     │  1. Deterministic layer (regex,      │     │  googleapis     │
-│  Ollama, …)  │     │     checksums: PESEL/NIP/IBAN/cards) │     │  localhost:11434│
-│ base_url =   │     │  2. NER on Intel NPU (OpenVINO)      │     └─────────────────┘
-│  localhost   │     │  3. Policy: advise / mask / block    │
-└──────────────┘     │  4. Audit event (no content)         │
-                     └──────────────────┬───────────────────┘
-                                        │ CEF / OTLP
-                                        ▼
-                                   ┌─────────┐
-                                   │  SIEM   │
-                                   └─────────┘
-```
-
-<!-- TODO: replace ASCII with a proper diagram (docs/architecture.png) -->
+![The agent talks to a gateway on localhost; the gateway inspects the request with checksum detectors and NER on the NPU, decides, masks, forwards the masked request to the provider, and sends metadata-only events to the SIEM](docs/architecture.svg)
 
 The gateway itself is **Rust** (`gateway/`, a Cargo workspace: `sentin-core`, `sentin-detect`,
 `sentin-proxy`, `sentin-audit`) — that is what gets deployed. **Python** (`tools/`) is the offline
@@ -68,6 +58,32 @@ model toolchain that converts and quantizes the NER model; it is never in the re
    falls back to CPU/GPU transparently when an operation is unsupported.
 
 ## Quick start
+
+### From a release bundle — no toolchain needed
+
+The bundle carries the gateway, the diagnostics, the OpenVINO runtime and the quantized model.
+Nothing else is required: no Rust, no Python, no OpenVINO installation.
+
+```bash
+# Linux x64 — pick the newest tag from the releases page
+curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/SHA256SUMS.txt
+curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/sentin-npu-diag-0.0.0.2-linux-x64.tar.gz
+sha256sum -c SHA256SUMS.txt --ignore-missing
+
+tar xzf sentin-npu-diag-0.0.0.2-linux-x64.tar.gz
+cd sentin-npu-diag-0.0.0.2-linux-x64
+
+./run.sh              # every diagnostic, both shape variants, collected into one archive
+./install.sh          # → ~/.local/share/sentin-npu, wrappers in ~/.local/bin
+
+sentin-gateway ~/.local/share/sentin-npu/config.yaml
+```
+
+`packaging/systemd/` holds a **user** unit if you want it running as a service. The Windows zip is
+built by the same CI job and passes its build, but it has **not been run on Windows yet** — treat
+it as untested.
+
+### From source
 
 The project is hybrid by design: **Python is the offline model toolchain, Rust is the gateway
 runtime that ships.** The two steps below reflect that split.
@@ -86,8 +102,26 @@ tools/.venv/bin/python tools/quantize.py      --model herbert   # → INT8
 #    The Cargo workspace lives in gateway/, so build it by manifest path and run the
 #    binary from the repo root, where config/ and models/ resolve.
 cargo build --release --manifest-path gateway/Cargo.toml
+
+# The OpenVINO runtime is loaded with dlopen at startup, so it has to be on the library
+# path. The Python wheel installed above already carries it -- including the NPU plugin.
+export OVLIB=$PWD/tools/.venv/lib/python3.11/site-packages/openvino/libs
+export LD_LIBRARY_PATH=$OVLIB:$LD_LIBRARY_PATH
+
 ./gateway/target/release/sentin-gateway config/default.yaml
 ```
+
+`dlopen` looks for **unversioned** sonames (`libopenvino_c.so`) and the wheel ships only versioned
+ones (`libopenvino_c.so.2630`). If startup fails with *"Unable to find the `openvino_c` library to
+load"*, create the symlinks:
+
+```bash
+for f in "$OVLIB"/*.so.*; do ln -sf "$f" "${f%%.so.*}.so"; done
+```
+
+Without a loadable runtime the gateway still starts — it logs the failure and inspects with
+layer 1 only, because a proxy in the path of real work should not refuse to run over a missing
+optional component.
 
 The listen address comes from the config file (`listen.host` / `listen.port`, default
 `127.0.0.1:4141`). Port 4000 is deliberately avoided: LiteLLM and similar model routers commonly sit there.
@@ -141,8 +175,20 @@ an operator configures `mode: block` for it — the request is masked instead.
 - Conversion: `optimum-intel` → OpenVINO IR, **static shapes** (sequence 128 and 512; static is an
   NPU requirement, not an optimisation), INT8 via NNCF post-training quantization.
 - Rust binding: the [`openvino`](https://crates.io/crates/openvino) crate with `runtime-linking`.
+- Inference runs on its own OS thread, reached by channel, with a configurable timeout. Blocking
+  inference on a tokio worker would stall every request that shares it, and a model that fails to
+  load leaves layer 1 running rather than taking the gateway down.
 - Tested on: AMD Ryzen AI 7 350 / Fedora, OpenVINO 2026.3, **device CPU and GPU only**.
   Intel NPU is **not yet verified** — see below.
+
+Measured with `--doctor` on the dev machine (HerBERT INT8, sequence 128):
+
+| Device | Compile | First inference | Steady |
+|---|---|---|---|
+| CPU — AMD Ryzen AI 7 350 | 686 ms | 14.3 ms | **11.7 ms** |
+| GPU — NVIDIA dGPU via OpenCL | 706 ms | 116.5 ms | 116.0 ms |
+
+The NPU column is missing on purpose. It is the column this project exists to fill.
 
 ### Benchmarks
 
@@ -162,11 +208,17 @@ the network's:
 | Metric | Result |
 |---|---|
 | Deterministic layer throughput | 296 MB/s – 1.22 GB/s |
-| Proxy overhead, p95 | **+0.07 ms** |
+| Proxy overhead, p95 (no inspection) | **+0.07 ms** |
+| Full pipeline overhead, p95 (layer 1 + NER on CPU) | **+10.8 ms** — one inference, and little else |
 | Streaming time-to-first-token | +0.1 ms (`passthrough`) · +92 ms (`sliding_window`) · +511 ms (`buffer`) |
 | Energy overhead | **+0.57 mJ per request** (≈ 5.7 mW at 10 rps, AMD dev machine) |
 | INT8 quality loss | ≤ 0.9 pp F1 |
+| Resident memory | 9 MB without the model · 506 MB with it |
 | False positives on 1 MB of PII-free prose | 0 |
+
+The Rust engine and the Python reference toolchain are scored against each other on every run of
+the test suite; they agree to two decimal places (95.52 PL / 84.44 EN on the committed fixtures).
+That is a parity check, not a quality claim — the WikiANN figures above are the honest measure.
 
 Per-device inference latency and power — the NPU-vs-GPU-vs-CPU comparison this project exists to
 produce — requires Intel hardware and is not measured yet:
@@ -184,9 +236,18 @@ per-device table above stays empty until someone with the hardware runs the chec
 command, and it takes a few minutes:
 
 ```bash
+# from a release bundle — no toolchain, no network, no Python
+./run.sh                     # add --power for energy per device
+
+# or from a source build
 ./gateway/target/release/sentin-gateway --doctor \
     --model models/herbert/int8/seq128/openvino_model.xml --json npu-report.json
 ```
+
+`run.sh` compiles and executes the real IR at **both** sequence lengths, on every device the
+machine exposes, and records the driver, kernel module and device nodes alongside the timings —
+an NPU that accepts one shape and refuses the other is exactly the kind of answer this is looking
+for. Everything lands in a single archive.
 
 Then open an [npu-report issue](https://github.com/GrzegorzOle/Sentin-NPU/issues/new?template=npu-report.yml)
 and paste the result. **A report where the NPU refuses the model is as valuable as one where it
@@ -230,8 +291,14 @@ Every detection produces an event — **metadata only, never content**:
 the whole inspected payload and stands in for it — no field may let an analyst reconstruct the
 sensitive value, which is what keeps the audit trail from becoming the leak.
 
-Formats: CEF over syslog, OTLP, JSONL. Field reference: **[docs/events.md](docs/events.md)** —
-the schema is fixed there and is authoritative; the emitters themselves are still to be built.
+Formats: CEF over syslog (UDP/TCP), OTLP over HTTP (JSON encoding), and JSONL to a file — all
+three implemented, configured in `config/default.yaml`, and fanned out to independently. Field
+reference: **[docs/events.md](docs/events.md)**, which is authoritative for the schema.
+
+Two properties the implementation guarantees rather than promises: an emitter that fails — full
+disk, unreachable collector — is logged and skipped, never propagated into the request; and a
+clean request emits **nothing**, because a SIEM full of events about nothing buries the ones that
+matter.
 
 ## Roadmap
 
@@ -247,6 +314,15 @@ the schema is fixed there and is authoritative; the emitters themselves are stil
 
 - Off-the-shelf NER: detects identities, not "confidentiality" — contextual
   sensitivity is out of scope for the PoC.
+- **English NER is weak** (~59 F1 on WikiANN). The model is Polish-first, and this is a measured
+  property rather than a bug to be filed; layer 1 catches structured identifiers in any language.
+- **Polish inflection is not handled specially.** Declined surnames are the known weak spot;
+  fine-tuning is a roadmap item.
+- **Requests are masked; responses are not.** The response side is inspected and audited, but
+  rewriting a stream while it renders is roadmap work, not PoC.
+- Checksum detectors accept roughly 3.5 % of *uniform random* 9–19 digit runs, because a mod-11
+  check passes about one in eleven by arithmetic. Prose is unaffected — the measured false
+  positive count on 1 MB of PII-free text is zero.
 - Masking degrades LLM answer quality; that trade-off belongs to the user.
 - NPU support depends on hardware generation and driver version.
 

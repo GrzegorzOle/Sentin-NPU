@@ -30,7 +30,12 @@ inference:
   # NPU | GPU | CPU | AUTO. AUTO tries NPU > GPU > CPU.
   # The dev machine has no OpenVINO-visible NPU; see docs/npu-compat.md before changing this.
   device: AUTO
-  model_dir: models/
+  # The directory holding the IR and its tokenizer.json, not the models/ root: this is the path
+  # the toolchain writes for the shorter shape variant. Pointing it one level too high loads
+  # nothing and drops the gateway to layer 1 with only a warning, which is easy to miss.
+  # install.sh rewrites this to an absolute path, because a relative one resolves against the
+  # working directory and would silently disable layer 2 from anywhere but the install root.
+  model_dir: models/herbert/int8/seq128
   # Two static-shape IR variants; the shorter one is preferred when the text fits.
   sequence_lengths: [128, 512]
   # If inspection exceeds this, apply timeout_policy and emit inspection_timeout.
