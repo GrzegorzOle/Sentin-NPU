@@ -1945,6 +1945,9 @@ name = "sentin-audit"
 version = "0.1.0"
 dependencies = [
  "sentin-core",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]
