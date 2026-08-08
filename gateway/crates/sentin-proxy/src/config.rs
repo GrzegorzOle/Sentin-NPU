@@ -31,7 +31,9 @@ impl Default for Listen {
     fn default() -> Self {
         Self {
             host: "127.0.0.1".to_string(),
-            port: 4000,
+            // Matches config/default.yaml. Not 4000 — model routers such as LiteLLM commonly
+            // hold that port, and the fallback should not be the one address likely to be taken.
+            port: 4141,
         }
     }
 }
@@ -189,7 +191,13 @@ mod tests {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../config/default.yaml");
         let config = Config::load(path).expect("shipped config must parse");
 
-        assert_eq!(config.listen.port, 4000);
+        // Not 4000: model routers such as LiteLLM habitually own that port, and a default the
+        // gateway cannot bind to is a bad first run. Asserted so the two cannot drift apart.
+        assert_eq!(config.listen.port, 4141);
+        assert_ne!(
+            config.listen.port, 4000,
+            "4000 belongs to the router, not to us"
+        );
         assert!(config.providers.contains_key("anthropic"));
         assert!(config.inspect.request, "request inspection is the PoC core");
 
