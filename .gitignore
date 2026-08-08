@@ -16,6 +16,7 @@ __pycache__/
 # Build artefacts of the diagnostic bundle (hundreds of MB; rebuilt by scripts/make-bundle.sh)
 dist/
 gateway/target-bullseye/
+gateway/target-win/
 
 # Model artifacts — IR ships as GitHub Release assets, never in the repo
 models/*

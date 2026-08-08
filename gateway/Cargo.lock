@@ -1942,7 +1942,7 @@ dependencies = [
 
 [[package]]
 name = "sentin-audit"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "sentin-core",
  "serde",
@@ -1952,7 +1952,7 @@ dependencies = [
 
 [[package]]
 name = "sentin-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "serde",
  "thiserror 2.0.20",
@@ -1960,7 +1960,7 @@ dependencies = [
 
 [[package]]
 name = "sentin-detect"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "criterion",
  "openvino",
@@ -1974,7 +1974,7 @@ dependencies = [
 
 [[package]]
 name = "sentin-diag"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "openvino",
  "sentin-core",
@@ -1987,7 +1987,7 @@ dependencies = [
 
 [[package]]
 name = "sentin-proxy"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "axum",
  "bytes",
