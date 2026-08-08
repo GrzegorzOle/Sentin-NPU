@@ -9,8 +9,15 @@ the data, and emits an audit event to your SIEM. Advisory by design — it block
 only on unambiguous policy violations.
 
 > ⚠️ **Status: Proof of Concept.** Not production-ready. See [Roadmap](#roadmap).
+>
+> Working today: the proxy with adapters for all three provider APIs, the deterministic
+> detection layer, request masking and blocking, and the model toolchain that produces the
+> OpenVINO IR. **The NER layer is not wired into the gateway yet** — the model is chosen,
+> converted and quantized, but layer 2 inference from Rust is in progress, so the running
+> gateway currently inspects with layer 1 only. NPU execution is unverified: it needs Intel
+> hardware, which is a separate phase.
 
-<!-- TODO: badges: license, CI, Python version -->
+<!-- TODO: badges: license, CI -->
 
 ---
 
@@ -46,6 +53,10 @@ only on unambiguous policy violations.
 
 <!-- TODO: replace ASCII with a proper diagram (docs/architecture.png) -->
 
+The gateway itself is **Rust** (`gateway/`, a Cargo workspace: `sentin-core`, `sentin-detect`,
+`sentin-proxy`, `sentin-audit`) — that is what gets deployed. **Python** (`tools/`) is the offline
+model toolchain that converts and quantizes the NER model; it is never in the request path.
+
 **Design principles**
 
 1. **On-device only** — no content ever leaves the machine for inspection.
@@ -58,18 +69,36 @@ only on unambiguous policy violations.
 
 ## Quick start
 
-<!-- TODO: verify commands once the code lands -->
+The project is hybrid by design: **Python is the offline model toolchain, Rust is the gateway
+runtime that ships.** The two steps below reflect that split.
 
 ```bash
 git clone https://github.com/GrzegorzOle/Sentin-NPU.git
 cd Sentin-NPU
-pip install -r requirements.txt
 
-# Convert / download the NER model to OpenVINO IR
-python scripts/prepare_model.py --device NPU
+# 1. Model toolchain (Python 3.11+, offline) — produces the OpenVINO IR
+python3.11 -m venv tools/.venv
+tools/.venv/bin/pip install -r tools/requirements.txt
+tools/.venv/bin/python tools/prepare_model.py --model herbert   # HF → IR, static shapes 128 and 512
+tools/.venv/bin/python tools/quantize.py      --model herbert   # → INT8
 
-# Run the gateway
-python -m sentin.gateway --port 4000 --config config/default.yaml
+# 2. Gateway (Rust, edition 2021, MSRV 1.82).
+#    The Cargo workspace lives in gateway/, so build it by manifest path and run the
+#    binary from the repo root, where config/ and models/ resolve.
+cargo build --release --manifest-path gateway/Cargo.toml
+./gateway/target/release/sentin-gateway config/default.yaml
+```
+
+The listen address comes from the config file (`listen.host` / `listen.port`, default
+`127.0.0.1:4000`); change it there if port 4000 is already taken on your machine.
+
+Useful extras:
+
+```bash
+tools/.venv/bin/python tools/devices.py       # which OpenVINO devices this machine really has
+tools/.venv/bin/python tools/validate_model.py --model herbert --seq 128 --dataset wikiann
+./gateway/target/release/sentin-bench             # latency (M2a, M2c)
+./gateway/target/release/sentin-bench --energy    # energy overhead (M5b)
 ```
 
 Point your agent at the gateway:
@@ -80,41 +109,87 @@ export ANTHROPIC_BASE_URL=http://localhost:4000/anthropic
 
 # OpenAI-compatible (Ollama, LM Studio, vLLM)
 export OPENAI_BASE_URL=http://localhost:4000/openai
-
-# Google GenAI
-# TODO: document Gemini base_url override
 ```
+
+For Google GenAI the gateway serves `/google/*`; the SDK has no standard base-URL environment
+variable, so pass `http://localhost:4000/google` as the client's endpoint/base-URL option.
+
+Your API key is forwarded upstream unchanged and is never written to a log — the gateway is a
+proxy, not a credential broker.
 
 ## Detection layers
 
 | Layer | What it catches | Method | Verdict allowed |
 |---|---|---|---|
-| 1. Deterministic | PESEL, NIP, IBAN, credit cards | regex + checksum | advise / mask / **block** |
-| 2. NER (NPU) | names, organizations, locations | token classification, OpenVINO on NPU | advise / mask |
+| 1. Deterministic — checksum | PESEL (with its embedded date), NIP, REGON, IBAN, payment cards | single-pass scan + checksum | advise / mask / **block** |
+| 1. Deterministic — pattern | email, Polish phone numbers | shape only, no checksum | advise / mask — **never block** |
+| 2. NER | names, organizations, locations | token classification, OpenVINO IR | advise / mask |
 | 3. Corporate policy | company secrets, project codenames | signed policy artifacts (see Roadmap) | — planned |
+
+The split inside layer 1 is enforced in the type system, not by configuration. Blocking a request
+needs arithmetic proof, so a detector with no checksum behind it cannot reach that verdict even if
+an operator configures `mode: block` for it — the request is masked instead.
 
 ## NPU inference
 
 <!-- The core of the project for the OpenVINO community — keep this section honest and detailed -->
 
-- Model: <!-- TODO: e.g. xlm-roberta-based NER, INT8 via optimum-intel -->
-- Conversion: `optimum-intel` → OpenVINO IR, static shapes
-- Tested on: <!-- TODO: CPU/GPU/NPU generations, driver versions -->
+- **Model: [`pczarnik/herbert-base-ner`](https://huggingface.co/pczarnik/herbert-base-ner)**
+  (CC-BY-4.0, commercial use permitted). Chosen over a multilingual XLM-R candidate on measured
+  quality, size and tokenizer availability — see [docs/benchmarks.md](docs/benchmarks.md).
+- Conversion: `optimum-intel` → OpenVINO IR, **static shapes** (sequence 128 and 512; static is an
+  NPU requirement, not an optimisation), INT8 via NNCF post-training quantization.
+- Rust binding: the [`openvino`](https://crates.io/crates/openvino) crate with `runtime-linking`.
+- Tested on: AMD Ryzen AI 7 350 / Fedora, OpenVINO 2026.3, **device CPU and GPU only**.
+  Intel NPU is **not yet verified** — see below.
 
 ### Benchmarks
 
-<!-- TODO: the money table -->
+Full detail, methodology and caveats: **[docs/benchmarks.md](docs/benchmarks.md)**.
+
+Model quality (WikiANN, 500 sentences per language, exact span match, PER/ORG/LOC):
+
+| Model | Licence | F1 PL | F1 EN | INT8 size |
+|---|---|---|---|---|
+| `herbert-base-ner` FP32 | CC-BY-4.0 | **88.06** | 58.97 | — |
+| `herbert-base-ner` INT8 | | **87.92** | 59.77 | 123 MB |
+| `xlm-roberta-base-ner-hrl` INT8 | AFL-3.0 | 62.62 | 53.36 | 284 MB |
+
+Gateway cost, measured against a local mock upstream so the figures are the gateway's own and not
+the network's:
+
+| Metric | Result |
+|---|---|
+| Deterministic layer throughput | 296 MB/s – 1.22 GB/s |
+| Proxy overhead, p95 | **+0.07 ms** |
+| Streaming time-to-first-token | +0.1 ms (`passthrough`) · +92 ms (`sliding_window`) · +511 ms (`buffer`) |
+| Energy overhead | **+0.57 mJ per request** (≈ 5.7 mW at 10 rps, AMD dev machine) |
+| INT8 quality loss | ≤ 0.9 pp F1 |
+| False positives on 1 MB of PII-free prose | 0 |
+
+Per-device inference latency and power — the NPU-vs-GPU-vs-CPU comparison this project exists to
+produce — requires Intel hardware and is not measured yet:
 
 | Device | Latency p50 (ms) | Latency p95 (ms) | Power (W) |
 |---|---|---|---|
-| NPU | | | |
-| GPU | | | |
-| CPU | | | |
+| NPU | pending | pending | pending |
+| GPU (Intel iGPU) | pending | pending | pending |
+| CPU | pending | pending | pending |
 
 ### Known NPU limitations
 
-<!-- TODO: which ops fall back to CPU, shape constraints, driver quirks.
-     This section is feedback for OpenVINO engineers — be specific. -->
+Not yet established — this needs a session on Intel hardware, and reporting anything here from a
+machine without an Intel NPU would be guesswork. What *is* known so far:
+
+- The dev machine's AMD XDNA NPU is invisible to OpenVINO; all development runs on CPU.
+- OpenVINO does expose a `GPU` device here, but it is the NVIDIA dGPU reached through the OpenCL
+  ICD loader, not an Intel iGPU, and it advertises no FP16. Treated as opportunistic only.
+- The OpenVINO Python wheel already ships `libopenvino_intel_npu_plugin.so`, so an Intel machine
+  needs the NPU kernel driver but not a separate runtime installation.
+- `runtime-linking` loads libraries with `dlopen`, which looks for **unversioned** sonames; the
+  wheel provides only versioned ones, so packaging must add the symlinks.
+
+Details and reproduction steps: [docs/npu-compat.md](docs/npu-compat.md).
 
 ## SIEM integration
 
@@ -126,14 +201,20 @@ Every detection produces an event — **metadata only, never content**:
   "event": "pii_detected",
   "detector": "ner_npu",
   "data_type": "PERSON",
-  "target": "api.anthropic.com",
-  "decision": "masked_by_user",
-  "content_hash": "sha256:…"
+  "target_host": "api.anthropic.com",
+  "decision": "masked",
+  "content_sha256": "sha256:…",
+  "model_id": "herbert-base-ner-int8-128",
+  "device": "NPU"
 }
 ```
 
-Formats: CEF over syslog, OTLP. Field reference: [docs/events.md](docs/events.md)
-<!-- TODO: write docs/events.md -->
+`decision` is one of `observed`, `advised`, `masked`, `blocked`, `user_override`. The hash covers
+the whole inspected payload and stands in for it — no field may let an analyst reconstruct the
+sensitive value, which is what keeps the audit trail from becoming the leak.
+
+Formats: CEF over syslog, OTLP, JSONL. Field reference: **[docs/events.md](docs/events.md)** —
+the schema is fixed there and is authoritative; the emitters themselves are still to be built.
 
 ## Roadmap
 
