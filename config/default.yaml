@@ -1,0 +1,65 @@
+# Copyright 2026 Grzegorz Oleksy
+# SPDX-License-Identifier: Apache-2.0
+#
+# Default gateway configuration. Phase 0 shape — keys are the contract the Rust
+# crates will deserialize; most are not read yet.
+
+listen:
+  host: 127.0.0.1
+  port: 4000
+
+# Upstreams per adapter prefix. The caller's API key is forwarded verbatim and never logged.
+providers:
+  anthropic:
+    prefix: /anthropic
+    upstream: https://api.anthropic.com
+  openai:
+    prefix: /openai
+    upstream: http://localhost:11434
+  google:
+    prefix: /google
+    upstream: https://generativelanguage.googleapis.com
+
+inference:
+  # NPU | GPU | CPU | AUTO. AUTO tries NPU > GPU > CPU.
+  # The dev machine has no OpenVINO-visible NPU; see docs/npu-compat.md before changing this.
+  device: AUTO
+  model_dir: models/
+  # Two static-shape IR variants; the shorter one is preferred when the text fits.
+  sequence_lengths: [128, 512]
+  # If inspection exceeds this, apply timeout_policy and emit inspection_timeout.
+  timeout_ms: 250
+  # fail_open forwards the request uninspected; fail_closed refuses it.
+  # PoC default is fail_open — advisory-first: the gateway must not break the agent.
+  timeout_policy: fail_open
+
+# Per-detector verdict ceiling. `block` is only honoured for layer-1 detectors;
+# the policy engine clamps anything higher (see sentin_core::Layer::max_decision).
+detectors:
+  pesel:        { layer: deterministic, mode: block }
+  nip:          { layer: deterministic, mode: mask }
+  regon:        { layer: deterministic, mode: mask }
+  iban:         { layer: deterministic, mode: block }
+  payment_card: { layer: deterministic, mode: block }
+  email:        { layer: deterministic, mode: advise }
+  phone_pl:     { layer: deterministic, mode: advise }
+  person:       { layer: ner, mode: advise }
+  organization: { layer: ner, mode: advise }
+  location:     { layer: ner, mode: observe }
+
+# Response-side inspection is deferred pending research question B2.
+inspect:
+  request: true
+  response: false
+
+audit:
+  jsonl:
+    enabled: true
+    path: ./sentin-audit.jsonl
+  syslog_cef:
+    enabled: false
+    address: 127.0.0.1:514
+    protocol: udp
+  otlp:
+    enabled: false
+    endpoint: http://localhost:4317

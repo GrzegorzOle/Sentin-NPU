@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sentin-core",
+    "crates/sentin-detect",
+    "crates/sentin-proxy",
+    "crates/sentin-audit",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "Apache-2.0"
+repository = "https://github.com/GrzegorzOle/Sentin-NPU"
+authors = ["Grzegorz Oleksy"]
+
+[workspace.dependencies]
+sentin-core = { path = "crates/sentin-core" }
+sentin-detect = { path = "crates/sentin-detect" }
+sentin-audit = { path = "crates/sentin-audit" }
+
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }

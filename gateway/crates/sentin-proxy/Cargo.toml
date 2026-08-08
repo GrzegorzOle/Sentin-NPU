@@ -1,0 +1,15 @@
+[package]
+name = "sentin-proxy"
+description = "Provider API adapters and streaming proxy for Sentin-NPU"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+sentin-core = { workspace = true }
+
+[lints]
+workspace = true

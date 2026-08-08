@@ -1,0 +1,20 @@
+[project]
+name = "sentin-tools"
+version = "0.1.0"
+description = "Offline model toolchain and benchmark harness for Sentin-NPU"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "ANN", "RUF"]
+# ANN101/ANN102 (self/cls) are noise; type hints are required on public functions only.
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"bench/*" = ["ANN"]
+
+[tool.pytest.ini_options]
+testpaths = ["."]

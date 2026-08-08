@@ -1,0 +1,20 @@
+# Model toolchain — offline, dev machine only. Not shipped with the gateway.
+#
+# These are floors, not pins. The exact resolved set lives in requirements.lock.txt
+# (pip freeze) and that is what CI and reproductions install. OpenVINO moves fast and
+# the conversion path (optimum-intel -> IR) breaks across releases: bump deliberately,
+# re-run validate_model.py, and record the versions in docs/benchmarks.md.
+#
+# torch comes from the CPU index — model conversion never needs CUDA, and the default
+# PyPI wheel drags in several GB of NVIDIA runtime.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+openvino>=2026.2.0
+optimum-intel[openvino]>=2.1.0
+nncf>=3.3.0
+torch>=2.13.0
+sentencepiece>=0.2.2
+
+# transformers is deliberately NOT constrained here: optimum-intel pins a narrow
+# window (<5.6 as of 2.1.0) and an independent floor here only produces an
+# unsolvable resolution. Let optimum-intel choose it; the lock file records what won.

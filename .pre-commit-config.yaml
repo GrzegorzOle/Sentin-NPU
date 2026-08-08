@@ -1,0 +1,39 @@
+# Install once:  tools/.venv/bin/pre-commit install
+# Run over everything:  tools/.venv/bin/pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        # Model IR ships via GitHub Releases, never the repo.
+        args: [--maxkb=512]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.2
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^tools/
+      - id: ruff-format
+        files: ^tools/
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: bash -c 'cd gateway && cargo fmt --all --check'
+        language: system
+        files: ^gateway/.*\.rs$
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: bash -c 'cd gateway && cargo clippy --all-targets -- -D warnings'
+        language: system
+        files: ^gateway/.*\.(rs|toml)$
+        pass_filenames: false

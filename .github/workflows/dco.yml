@@ -1,0 +1,37 @@
+name: dco
+
+on:
+  pull_request:
+
+# Self-contained on purpose: a sign-off check is ten lines of shell, and CONTRIBUTING.md
+# makes it a merge gate. It should not depend on a third-party action.
+jobs:
+  sign-off:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check Signed-off-by on every commit in the PR
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          missing=0
+          while read -r sha; do
+            [ -z "$sha" ] && continue
+            author="$(git show -s --format='%an <%ae>' "$sha")"
+            if ! git show -s --format='%B' "$sha" | grep -qiE "^Signed-off-by: .+ <.+@.+>$"; then
+              echo "::error::missing Signed-off-by: $(git show -s --format='%h %s' "$sha")"
+              missing=1
+            elif ! git show -s --format='%B' "$sha" | grep -qiF "Signed-off-by: $author"; then
+              echo "::error::sign-off does not match author '$author': $(git show -s --format='%h %s' "$sha")"
+              missing=1
+            fi
+          done < <(git rev-list "$BASE..$HEAD")
+          if [ "$missing" -ne 0 ]; then
+            echo "Fix with: git commit --amend -s --no-edit   (or: git rebase --signoff $BASE)"
+            exit 1
+          fi
+          echo "All commits signed off."

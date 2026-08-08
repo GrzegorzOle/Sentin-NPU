@@ -1,0 +1,24 @@
+name: python
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/ruff-action@v3
+        with:
+          args: check
+          src: tools
+      - name: Format check
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: format --check
+          src: tools

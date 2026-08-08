@@ -1,0 +1,22 @@
+# Private working notes — never committed (also in .git/info/exclude)
+CLAUDE.md
+PLAN.md
+
+# Rust
+gateway/target/
+**/*.rs.bk
+
+# Python
+tools/.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+
+# Model artifacts — IR ships as GitHub Release assets, never in the repo
+models/*
+!models/.gitkeep
+
+# Benchmark and diagnostic output
+docs/benchmarks/raw/
+*.jsonl

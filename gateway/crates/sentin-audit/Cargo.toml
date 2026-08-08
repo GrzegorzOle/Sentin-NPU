@@ -1,0 +1,15 @@
+[package]
+name = "sentin-audit"
+description = "CEF/syslog, OTLP and JSONL audit event emitters for Sentin-NPU"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+sentin-core = { workspace = true }
+
+[lints]
+workspace = true
