@@ -102,6 +102,44 @@ time.
 
 ---
 
+## Binding OpenVINO from Rust (verified 2026-08-08)
+
+The gateway runtime is Rust, so it reaches OpenVINO through the [`openvino`](https://crates.io/crates/openvino)
+crate. Verified against runtime **2026.3.0** on the dev machine:
+
+```toml
+openvino = { version = "0.11", features = ["runtime-linking"] }
+```
+
+| Check | Result |
+|---|---|
+| Loads the installed runtime | yes — reports `2026.3.0-22451-8a17657b995` |
+| `available_devices` | `[CPU, GPU]`, identical to the Python API |
+| `DeviceFullName`, `DeviceCapabilities` | read back correctly |
+| Arbitrary property keys | `PropertyKey::Other(..)` works — plugin-specific properties (including NPU ones) are reachable without patching the crate |
+
+**`runtime-linking` is the feature to use.** Without it the build script needs to find an OpenVINO
+installation at compile time and fails with *"Unable to find an OpenVINO installation on your
+system"*. With it, the libraries are loaded via `dlopen` at startup, which also means a release
+archive can ship the binary and the runtime together without build-time coupling.
+
+**Gotcha that costs an afternoon:** `dlopen` looks for *unversioned* sonames, and the OpenVINO
+Python wheel ships only versioned ones (`libopenvino_c.so.2630`). The binary then fails at startup
+with *"Unable to find the `openvino_c` library to load"* even though the library is plainly there.
+Create unversioned symlinks alongside:
+
+```bash
+OVLIB=<...>/site-packages/openvino/libs
+for f in "$OVLIB"/*.so.*; do
+  base=$(basename "$f"); ln -sf "$f" "$OVLIB/${base%%.so.*}.so"
+done
+export LD_LIBRARY_PATH="$OVLIB:$LD_LIBRARY_PATH"
+```
+
+**The NPU plugin ships with the wheel.** `libopenvino_intel_npu_plugin.so` is present in the same
+directory, so an Intel machine needs the NPU kernel driver but *not* a separate OpenVINO runtime
+install. That simplifies both test-machine setup and release packaging.
+
 ## API notes (things that cost time)
 
 - `openvino.runtime` **no longer exists** in 2026.x — it was removed, not just deprecated. Use
