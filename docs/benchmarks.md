@@ -30,7 +30,7 @@ A number without that context is not a result.
 | M3 | INT8 quality degradation | ΔF1 < 2 pp | **PASS** — see B1 below |
 | M4 | NER quality PL+EN | reported, no hard threshold | preliminary, see B1 |
 | M5 | Power draw per device | no threshold — **headline result** | not measured |
-| M6 | Gateway resource use | RSS < 50 MB without model | not measured |
+| M6 | Gateway resource use | RSS < 50 MB without model | **PASS** — 9 MB; 506 MB with the model |
 | M7 | L1 false positives | 0 for checksum detectors | **PASS** on prose; see caveat below |
 
 ## End-to-end against a real remote model — 2026-08-08
@@ -157,6 +157,28 @@ they may differ in *when* bytes arrive, never in what arrives.
 Caveat: response-side findings are currently detected and logged, not masked. Rewriting a stream
 the client is already rendering is out of PoC scope. The latency above is therefore the cost of
 *detection*, which is the part that governs the design choice; masking would add rewriting on top.
+
+## M6 — gateway resource use — measured 2026-08-08
+
+Dev machine, release build, resident set read from `/proc/<pid>/status` at startup and again after
+200 inspected requests.
+
+| Configuration | RSS at start | RSS after 200 requests | CPU |
+|---|---|---|---|
+| Layer 1 only (no model) | 8 MB | **9 MB** | 0.1 % idle |
+| Layer 1 + layer 2 (HerBERT INT8 seq128, CPU) | 503 MB | **506 MB** | ~400 % under load (4 cores) |
+
+**PASS on the stated threshold** — 9 MB against a 50 MB budget without a model, and memory is flat
+under load rather than growing, which is what the second column is there to show.
+
+The figure worth noticing is the other one. **The INT8 model is 123 MB on disk but costs roughly
+500 MB resident**, so a deployment plan sized from the file on disk would be wrong by a factor of
+four. Some of that is OpenVINO's own working buffers and compiled-graph state rather than weights.
+It is not a problem on a developer laptop; it is a real consideration for a fleet of 8 GB client
+machines, and it is the sort of number that only shows up if somebody measures it.
+
+Layer 1 alone remains genuinely small, which matters: an operator unwilling to spend half a
+gigabyte can run the deterministic layer on its own and still catch every structured identifier.
 
 ## Layer 1 — deterministic detectors (M1, M7) — measured 2026-08-08
 
