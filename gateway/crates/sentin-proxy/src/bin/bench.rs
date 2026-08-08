@@ -333,12 +333,20 @@ async fn energy_mode(
     };
 
     let machine = Machine::detect(sentin_proxy::energy::BACKEND, reader.domain_names());
+    let saturate = rps == 0;
     println!("  machine      : {}", machine.label());
     println!("  domains      : {:?}", machine.energy_domains);
-    println!("  rate         : {rps} rps");
-    println!("  phase length : {duration_s} s each (idle, direct, gateway)");
+    println!(
+        "  load         : {}",
+        if saturate {
+            "saturation (as fast as the client can drive it)".to_string()
+        } else {
+            format!("{rps} rps, rate-limited")
+        }
+    );
+    println!("  phase length : {duration_s} s");
+    println!("  phase order  : idle, direct, gateway, direct, gateway, idle (interleaved)");
 
-    // Say this before spending three phases producing a number nobody can compare with anything.
     let warnings = machine.comparability_warnings();
     if warnings.is_empty() {
         println!("  comparability: OK\n");
@@ -352,77 +360,153 @@ async fn energy_mode(
 
     let payload = payload_of_roughly(1024);
     let gateway = spawn_gateway(upstream, "true", "passthrough", "mask").await;
+    let direct_url = format!("{upstream}/v1/chat/completions");
+    let gateway_url = format!("{gateway}/openai/v1/chat/completions");
 
-    // Phase 1 — idle. Nothing but the harness itself, so the baseline includes the mock sitting
-    // idle exactly as it does during the workload phases.
-    let idle = run_phase(client, None, &payload, rps, duration_s, &reader).await;
-    let idle_watts: Vec<(String, f64)> =
-        idle.iter().map(|m| (m.domain.clone(), m.watts())).collect();
-
-    let direct = run_phase(
+    // Interleaved, and idle measured at both ends. A laptop's package power drifts with thermal
+    // state, and a single idle phase taken first measures the machine cooling down from whatever
+    // ran before -- which is how an earlier version of this harness produced workload phases that
+    // drew *less* than "idle". The two idle runs bracket the drift and give a noise floor to
+    // compare the signal against.
+    let idle_first = run_phase(client, None, &payload, rps, duration_s, &reader).await;
+    let direct_a = run_phase(
         client,
-        Some(&format!("{upstream}/v1/chat/completions")),
+        Some(&direct_url),
         &payload,
         rps,
         duration_s,
         &reader,
     )
     .await;
-
-    let via = run_phase(
+    let gateway_a = run_phase(
         client,
-        Some(&format!("{gateway}/openai/v1/chat/completions")),
+        Some(&gateway_url),
         &payload,
         rps,
         duration_s,
         &reader,
     )
     .await;
+    let direct_b = run_phase(
+        client,
+        Some(&direct_url),
+        &payload,
+        rps,
+        duration_s,
+        &reader,
+    )
+    .await;
+    let gateway_b = run_phase(
+        client,
+        Some(&gateway_url),
+        &payload,
+        rps,
+        duration_s,
+        &reader,
+    )
+    .await;
+    let idle_last = run_phase(client, None, &payload, rps, duration_s, &reader).await;
 
-    let requests = (rps * duration_s) as f64;
     println!(
-        "  {:<12}{:>12}{:>12}{:>12}{:>16}",
-        "domain", "idle (W)", "direct (W)", "gateway (W)", "overhead"
+        "  {:<12}{:>10}{:>12}{:>12}{:>14}{:>10}{:>10}{:>12}",
+        "domain",
+        "idle (W)",
+        "noise (W)",
+        "direct (W)",
+        "gateway (W)",
+        "mJ/req",
+        "mJ/req",
+        "overhead"
+    );
+    println!(
+        "  {:<12}{:>10}{:>12}{:>12}{:>14}{:>10}{:>10}{:>12}",
+        "", "", "", "", "", "direct", "gateway", "mJ/req"
     );
 
-    for measurement in &via {
-        let name = &measurement.domain;
-        let idle_w = idle_watts
-            .iter()
-            .find(|(n, _)| n == name)
-            .map_or(0.0, |(_, w)| *w);
-        let direct_w = direct
-            .iter()
-            .find(|m| &m.domain == name)
-            .map_or(0.0, Measurement::watts);
-        let gateway_w = measurement.watts();
+    let mut rows = Vec::new();
+    for phase in &gateway_a.measurements {
+        let name = &phase.domain;
+        let watts = |set: &Phase| -> f64 {
+            set.measurements
+                .iter()
+                .find(|m| &m.domain == name)
+                .map_or(0.0, Measurement::watts)
+        };
 
-        let direct_active = direct
-            .iter()
-            .find(|m| &m.domain == name)
-            .map_or(0.0, |m| m.active_energy_j(idle_w));
-        let gateway_active = measurement.active_energy_j(idle_w);
-        let overhead_mj_per_request = (gateway_active - direct_active) * 1000.0 / requests;
+        let idle_a_w = watts(&idle_first);
+        let idle_b_w = watts(&idle_last);
+        // Drift between two identical idle phases is the smallest difference this setup can
+        // honestly resolve. Anything below it is not a measurement, it is weather.
+        let noise_w = (idle_a_w - idle_b_w).abs();
 
+        let direct_w = (watts(&direct_a) + watts(&direct_b)) / 2.0;
+        let gateway_w = (watts(&gateway_a) + watts(&gateway_b)) / 2.0;
+        let idle_w = (idle_a_w + idle_b_w) / 2.0;
+
+        let direct_reqs = (direct_a.requests + direct_b.requests) as f64;
+        let gateway_reqs = (gateway_a.requests + gateway_b.requests) as f64;
+        let seconds = duration_s as f64 * 2.0;
+
+        // Energy per request, not power. Under saturation the gateway is the bottleneck, so it
+        // completes far fewer requests than the direct path and therefore draws *less* power
+        // while costing *more* per request. Comparing watts here would invert the conclusion.
+        let per_request_mj = |watts: f64, requests: f64| -> f64 {
+            if requests > 0.0 {
+                (watts - idle_w).max(0.0) * seconds * 1000.0 / requests
+            } else {
+                0.0
+            }
+        };
+        let direct_mj = per_request_mj(direct_w, direct_reqs);
+        let gateway_mj = per_request_mj(gateway_w, gateway_reqs);
+        let overhead_mj = gateway_mj - direct_mj;
+
+        // Resolvable only if the active power of both phases clears the platform's own drift.
+        let resolved = (direct_w - idle_w).abs() > noise_w && (gateway_w - idle_w).abs() > noise_w;
         println!(
-            "  {name:<12}{idle_w:>12.2}{direct_w:>12.2}{gateway_w:>12.2}{overhead_mj_per_request:>13.3} mJ/req"
+            "  {name:<12}{idle_w:>10.2}{noise_w:>12.2}{direct_w:>12.2}{gateway_w:>14.2}{:>10.4}{:>10.4}{:>12}",
+            direct_mj,
+            gateway_mj,
+            if resolved {
+                format!("{overhead_mj:+.4}")
+            } else {
+                "below noise".to_string()
+            }
         );
+
+        rows.push(json!({
+            "domain": name,
+            "idle_first_w": idle_a_w,
+            "idle_last_w": idle_b_w,
+            "idle_mean_w": idle_w,
+            "noise_floor_w": noise_w,
+            "direct_w": direct_w,
+            "gateway_w": gateway_w,
+            "direct_mj_per_request": direct_mj,
+            "gateway_mj_per_request": gateway_mj,
+            "overhead_mj_per_request": overhead_mj,
+            "resolved_above_noise": resolved,
+            "direct_requests": direct_reqs,
+            "gateway_requests": gateway_reqs,
+        }));
     }
 
     println!(
-        "\n  Requests per phase: {requests:.0}. Overhead is (gateway - direct) after removing idle,"
+        "\n  requests completed: direct {}, gateway {}",
+        direct_a.requests + direct_b.requests,
+        gateway_a.requests + gateway_b.requests
     );
-    println!("  so the mock upstream, the HTTP client and the OS cancel out of the figure.");
-    println!(
-        "  Mean added power at {rps} rps: {:.3} W\n",
-        via.first()
-            .zip(direct.first())
-            .map(|(g, d)| g.watts() - d.watts())
-            .unwrap_or(0.0)
-    );
-    println!("  Caveat: package RAPL includes every block on the SoC. On an Intel Core Ultra that");
-    println!("  means the NPU too, with no separate domain — NPU energy has to be obtained by");
-    println!("  differencing workloads, never read directly. See docs/benchmarks.md.");
+    if saturate {
+        println!(
+            "  At saturation the request counts differ by design; compare energy per request,"
+        );
+        println!("  not total energy.");
+    }
+    println!("  'below noise' means the gateway's draw could not be separated from the platform's");
+    println!("  own drift -- an upper bound, not a zero. Raise the rate or lengthen the phases.");
+    println!("\n  Caveat: package RAPL covers the whole SoC. On an Intel Core Ultra that includes");
+    println!("  the NPU, with no separate domain, so NPU energy must be obtained by differencing");
+    println!("  workloads rather than read directly. See docs/benchmarks.md.");
 
     if let Some(path) = json_out {
         // The fingerprint says whose result this is. Reports are per-machine on purpose: the
@@ -431,25 +515,9 @@ async fn energy_mode(
             "metric": "M5b",
             "machine": machine,
             "comparability_warnings": warnings,
-            "rate_rps": rps,
+            "load": if saturate { "saturation".to_string() } else { format!("{rps} rps") },
             "phase_duration_s": duration_s,
-            "requests_per_phase": requests,
-            "domains": via.iter().map(|m| {
-                let name = &m.domain;
-                let idle_w = idle_watts.iter().find(|(n, _)| n == name).map_or(0.0, |(_, w)| *w);
-                let direct_w = direct.iter().find(|d| &d.domain == name)
-                    .map_or(0.0, Measurement::watts);
-                let direct_active = direct.iter().find(|d| &d.domain == name)
-                    .map_or(0.0, |d| d.active_energy_j(idle_w));
-                json!({
-                    "domain": name,
-                    "idle_w": idle_w,
-                    "direct_w": direct_w,
-                    "gateway_w": m.watts(),
-                    "overhead_mj_per_request":
-                        (m.active_energy_j(idle_w) - direct_active) * 1000.0 / requests,
-                })
-            }).collect::<Vec<_>>(),
+            "domains": rows,
         });
         std::fs::write(
             &path,
@@ -458,6 +526,12 @@ async fn energy_mode(
         .unwrap_or_else(|err| eprintln!("could not write {path}: {err}"));
         println!("\n  wrote {path}");
     }
+}
+
+/// One measured phase: energy per domain plus how many requests actually completed.
+struct Phase {
+    measurements: Vec<sentin_proxy::energy::Measurement>,
+    requests: u64,
 }
 
 /// Drive `url` at a fixed rate for `duration_s`, sampling energy across the interval.
@@ -469,24 +543,32 @@ async fn run_phase(
     rps: u64,
     duration_s: u64,
     reader: &sentin_proxy::energy::Reader,
-) -> Vec<sentin_proxy::energy::Measurement> {
+) -> Phase {
     use sentin_proxy::energy::{elapsed, Measurement};
 
     // Let the previous phase's heat and turbo state settle before sampling.
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     let start = reader.sample();
+    let mut requests = 0u64;
     match url {
         None => tokio::time::sleep(Duration::from_secs(duration_s)).await,
         Some(url) => {
-            let period = Duration::from_secs_f64(1.0 / rps as f64);
-            let mut ticker = tokio::time::interval(period);
-            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             let deadline = Instant::now() + Duration::from_secs(duration_s);
+            // rps == 0 means saturate: at a realistic rate the gateway's duty cycle is a fraction
+            // of a percent, far below what a laptop's package power can resolve.
+            let mut ticker = (rps > 0).then(|| {
+                let mut t = tokio::time::interval(Duration::from_secs_f64(1.0 / rps as f64));
+                t.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                t
+            });
             while Instant::now() < deadline {
-                ticker.tick().await;
+                if let Some(ticker) = ticker.as_mut() {
+                    ticker.tick().await;
+                }
                 if let Ok(response) = client.post(url).json(payload).send().await {
                     let _ = response.bytes().await;
+                    requests += 1;
                 }
             }
         }
@@ -494,13 +576,16 @@ async fn run_phase(
     let end = reader.sample();
 
     let duration = elapsed(&start, &end);
-    reader
-        .delta_uj(&start, &end)
-        .into_iter()
-        .map(|(domain, uj)| Measurement {
-            domain,
-            energy_j: uj as f64 / 1_000_000.0,
-            duration,
-        })
-        .collect()
+    Phase {
+        measurements: reader
+            .delta_uj(&start, &end)
+            .into_iter()
+            .map(|(domain, uj)| Measurement {
+                domain,
+                energy_j: uj as f64 / 1_000_000.0,
+                duration,
+            })
+            .collect(),
+        requests,
+    }
 }

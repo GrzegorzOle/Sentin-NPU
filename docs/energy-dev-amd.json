@@ -1,0 +1,55 @@
+{
+  "comparability_warnings": [
+    "cpu governor is 'powersave', not 'performance' — frequency scaling will move the result. Pin it with: sudo cpupower frequency-set -g performance",
+    "ACPI platform profile is 'balanced' — the firmware power budget differs from a 'performance' run"
+  ],
+  "domains": [
+    {
+      "direct_mj_per_request": 0.06795465290800377,
+      "direct_requests": 1367980.0,
+      "direct_w": 2.537048897946367,
+      "domain": "core",
+      "gateway_mj_per_request": 0.14240853757620686,
+      "gateway_requests": 596998.0,
+      "gateway_w": 2.3384740487171007,
+      "idle_first_w": 0.19492799568741315,
+      "idle_last_w": 0.2311394959507712,
+      "idle_mean_w": 0.21303374581909218,
+      "noise_floor_w": 0.036211500263358065,
+      "overhead_mj_per_request": 0.07445388466820309,
+      "resolved_above_noise": true
+    },
+    {
+      "direct_mj_per_request": 0.5281826405053553,
+      "direct_requests": 1367980.0,
+      "direct_w": 24.608741548934482,
+      "domain": "package-0",
+      "gateway_mj_per_request": 1.0978110746408118,
+      "gateway_requests": 596998.0,
+      "gateway_w": 22.929934733431963,
+      "idle_first_w": 6.485031945114769,
+      "idle_last_w": 6.605286724828388,
+      "idle_mean_w": 6.545159334971578,
+      "noise_floor_w": 0.12025477971361909,
+      "overhead_mj_per_request": 0.5696284341354565,
+      "resolved_above_noise": true
+    }
+  ],
+  "load": "saturation",
+  "machine": {
+    "cpu_governor": "powersave",
+    "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+    "energy_backend": "powercap-rapl",
+    "energy_domains": [
+      "core",
+      "package-0"
+    ],
+    "kernel": "7.1.6-201.fc44.x86_64",
+    "logical_cpus": 16,
+    "on_ac_power": true,
+    "os": "linux",
+    "platform_profile": "balanced"
+  },
+  "metric": "M5b",
+  "phase_duration_s": 20
+}

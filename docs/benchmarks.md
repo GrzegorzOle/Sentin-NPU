@@ -336,11 +336,47 @@ provider explicitly. Until that is resolved the test machine needs a Rust toolch
 
 ### M5b results — per machine
 
-| Machine | Backend | Governor / profile | Rate | Domain | Idle (W) | Direct (W) | Gateway (W) | Overhead (mJ/req) |
-|---|---|---|---|---|---|---|---|---|
-| dev — AMD Ryzen AI 7 350, Fedora | powercap-rapl | powersave / balanced | — | — | — | — | — | not run: `energy_uj` root-only here |
-| Intel Core Ultra, Linux | powercap-rapl | — | — | — | — | — | — | pending |
-| Intel Core Ultra, Windows 11 | Intel PCM | — | — | — | — | — | — | pending; separate backend, not comparable to the rows above |
+#### dev machine — AMD Ryzen AI 7 350, Fedora (2026-08-08)
+
+Backend `powercap-rapl`, saturation load, 20 s per phase, phases interleaved
+(idle, direct, gateway, direct, gateway, idle). **Governor `powersave`, ACPI profile `balanced`** —
+the harness flagged both; the figures are valid for that configuration and would move under
+`performance`.
+
+| Domain | Idle (W) | Noise floor (W) | Direct (W) | Gateway (W) | Direct (mJ/req) | Gateway (mJ/req) | **Overhead** |
+|---|---|---|---|---|---|---|---|
+| `package-0` | 6.55 | 0.12 | 24.61 | 22.93 | 0.528 | 1.098 | **+0.570 mJ/req** |
+| `core` | 0.21 | 0.04 | 2.54 | 2.34 | 0.068 | 0.142 | **+0.075 mJ/req** |
+
+Requests completed: 1 367 980 direct, 596 998 through the gateway.
+
+**In practical terms:** at a sustained 10 requests per second the gateway adds about **5.7 mW**.
+A million inspected requests cost roughly **0.16 Wh** — under half a percent of a typical laptop
+battery.
+
+Two traps this measurement walked into first, both worth repeating because they invert the
+conclusion rather than merely blurring it:
+
+1. **A single idle phase measured first is not idle.** It catches the machine cooling from
+   whatever ran before. The first attempt reported idle at 9.61 W and the *workload* phases at
+   7.19 W — the load apparently using less than nothing — and the idle-subtraction then clamped
+   the overhead to a tidy, meaningless `0.000 mJ/req`. Idle is now measured at both ends and the
+   drift between the two runs is reported as the noise floor.
+2. **Comparing watts is wrong under saturation.** The gateway is the bottleneck, so it completes
+   less than half the requests and therefore draws *less* power while costing *more* per request.
+   Reading the power column alone would have concluded the gateway saves energy. The metric is
+   energy per request, idle-subtracted, and the request counts are printed alongside it.
+
+At 10 rps the signal sits below the platform's own drift and cannot be resolved at all — which is
+itself the useful finding, and is reported as "below noise" rather than as zero. Saturation is
+what makes the per-request cost measurable; the 10 rps figure above is derived from it.
+
+#### Other machines
+
+| Machine | Backend | Status |
+|---|---|---|
+| Intel Core Ultra, Linux | powercap-rapl | pending — same interface, same command |
+| Intel Core Ultra, Windows 11 | Intel PCM | pending; separate backend, never in the same column as RAPL |
 
 ### M5 results — per inference device (B4)
 
