@@ -31,6 +31,10 @@ build_linux() {
             -e CARGO_TARGET_DIR=/w/gateway/target-bullseye rust:1-bullseye \
             cargo build ${flag} -p sentin-diag --bin sentin-doctor
     done
+    # The gateway itself, so a release is something you can run and not only diagnose.
+    docker run --rm -v "${REPO}":/w:z -w /w/gateway \
+        -e CARGO_TARGET_DIR=/w/gateway/target-bullseye rust:1-bullseye \
+        cargo build --release -p sentin-proxy --bin sentin-gateway
 }
 
 build_windows() {
@@ -56,8 +60,18 @@ copy_models() {
         local src="${REPO}/models/herbert/int8/seq${seq}"
         [ -d "${src}" ] || { echo "WARNING: no model at ${src}" >&2; continue; }
         mkdir -p "${dest}/seq${seq}"
-        cp "${src}"/openvino_model.xml "${src}"/openvino_model.bin "${src}"/config.json \
-           "${dest}/seq${seq}/"
+        # The tokenizer travels too. The diagnostic only compiles and runs the graph so it never
+        # needed one, which is exactly why its absence went unnoticed until the gateway itself was
+        # installed from a bundle and layer 2 refused to start.
+        # `if` rather than `[ -f ] && cp`: under `set -e` the short-circuit form aborts the whole
+        # script the first time an optional file is absent, which is how an earlier version
+        # silently stopped packing and left a stale archive behind.
+        for f in openvino_model.xml openvino_model.bin config.json tokenizer.json \
+                 tokenizer_config.json special_tokens_map.json vocab.json merges.txt; do
+            if [ -f "${src}/${f}" ]; then
+                cp "${src}/${f}" "${dest}/seq${seq}/"
+            fi
+        done
     done
 }
 
@@ -95,9 +109,20 @@ stage_linux() {
     # dlopen looks for unversioned sonames; the Python wheel ships only versioned ones.
     ( cd "${stage}/lib"; for f in *.so.*; do [ -e "$f" ] && ln -sf "$f" "${f%%.so.*}.so"; done ) || true
 
+    cp "${REPO}/gateway/target-bullseye/release/sentin-gateway" "${stage}/sentin-gateway"
+    mkdir -p "${stage}/systemd"
+    cp "${REPO}/packaging/systemd/sentin-npu.service" "${stage}/systemd/"
+    cp "${REPO}/scripts/install.sh" "${stage}/install.sh"
+    # The shipped config points layer 2 at the bundled model rather than a path that only exists
+    # in the source tree, so the gateway works straight out of the archive.
+    sed -e 's|^  model_dir:.*|  model_dir: models/seq128|' \
+        -e 's|^  device: AUTO|  device: AUTO|' \
+        "${REPO}/config/default.yaml" > "${stage}/config.yaml"
+
     copy_models "${stage}/models"
     cp "${REPO}/scripts/run-diagnostics.sh" "${stage}/run.sh"
-    chmod +x "${stage}/run.sh" "${stage}/sentin-doctor" "${stage}/sentin-doctor-debug"
+    chmod +x "${stage}/run.sh" "${stage}/install.sh" "${stage}/sentin-doctor" \
+             "${stage}/sentin-doctor-debug" "${stage}/sentin-gateway"
     write_readme "${stage}" "Linux x86-64 (glibc 2.30+)" \
         "./run.sh              # device report
     ./run.sh --power      # also energy per device" "sentin-doctor-debug"

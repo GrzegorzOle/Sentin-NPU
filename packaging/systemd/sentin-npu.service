@@ -1,0 +1,39 @@
+# Copyright 2026 Grzegorz Oleksy
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run the gateway as a user service:
+#   mkdir -p ~/.config/systemd/user
+#   cp sentin-npu.service ~/.config/systemd/user/
+#   systemctl --user enable --now sentin-npu
+#
+# A *user* service on purpose. This inspects one person's agent traffic and holds their API keys in
+# flight; running it as root would widen the blast radius for no benefit, and a system service
+# would invite pointing several users' traffic at one audit trail.
+
+[Unit]
+Description=Sentin-NPU local AI privacy gateway
+Documentation=https://github.com/GrzegorzOle/Sentin-NPU
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=LD_LIBRARY_PATH=%h/.local/share/sentin-npu/lib
+ExecStart=%h/.local/share/sentin-npu/sentin-gateway %h/.local/share/sentin-npu/config.yaml
+Restart=on-failure
+RestartSec=5
+
+# The gateway needs the network and its own directory, and nothing else. These are cheap to set
+# and mean a compromise of the inspection path cannot reach the rest of the home directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/share/sentin-npu
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=default.target
