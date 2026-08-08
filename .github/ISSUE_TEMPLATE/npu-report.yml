@@ -1,0 +1,91 @@
+name: NPU compatibility report
+description: Run one command on your machine and paste the result. Intel NPU reports are the most useful, but every machine helps.
+title: "[npu-report] "
+labels: ["npu-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you — this is the most valuable contribution to the project right now.
+
+        Sentin-NPU targets the Intel NPU through OpenVINO, but it is developed on a machine that
+        does not have one. Every report from real hardware tells us something we cannot find out
+        ourselves: whether the model compiles for your NPU, how long that takes, and what your
+        driver version does.
+
+        **A report where the NPU refuses the model is just as useful as one where it works** —
+        arguably more so. Please send it either way.
+
+        ### How to produce the report
+
+        ```bash
+        git clone https://github.com/GrzegorzOle/Sentin-NPU.git
+        cd Sentin-NPU
+
+        # 1. Build the gateway (Rust stable, MSRV 1.82)
+        cargo build --release --manifest-path gateway/Cargo.toml
+
+        # 2. Get an IR to test with (Python 3.11+)
+        python3.11 -m venv tools/.venv
+        tools/.venv/bin/pip install -r tools/requirements.txt
+        tools/.venv/bin/python tools/prepare_model.py --model herbert
+        tools/.venv/bin/python tools/quantize.py      --model herbert
+
+        # 3. Run the report
+        ./gateway/target/release/sentin-gateway --doctor \
+            --model models/herbert/int8/seq128/openvino_model.xml \
+            --json npu-report.json
+        ```
+
+        If the binary cannot find `libopenvino_c.so`, the OpenVINO libraries need **unversioned**
+        symlinks and to be on `LD_LIBRARY_PATH` — see `docs/npu-compat.md`.
+
+        The report contains hardware, OS, driver versions and timings. **It contains no personal
+        data and no text you have processed** — it never touches the inspection path.
+
+  - type: textarea
+    id: report
+    attributes:
+      label: Doctor report
+      description: Paste the contents of `npu-report.json`, or attach the file.
+      render: json
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Machine
+      description: CPU model as marketed, e.g. "Intel Core Ultra 7 155H, Lenovo ThinkPad X1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - Windows 11
+        - Windows 10
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: driver
+    attributes:
+      label: NPU driver version
+      description: >
+        Linux: `modinfo intel_vpu | grep version`. Windows: Device Manager → Neural processors →
+        driver version. The doctor reports this too when it can read it, but the driver package
+        version is often more precise.
+
+  - type: textarea
+    id: anything_else
+    attributes:
+      label: Anything surprising?
+      description: >
+        Did it take a long time to compile? Did something fail in a way the report does not
+        capture? Did you have to install something not mentioned above? Those notes are often
+        more useful than the numbers.

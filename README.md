@@ -177,6 +177,22 @@ produce — requires Intel hardware and is not measured yet:
 | GPU (Intel iGPU) | pending | pending | pending |
 | CPU | pending | pending | pending |
 
+### Help wanted: NPU reports
+
+The project targets the Intel NPU but is developed on a machine that does not have one, so the
+per-device table above stays empty until someone with the hardware runs the check. That is one
+command, and it takes a few minutes:
+
+```bash
+./gateway/target/release/sentin-gateway --doctor \
+    --model models/herbert/int8/seq128/openvino_model.xml --json npu-report.json
+```
+
+Then open an [npu-report issue](https://github.com/GrzegorzOle/Sentin-NPU/issues/new?template=npu-report.yml)
+and paste the result. **A report where the NPU refuses the model is as valuable as one where it
+works** — knowing which operators fall back, and why, is the point. The report carries hardware,
+driver versions and timings; it never touches the inspection path and contains no processed text.
+
 ### Known NPU limitations
 
 Not yet established — this needs a session on Intel hardware, and reporting anything here from a
