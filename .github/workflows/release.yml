@@ -50,6 +50,10 @@ jobs:
         run: |
           cd dist && sha256sum *.tar.gz *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
 
+      # dist/*.tar.gz covers three things: the Linux bundle and the two standalone IR archives
+      # that make-release.sh produces alongside it (sentin-npu-model-herbert-int8-seq*.tar.gz).
+      # The model archives are named without a version so that a
+      # releases/latest/download/<name> URL keeps working; SHA256SUMS.txt pins them per release.
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:

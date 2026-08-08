@@ -163,6 +163,9 @@ build_linux
 build_windows
 stage_linux
 stage_windows
+# The IR also ships on its own, for people who want the model without a bundle around it. The
+# bundles keep their embedded copy regardless — they have to work with no network.
+"${REPO}/scripts/make-model-assets.sh" "${VERSION}"
 
 say "artefacts:"
 ls -lh "${OUT}"/*.tar.gz "${OUT}"/*.zip 2>/dev/null | awk '{printf "  %-10s %s\n", $5, $NF}'

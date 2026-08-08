@@ -65,13 +65,13 @@ The bundle carries the gateway, the diagnostics, the OpenVINO runtime and the qu
 Nothing else is required: no Rust, no Python, no OpenVINO installation.
 
 ```bash
-# Linux x64 — pick the newest tag from the releases page
+# Linux x64 — the bundle name carries the version, so take the newest tag from the releases page
 curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/SHA256SUMS.txt
-curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/sentin-npu-diag-0.0.0.2-linux-x64.tar.gz
+curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/sentin-npu-diag-0.0.0.3-linux-x64.tar.gz
 sha256sum -c SHA256SUMS.txt --ignore-missing
 
-tar xzf sentin-npu-diag-0.0.0.2-linux-x64.tar.gz
-cd sentin-npu-diag-0.0.0.2-linux-x64
+tar xzf sentin-npu-diag-0.0.0.3-linux-x64.tar.gz
+cd sentin-npu-diag-0.0.0.3-linux-x64
 
 ./run.sh              # every diagnostic, both shape variants, collected into one archive
 ./install.sh          # → ~/.local/share/sentin-npu, wrappers in ~/.local/bin
@@ -82,6 +82,25 @@ sentin-gateway ~/.local/share/sentin-npu/config.yaml
 `packaging/systemd/` holds a **user** unit if you want it running as a service. The Windows zip is
 built by the same CI job and passes its build, but it has **not been run on Windows yet** — treat
 it as untested.
+
+### Just the model
+
+The quantized IR is also published on its own, for loading from your own code or comparing against
+your own conversion. Both archives carry the tokenizer, the label map, the attribution required by
+the model's CC-BY-4.0 licence, and a README covering the two traps that catch people loading this
+IR by hand. **These names have no version in them**, so the URL below keeps working across
+releases; `SHA256SUMS.txt` pins the bytes for whichever release you took them from.
+
+```bash
+curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/sentin-npu-model-herbert-int8-seq128.tar.gz
+tar xzf sentin-npu-model-herbert-int8-seq128.tar.gz
+```
+
+`seq128` is the default and the shape every published latency figure was measured at; a `seq512`
+archive is published beside it for longer inputs. Point `inference.model_dir` at the extracted
+directory — as an **absolute** path, or it resolves against the working directory and layer 2
+quietly stays down. The release bundles keep their own embedded copy, so you do not need this to
+run one.
 
 ### From source
 
@@ -97,6 +116,8 @@ python3.11 -m venv tools/.venv
 tools/.venv/bin/pip install -r tools/requirements.txt
 tools/.venv/bin/python tools/prepare_model.py --model herbert   # HF → IR, static shapes 128 and 512
 tools/.venv/bin/python tools/quantize.py      --model herbert   # → INT8
+# Or skip both: unpack the published IR into models/herbert/int8/seq128 instead (see "Just the
+# model" above). Step 1 exists to be reproducible, not because you have to run it.
 
 # 2. Gateway (Rust, edition 2021, MSRV 1.82).
 #    The Cargo workspace lives in gateway/, so build it by manifest path and run the
