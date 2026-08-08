@@ -15,6 +15,17 @@ nncf>=3.3.0
 torch>=2.13.0
 sentencepiece>=0.2.2
 
+# Calibration + absolute-quality reference data (WikiANN). Downloaded at run time and
+# never written into tests/fixtures/ — the repo's own fixtures stay fully synthetic.
+datasets>=4.5.0
+
+# Required to convert sentencepiece-only tokenizers (the xlmr B1 candidate ships no
+# tokenizer.json). Without protobuf, transformers' SentencePieceExtractor silently falls back to
+# a TikToken parser and dies on the binary model with a misleading "tiktoken is required" error.
+# Both are needed; neither is pulled in transitively.
+protobuf>=6.34.0
+tiktoken>=0.13.0
+
 # transformers is deliberately NOT constrained here: optimum-intel pins a narrow
 # window (<5.6 as of 2.1.0) and an independent floor here only produces an
 # unsolvable resolution. Let optimum-intel choose it; the lock file records what won.

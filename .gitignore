@@ -19,4 +19,7 @@ models/*
 
 # Benchmark and diagnostic output
 docs/benchmarks/raw/
-*.jsonl
+# Audit-event output written by the gateway at run time. Scoped deliberately: a blanket
+# *.jsonl rule silently swallows tests/fixtures/*.jsonl, which must be committed.
+/sentin-audit.jsonl
+*-audit.jsonl

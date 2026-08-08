@@ -1,0 +1,36 @@
+// Polish NER validation fixtures. SPDX-License-Identifier: Apache-2.0
+// ALL PERSON AND ORGANISATION NAMES ARE INVENTED. City names are real geographic
+// names, which are not personal data. Never add a real individual's details here.
+// Markup: [TYPE:surface]. Offsets are derived by tools/fixtures.py -- do not hand-maintain them.
+// Sentences deliberately include inflected Polish surnames (the known weak spot, M4) and
+// entity-free sentences that must not produce findings (false-positive check).
+{"marked": "Proszę przygotować umowę dla pana [PER:Marka Wiśniowieckiego] z [ORG:Kwadratowe Rozwiązania] w [LOC:Bydgoszczy]."}
+{"marked": "[PER:Anna Zarembska] przesłała raport kwartalny do centrali w [LOC:Katowicach]."}
+{"marked": "Spotkanie z [PER:Tomaszem Grabowieckim] przeniesiono na czwartek."}
+{"marked": "Faktura została wystawiona na [ORG:Przedsiębiorstwo Wodne Delta]."}
+{"marked": "Nie znaleziono żadnych nieprawidłowości w zestawieniu."}
+{"marked": "Dyrektorem oddziału w [LOC:Gdańsku] został [PER:Paweł Otrębski]."}
+{"marked": "Skontaktuj się z [PER:Iwoną Malczewską] w sprawie przetargu."}
+{"marked": "[ORG:Fundacja Jasny Horyzont] złożyła wniosek o dofinansowanie."}
+{"marked": "Umowę podpisano w [LOC:Warszawie] przy udziale [PER:Rafała Konopnickiego]."}
+{"marked": "System odnotował trzy nieudane próby logowania."}
+{"marked": "Prezes [ORG:Zakładów Mechanicznych Turkus] odwiedził fabrykę w [LOC:Radomiu]."}
+{"marked": "Przekaż dokumenty [PER:Katarzynie Rembowskiej] do końca tygodnia."}
+{"marked": "Oddział w [LOC:Szczecinie] raportuje wzrost sprzedaży."}
+{"marked": "[PER:Grzegorz Lipowiecki] odpowiada za wdrożenie w [ORG:Nowa Energia Wschód]."}
+{"marked": "Zamówienie zostało anulowane przez klienta."}
+{"marked": "Wniosek [PER:Marioli Steckiej] rozpatrzono pozytywnie."}
+{"marked": "Siedziba [ORG:Biura Rachunkowego Kontur] mieści się w [LOC:Lublinie]."}
+{"marked": "Rozmawiałem wczoraj z [PER:Jackiem Widerskim] o nowym kontrakcie."}
+{"marked": "Filia w [LOC:Białymstoku] zatrudnia dwanaście osób."}
+{"marked": "[PER:Halina Trzaskowiecka] pełni funkcję głównej księgowej."}
+{"marked": "Projekt realizuje [ORG:Konsorcjum Bursztyn] wraz z partnerami."}
+{"marked": "Raport nie zawiera danych osobowych."}
+{"marked": "Na spotkaniu obecni byli [PER:Zbigniew Nawrotny] i [PER:Ewa Sadlik]."}
+{"marked": "Przesyłkę nadano w [LOC:Opolu] w poniedziałek rano."}
+{"marked": "Konto firmowe [ORG:Alterna Logistyka] zostało zweryfikowane."}
+{"marked": "Poproś [PER:Michała Dobrzańskiego] o akceptację budżetu."}
+{"marked": "Magazyn centralny znajduje się pod [LOC:Poznaniem]."}
+{"marked": "[ORG:Spółdzielnia Mieszkaniowa Zorza] ogłosiła przetarg."}
+{"marked": "Dane [PER:Beaty Krzemieniewskiej] wymagają aktualizacji."}
+{"marked": "Wszystkie pozycje zostały rozliczone zgodnie z harmonogramem."}

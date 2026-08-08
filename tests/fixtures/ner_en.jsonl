@@ -1,0 +1,24 @@
+// English NER validation fixtures. SPDX-License-Identifier: Apache-2.0
+// ALL PERSON AND ORGANISATION NAMES ARE INVENTED. City and region names are real
+// geographic names, which are not personal data. Never add a real individual's details here.
+// Markup: [TYPE:surface]. Offsets are derived by tools/fixtures.py -- do not hand-maintain them.
+{"marked": "Please forward the contract to [PER:Nathan Ridgeway] at [ORG:Halden Freight] in [LOC:Bristol]."}
+{"marked": "[PER:Marla Oduya] joined the compliance team last quarter."}
+{"marked": "The invoice was issued to [ORG:Peregrine Systems]."}
+{"marked": "No anomalies were detected in the audit log."}
+{"marked": "Our office in [LOC:Rotterdam] handles all EU shipments."}
+{"marked": "Ask [PER:Devon Ashcroft] to review the risk register."}
+{"marked": "[ORG:Blue Meridian Foundation] approved the grant application."}
+{"marked": "The meeting with [PER:Priya Venkataraman] is moved to Thursday."}
+{"marked": "Warehouse capacity in [LOC:Antwerp] has doubled since March."}
+{"marked": "The request was cancelled by the customer."}
+{"marked": "[PER:Colin Harrowgate] signed off on the deployment plan."}
+{"marked": "Send the statement to [ORG:Northgate Analytics] before Friday."}
+{"marked": "[PER:Sofia Almeida] and [PER:Ruben Castellanos] lead the migration."}
+{"marked": "The report contains no personal data."}
+{"marked": "[ORG:Vantage Rail Group] operates depots across [LOC:Yorkshire]."}
+{"marked": "Please confirm receipt of the amended annex."}
+{"marked": "[PER:Ingrid Solheim] transferred to the [LOC:Oslo] branch."}
+{"marked": "Escalate the ticket to [PER:Owen Brackley] if unresolved."}
+{"marked": "[ORG:Corvid Data Partners] completed the security review."}
+{"marked": "Quarterly figures for [LOC:Manchester] exceeded the forecast."}
