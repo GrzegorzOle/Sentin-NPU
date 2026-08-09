@@ -233,6 +233,27 @@ export OPENAI_BASE_URL=http://127.0.0.1:4141/openai/v1
 
 A path matching no configured prefix gets **404**; an upstream that cannot be reached gets **502**.
 
+### Authentication is the caller's, not the gateway's
+
+**The gateway holds no credentials and needs none.** Whatever your agent already sends is passed
+to the upstream unchanged, so the provider sees your key and your account:
+
+- `authorization`, `x-api-key` and `x-goog-api-key` are relayed **verbatim**. Tests assert both
+  halves of that: the mock upstream receives the exact value, and the header name never appears in
+  a log line.
+- **Query-string keys work too** — Google's `?key=…` — because the query is appended to the
+  upstream URL untouched.
+- `proxy-authorization` is deliberately **not** forwarded. It is hop-by-hop by the HTTP spec and
+  belongs to the proxy hop itself, not to the upstream.
+
+Billing, quotas and rate limits therefore stay attached to your own key, and rotating it needs no
+change here. The audit trail records the upstream **host** and never the full URL, precisely
+because a query string can carry both keys and content.
+
+One caveat follows from there being no TLS on the listening side: between the agent and the gateway
+the key travels in clear. On loopback that is the same trust boundary as the process itself — but
+it stops being so the moment `listen.host` is bound to anything other than `127.0.0.1`.
+
 ### What the gateway does and does not touch
 
 - **Credentials pass through verbatim.** `authorization` and `x-api-key` are forwarded unchanged
@@ -305,6 +326,45 @@ above fill in what a *partial* file leaves out, they are not a substitute for ha
 sentin-gateway                         # reads ./config/default.yaml
 sentin-gateway /etc/sentin/gateway.yaml
 ```
+
+### On Windows
+
+The Windows bundle carries the same binaries and the same `config.yaml`, but **no installer** —
+`install.sh` is Linux-only, and rewriting the config for you is exactly what it does. Three
+consequences follow, and all three fail *quietly*:
+
+**1. The OpenVINO DLLs are found through `PATH`.** `run.ps1` prepends the bundle's `lib\` for the
+duration of its own run and nothing else does. Start `sentin-gateway.exe` yourself without it and
+the runtime cannot be loaded — the gateway still starts, with layer 1 only, logging a warning that
+is easy to lose in a startup log.
+
+**2. `inference.model_dir` ships relative** (`models/seq128`) and resolves against the working
+directory, so layer 2 loads only when you start from inside the bundle. Make it absolute; forward
+slashes are fine, Rust accepts them on Windows.
+
+**3. `audit.jsonl.path` is relative too** (`./sentin-audit.jsonl`) and lands in the working
+directory. Under `Program Files` that is not writable — and an emitter that cannot write is logged
+and skipped rather than failing the request, so this one is silent by design.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File run.ps1    # diagnostics, no setup needed
+
+# running the gateway itself
+$env:PATH = "$PWD\lib;$env:PATH"
+notepad config.yaml     # model_dir: C:/Users/you/sentin-npu/models/seq128
+                        # audit.jsonl.path: C:/Users/you/sentin-npu/audit.jsonl
+.\sentin-gateway.exe config.yaml
+```
+
+Binding to `127.0.0.1` raises no firewall prompt. **No service wrapper is provided** —
+`packaging/systemd/` is Linux-only; use Task Scheduler or a shim such as NSSM. Energy measurement
+does not work here at all: Windows has no RAPL sysfs, so `--power` reports it as unsupported and
+M5 belongs on the Linux side.
+
+> **None of this has been executed.** The Windows bundle builds, packs and passes CI, and nobody has
+> yet run it on Windows. The steps above are read off the code and the bundle contents, not off a
+> session on the platform — corrections are welcome as an
+> [npu-report issue](https://github.com/GrzegorzOle/Sentin-NPU/issues/new?template=npu-report.yml).
 
 ## NPU inference
 
