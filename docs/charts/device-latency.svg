@@ -18,8 +18,8 @@
 <g fill="#2a78d6"><path d="M 248.0 107.0 H 286.9 A 4 4 0 0 1 290.9 111.0 V 125.0 A 4 4 0 0 1 286.9 129.0 H 248.0 Z" /></g>
 <text x="300.9" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">11.8 ms</text>
 <text x="232.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">GPU — NVIDIA dGPU via OpenCL</text>
-<g fill="#2a78d6"><path d="M 248.0 151.0 H 665.8 A 4 4 0 0 1 669.8 155.0 V 169.0 A 4 4 0 0 1 665.8 173.0 H 248.0 Z" /></g>
-<text x="679.8" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">116.1 ms</text>
+<g fill="#2a78d6"><path d="M 248.0 151.0 H 664.7 A 4 4 0 0 1 668.7 155.0 V 169.0 A 4 4 0 0 1 664.7 173.0 H 248.0 Z" /></g>
+<text x="678.7" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">115.8 ms</text>
 <text x="232.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">NPU — Intel</text>
 <rect x="248.0" y="195.0" width="436.0" height="22" rx="4" fill="#f0efec"/>
 <text x="260.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">not measured — needs Intel hardware</text>

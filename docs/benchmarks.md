@@ -5,9 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 
 # Benchmarks
 
-> **Status: measured on the dev machine (AMD, device CPU).** Everything except M5 has numbers;
-> M5 — the NPU/GPU/CPU power comparison — waits on Intel hardware and is the one result this
-> project exists to produce.
+> **Status: complete.** Everything including M5 — the NPU/GPU/CPU power comparison this project
+> exists to produce — has numbers. Most metrics were taken on the dev machine (AMD, device CPU);
+> the per-device comparisons come from one Intel Core Ultra 7 258V, measured 2026-08-09, and a
+> single machine is not a generalisation.
 
 Every result recorded here states: **date, commit, hardware, OpenVINO version, driver version**.
 A number without that context is not a result.
@@ -33,11 +34,11 @@ table beside it; nothing is readable only as a coloured bar.
 |---|---|---|---|
 | M1 | L1 throughput (MB/s) | > 100 MB/s | **PASS** — 296-1252 MB/s, see below |
 | M2a | Proxy overhead, no inspection | p95 < 5 ms | **PASS** — +0.07 ms |
-| M2b | Full pipeline overhead (L1+L2) | p95 < 150 ms CPU / < 80 ms NPU | **PASS on CPU** — +10.8 ms; NPU pending |
+| M2b | Full pipeline overhead (L1+L2) | p95 < 150 ms CPU / < 80 ms NPU | **PASS on all three** — +10.8 ms dev CPU; Intel NPU +3.85 ms |
 | M2c | Streaming TTFT impact | decided by B2; always reported | **measured** — see B2 |
 | M3 | INT8 quality degradation | ΔF1 < 2 pp | **PASS** — see B1 below |
 | M4 | NER quality PL+EN | reported, no hard threshold | **measured** — Rust == Python exactly; see below |
-| M5 | Power draw per device | no threshold — **headline result** | not measured |
+| M5 | Power draw per device | no threshold — **headline result** | **measured** — NPU 49.45 mJ, iGPU 51.34, CPU 556.33 per inference |
 | M6 | Gateway resource use | RSS < 50 MB without model | **PASS** — 9 MB; 506 MB with the model |
 | M7 | L1 false positives | 0 for checksum detectors | **PASS** on prose; see caveat below |
 
@@ -215,11 +216,18 @@ HerBERT INT8, sequence 128, OpenVINO 2026.3.0.
 
 | Device | Full name | Compile | First inference | Steady |
 |---|---|---|---|---|
-| CPU | AMD Ryzen AI 7 350 | 651 ms | 14.0 ms | **11.8 ms** |
-| GPU | NVIDIA RTX 5070 Laptop (dGPU, via OpenCL) | 2 450 ms | 116.2 ms | **116.1 ms** |
+| CPU | AMD Ryzen AI 7 350 | 536 ms | 14.1 ms | **11.8 ms** |
+| GPU | NVIDIA RTX 5070 Laptop (dGPU, via OpenCL) | 672 ms | 121.4 ms | **115.8 ms** |
+
+Re-measured 2026-08-09 with the corrected probe (see the false-negative note above). **The steady
+figures reproduced to the decimal** — 11.8 ms and ~116 ms — which is the useful confirmation that
+the uninitialised inputs cost nothing in compute time and that every number quoted from this table
+elsewhere still stands. Compile time is the volatile column: this machine's GPU has returned
+anywhere between 672 ms and 2 513 ms across runs, because the OpenCL driver caches kernels. Quote
+steady state; treat a single compile figure as one sample of a noisy quantity.
 | NPU | — | \- | \- | not measured: no OpenVINO-visible NPU on this machine |
 
-![Steady-state inference per device: 11.8 ms on CPU, 116.1 ms on the NVIDIA GPU, and an empty row
+![Steady-state inference per device: 11.8 ms on CPU, 115.8 ms on the NVIDIA GPU, and an empty row
 for the Intel NPU](charts/device-latency.svg)
 
 The GPU row is not a disappointing result for Intel iGPUs; it is a *different device* — an NVIDIA

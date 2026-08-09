@@ -373,7 +373,7 @@ CHARTS: list[Chart] = [
         subtitle="HerBERT INT8, sequence 128, measured by sentin-gateway --doctor.",
         rows=[
             Row("CPU — AMD Ryzen AI 7 350", 11.8, "11.8 ms"),
-            Row("GPU — NVIDIA dGPU via OpenCL", 116.1, "116.1 ms"),
+            Row("GPU — NVIDIA dGPU via OpenCL", 115.8, "115.8 ms"),
             Row("NPU — Intel", None, note="not measured — needs Intel hardware"),
         ],
         unit="ms",
@@ -478,7 +478,7 @@ def check_against_docs() -> int:
         "92.5",
         "511.0",
         "11.8 ms",
-        "116.1",
+        "115.8",
         "88.06",
         "87.57",
         "62.62",

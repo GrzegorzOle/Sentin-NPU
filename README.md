@@ -15,11 +15,12 @@ only on unambiguous policy violations.
 > blocking, SIEM audit events over CEF/OTLP/JSONL, and release bundles that install on a machine
 > with no Rust and no Python.
 >
-> **The one thing not verified is the thing the project is named after.** Every measurement here
-> was taken with `device = CPU`, because the development machine has an AMD NPU that OpenVINO
-> cannot address. Intel NPU execution needs a session on Intel hardware — see
-> [Help wanted](#help-wanted-npu-reports). Response-side masking is not implemented either;
-> responses are inspected and logged, not rewritten.
+> **Verified on an Intel NPU as of 2026-08-09** — one machine, a Core Ultra 7 258V, where the
+> model runs on the NPU at 49.45 mJ per inference against 556.33 mJ on that machine's CPU. The
+> development machine has an AMD NPU that OpenVINO cannot address, so everything else here is
+> measured on CPU and every NPU claim rests on that single box — more reports welcome, see
+> [Help wanted](#help-wanted-npu-reports). Response-side masking is not implemented; responses are
+> inspected and logged, not rewritten.
 
 [![rust](https://github.com/GrzegorzOle/Sentin-NPU/actions/workflows/rust.yml/badge.svg)](https://github.com/GrzegorzOle/Sentin-NPU/actions/workflows/rust.yml)
 [![python](https://github.com/GrzegorzOle/Sentin-NPU/actions/workflows/python.yml/badge.svg)](https://github.com/GrzegorzOle/Sentin-NPU/actions/workflows/python.yml)
@@ -81,8 +82,10 @@ sentin-gateway ~/.local/share/sentin-npu/config.yaml
 ```
 
 `packaging/systemd/` holds a **user** unit if you want it running as a service. The Windows zip is
-built by the same CI job and passes its build, but it has **not been run on Windows yet** — treat
-it as untested.
+built by the same CI job and now carries the same three binaries as the Linux bundle, so
+`run.ps1` collects the device report *and* pipeline latency per device. It has still **never been
+executed on Windows** — it compiles and packs, nothing more, so treat it as untested. Energy is
+Linux-only regardless: Windows has no RAPL sysfs.
 
 ### Just the model
 
@@ -207,10 +210,10 @@ Measured with `--doctor` on the dev machine (HerBERT INT8, sequence 128):
 
 | Device | Compile | First inference | Steady |
 |---|---|---|---|
-| CPU — AMD Ryzen AI 7 350 | 651 ms | 14.0 ms | **11.8 ms** |
-| GPU — NVIDIA dGPU via OpenCL | 2 450 ms | 116.2 ms | 116.1 ms |
+| CPU — AMD Ryzen AI 7 350 | 536 ms | 14.1 ms | **11.8 ms** |
+| GPU — NVIDIA dGPU via OpenCL | 672 ms | 121.4 ms | 115.8 ms |
 
-![Steady-state inference per device: 11.8 ms on CPU, 116.1 ms on the NVIDIA GPU, and an empty row
+![Steady-state inference per device: 11.8 ms on CPU, 115.8 ms on the NVIDIA GPU, and an empty row
 for the Intel NPU](docs/charts/device-latency.svg)
 
 The NPU row is empty on purpose. It is the row this project exists to fill.

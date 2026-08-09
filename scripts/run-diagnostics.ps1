@@ -87,6 +87,25 @@ if (Test-Path $Model512) {
     Run 'doctor seq512' { & $Exe --model $Model512 --json (Join-Path $Results 'doctor-seq512.json') }
 }
 
+# M2b -- the latency a request actually pays, per device. The doctor times the inference alone;
+# this times the whole pipeline, which is the number that belongs beside it.
+#
+# All three devices are attempted rather than only the enumerated ones, deliberately: the harness
+# prints the device that actually ran, so an absent or refusing NPU shows up as a recorded attempt
+# that fell back. That is the result worth collecting.
+Section 'pipeline latency per device (M2b)'
+$Bench = Join-Path $Here 'sentin-bench.exe'
+if ((Test-Path $Bench) -and (Test-Path $Model128)) {
+    foreach ($Dev in @('NPU', 'GPU', 'CPU')) {
+        Run "bench m2b $Dev" {
+            & $Bench --device $Dev --model-dir (Join-Path $Here 'models\seq128') `
+                     --m2b-only --json (Join-Path $Results "bench-m2b-$Dev.json")
+        }
+    }
+} else {
+    Write-Host '(no sentin-bench.exe in this bundle, or no model - M2b not measured)'
+}
+
 if ($Power) {
     Section 'energy per device'
     # Windows has no powercap sysfs; RAPL is reachable only through a signed kernel driver, so the

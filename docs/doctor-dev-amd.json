@@ -1,10 +1,10 @@
 {
-  "sentin_version": "0.1.0",
+  "sentin_version": "0.0.1",
   "machine": {
     "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
     "logical_cpus": 16,
     "os": "linux",
-    "kernel": "7.1.6-201.fc44.x86_64",
+    "kernel": "7.1.7-200.fc44.x86_64",
     "cpu_governor": "powersave",
     "platform_profile": "balanced",
     "on_ac_power": true,
@@ -42,9 +42,9 @@
         "device_type": "integrated",
         "architecture": "intel64",
         "compiles": true,
-        "compile_ms": 651.002678,
-        "first_infer_ms": 13.980403,
-        "steady_infer_ms": 11.828992999999999,
+        "compile_ms": 535.888568,
+        "first_infer_ms": 14.069963,
+        "steady_infer_ms": 11.788718,
         "error": null
       },
       {
@@ -54,9 +54,9 @@
         "device_type": "discrete",
         "architecture": "GPU: vendor=0x10de arch=v12.0.0",
         "compiles": true,
-        "compile_ms": 2449.844591,
-        "first_infer_ms": 116.17671899999999,
-        "steady_infer_ms": 116.123799,
+        "compile_ms": 671.533969,
+        "first_infer_ms": 121.362046,
+        "steady_infer_ms": 115.841505,
         "error": null
       }
     ],

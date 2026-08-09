@@ -389,6 +389,25 @@ pub fn resolve_device(requested: &str, available: &[String]) -> (String, bool) {
     ("CPU".to_string(), true)
 }
 
+/// The devices to try, in order, for a request — the resolved choice first, then the rest.
+///
+/// Enumeration says a device exists, not that it will compile the model, so the caller needs
+/// somewhere to go when the first choice refuses. Only devices this machine actually has are
+/// listed, and no device appears twice.
+#[must_use]
+pub fn device_candidates(requested: &str, available: &[String]) -> (Vec<String>, bool) {
+    let (first, fell_back) = resolve_device(requested, available);
+    let mut candidates = vec![first.clone()];
+    candidates.extend(
+        AUTO_ORDER
+            .iter()
+            .filter(|name| **name != first)
+            .filter(|name| available.iter().any(|have| have.starts_with(**name)))
+            .map(|name| (*name).to_string()),
+    );
+    (candidates, fell_back)
+}
+
 /// Default location of the IR the gateway would load.
 #[must_use]
 pub fn default_model_xml(repo_root: &Path, model: &str, precision: &str, seq: u32) -> PathBuf {
@@ -452,6 +471,25 @@ mod tests {
         // OpenVINO reports multi-adapter systems as GPU.0, GPU.1 and so on.
         let (device, _) = resolve_device("AUTO", &devices(&["CPU", "GPU.0", "GPU.1"]));
         assert_eq!(device, "GPU");
+    }
+
+    #[test]
+    fn candidates_put_the_resolved_device_first_and_keep_the_rest_as_escape_routes() {
+        let (candidates, fell_back) = device_candidates("AUTO", &devices(&["CPU", "GPU", "NPU"]));
+        assert_eq!(candidates, ["NPU", "GPU", "CPU"]);
+        assert!(!fell_back);
+
+        // An explicit request is honoured first, but the others stay reachable: a device that
+        // enumerates can still refuse to compile, and that must not cost the gateway layer 2.
+        let (candidates, _) = device_candidates("CPU", &devices(&["CPU", "GPU", "NPU"]));
+        assert_eq!(candidates, ["CPU", "NPU", "GPU"]);
+    }
+
+    #[test]
+    fn candidates_never_offer_a_device_the_machine_does_not_have() {
+        let (candidates, fell_back) = device_candidates("NPU", &devices(&["CPU"]));
+        assert_eq!(candidates, ["CPU"], "no phantom devices to fail over to");
+        assert!(fell_back);
     }
 
     #[test]

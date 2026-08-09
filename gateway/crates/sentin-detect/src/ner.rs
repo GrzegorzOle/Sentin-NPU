@@ -95,8 +95,16 @@ impl NerEngine {
     /// `device_request` is `NPU`, `GPU`, `CPU` or `AUTO`; the device that actually ran is recorded
     /// in [`NerEngine::device`] because "which device executed" is a fact this project logs.
     ///
+    /// **A device that enumerates is not a device that works.** If the chosen one refuses to
+    /// compile the model, the remaining devices are tried in [`ov::AUTO_ORDER`] before giving up,
+    /// and the move is reported through [`NerEngine::fell_back`]. Resolving by enumeration alone
+    /// would mean one unhappy NPU costs the gateway layer 2 entirely, on a machine with a working
+    /// iGPU and CPU sitting right there — which is precisely what the invariant "NPU-first,
+    /// CPU-fallback, transparent" exists to prevent.
+    ///
     /// # Errors
-    /// Fails if the tokenizer, config or IR cannot be loaded, or if no device accepts the model.
+    /// Fails if the tokenizer, config or IR cannot be loaded, or if no device accepts the model —
+    /// in which case the error names every device tried and what each said.
     pub fn load(model_dir: &Path, device_request: &str) -> Result<Self, NerError> {
         let tokenizer_path = model_dir.join("tokenizer.json");
         let tokenizer =
@@ -115,16 +123,33 @@ impl NerEngine {
             .iter()
             .map(ToString::to_string)
             .collect();
-        let (device, fell_back) = ov::resolve_device(device_request, &available);
+        let (candidates, resolved_elsewhere) = ov::device_candidates(device_request, &available);
+        let first_choice = candidates[0].clone();
 
         let xml = model_dir.join("openvino_model.xml");
         let bin = model_dir.join("openvino_model.bin");
         let model = core
             .read_model_from_file(&xml.to_string_lossy(), &bin.to_string_lossy())
             .map_err(|err| NerError::OpenVino(format!("read_model: {err}")))?;
-        let mut compiled = core
-            .compile_model(&model, DeviceType::from(device.as_str()))
-            .map_err(|err| NerError::OpenVino(format!("compile_model on {device}: {err}")))?;
+
+        let mut refusals = Vec::new();
+        let mut chosen = None;
+        for candidate in &candidates {
+            match core.compile_model(&model, DeviceType::from(candidate.as_str())) {
+                Ok(compiled) => {
+                    chosen = Some((candidate.clone(), compiled));
+                    break;
+                }
+                Err(err) => refusals.push(format!("{candidate}: {err}")),
+            }
+        }
+        let Some((device, mut compiled)) = chosen else {
+            return Err(NerError::OpenVino(format!(
+                "no device would compile the model — {}",
+                refusals.join("; ")
+            )));
+        };
+        let fell_back = resolved_elsewhere || device != first_choice;
 
         // Shapes come from the compiled model: the source IR reports them only partially, and
         // asking it for a concrete shape fails even when the IR is static.

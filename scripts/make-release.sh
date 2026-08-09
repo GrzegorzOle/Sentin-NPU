@@ -55,6 +55,15 @@ DOCKERFILE
             -e CARGO_TARGET_DIR=/w/gateway/target-win sentin-winbuild \
             cargo build ${flag} --target x86_64-pc-windows-gnu -p sentin-diag --bin sentin-doctor
     done
+    # The gateway and the harness cross-compile too. This was assumed to be blocked -- the
+    # expectation was aws-lc-sys wanting a C toolchain -- and was simply never tried; reqwest
+    # resolves to rustls here, so mingw builds all three. Without sentin-bench a Windows tester
+    # cannot measure M2 at all, which is the same gap that made the Linux bundle useless for half
+    # of Phase 5's exit criteria.
+    docker run --rm -v "${REPO}":/w:z -w /w/gateway \
+        -e CARGO_TARGET_DIR=/w/gateway/target-win sentin-winbuild \
+        cargo build --release --target x86_64-pc-windows-gnu \
+        -p sentin-proxy --bin sentin-gateway --bin sentin-bench
 }
 
 copy_models() {
@@ -145,11 +154,21 @@ stage_windows() {
     cp "${REPO}/gateway/target-win/x86_64-pc-windows-gnu/debug/sentin-doctor.exe" \
        "${stage}/sentin-doctor-debug.exe"
 
+    cp "${REPO}/gateway/target-win/x86_64-pc-windows-gnu/release/sentin-gateway.exe" \
+       "${stage}/sentin-gateway.exe"
+    cp "${REPO}/gateway/target-win/x86_64-pc-windows-gnu/release/sentin-bench.exe" \
+       "${stage}/sentin-bench.exe"
+
     if [ -n "${OV_WINDOWS}" ] && [ -d "${OV_WINDOWS}" ]; then
         cp -a "${OV_WINDOWS}"/*.dll "${stage}/lib/"
     else
         echo "WARNING: OV_WINDOWS_LIBS not set — Windows bundle has no OpenVINO runtime" >&2
     fi
+
+    # Same rewrite as Linux: a config pointing into the source tree silently drops the bundle to
+    # layer 1, and the warning is easy to miss in a startup log.
+    sed -e 's|^  model_dir:.*|  model_dir: models/seq128|' \
+        "${REPO}/config/default.yaml" > "${stage}/config.yaml"
 
     copy_models "${stage}/models"
     cp "${REPO}/scripts/run-diagnostics.ps1" "${stage}/run.ps1"
