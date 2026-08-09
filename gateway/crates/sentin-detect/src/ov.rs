@@ -18,7 +18,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use openvino::{Core, DeviceType, PropertyKey, Tensor};
+use openvino::{CompiledModel, Core, DeviceType, ElementType, PropertyKey, Tensor};
 use serde::{Deserialize, Serialize};
 
 /// Device preference order for `AUTO`: the whole point of the project is to prefer the NPU.
@@ -198,6 +198,68 @@ struct Timing {
     steady: Duration,
 }
 
+/// Build one **initialised** input tensor per declared input of `compiled`.
+///
+/// `Tensor::new` allocates without initialising: `ov_tensor_create` hands back whatever was already
+/// in that memory. Fed to a NER graph, that is a block of token ids far outside the vocabulary, the
+/// embedding gather indexes out of bounds, and what happens next is device-dependent — CPU and GPU
+/// absorb it silently, the NPU hangs and Level Zero reports `ZE_RESULT_ERROR_DEVICE_LOST`. In a
+/// report that is indistinguishable from the NPU refusing the model, and Phase 5 hit exactly that
+/// false negative on a Core Ultra 7 258V whose NPU in fact runs both IR variants. The inputs are
+/// therefore written explicitly rather than assumed to arrive zeroed.
+///
+/// `attention_mask` is filled with ones, not zeros. An all-zero mask masks every position out,
+/// which real inference never produces, and a probe is only worth something if it exercises the
+/// kernels the way the gateway will.
+///
+/// # Errors
+/// Returns the OpenVINO message when the compiled model will not describe or allocate its inputs.
+pub fn probe_inputs(compiled: &mut CompiledModel) -> Result<Vec<Tensor>, String> {
+    let count = compiled
+        .get_input_size()
+        .map_err(|err| format!("get_input_size: {err}"))?;
+
+    let mut tensors = Vec::with_capacity(count);
+    for index in 0..count {
+        let node = compiled
+            .get_input_by_index(index)
+            .map_err(|err| format!("get_input_by_index({index}): {err}"))?;
+        let shape = node
+            .get_shape()
+            .map_err(|err| format!("get_shape({index}): {err}"))?;
+        let element = node
+            .get_element_type()
+            .map_err(|err| format!("get_element_type({index}): {err}"))?;
+        let name = node.get_name().unwrap_or_default();
+
+        let mut tensor =
+            Tensor::new(element, &shape).map_err(|err| format!("tensor alloc({index}): {err}"))?;
+        tensor
+            .get_raw_data_mut()
+            .map_err(|err| format!("tensor data({index}): {err}"))?
+            .fill(0);
+        if name.contains("attention_mask") {
+            fill_ones(&mut tensor, element)
+                .map_err(|err| format!("attention_mask fill({index}): {err}"))?;
+        }
+        tensors.push(tensor);
+    }
+    Ok(tensors)
+}
+
+/// Set every element of `tensor` to one, for the integer types a mask is ever declared as.
+///
+/// An unexpected element type leaves the zeros in place rather than guessing at a byte pattern:
+/// a wrong guess would be a silent lie about what was fed to the device.
+fn fill_ones(tensor: &mut Tensor, element: ElementType) -> Result<(), String> {
+    match element {
+        ElementType::I64 => tensor.get_data_mut::<i64>().map(|data| data.fill(1)),
+        ElementType::I32 => tensor.get_data_mut::<i32>().map(|data| data.fill(1)),
+        _ => return Ok(()),
+    }
+    .map_err(|err| err.to_string())
+}
+
 fn compile_and_run(
     core: &mut Core,
     device: &str,
@@ -218,35 +280,17 @@ fn compile_and_run(
     // source model for a concrete shape fails with "to_shape was called on a dynamic shape" even
     // when the IR was reshaped to static dimensions, because the port there is still described
     // partially. Compilation is what resolves it.
-    let input_count = compiled
-        .get_input_size()
-        .map_err(|err| format!("get_input_size: {err}"))?;
-
-    let mut inputs = Vec::with_capacity(input_count);
-    for index in 0..input_count {
-        let node = compiled
-            .get_input_by_index(index)
-            .map_err(|err| format!("get_input_by_index({index}): {err}"))?;
-        let shape = node
-            .get_shape()
-            .map_err(|err| format!("get_shape({index}): {err}"))?;
-        let element = node
-            .get_element_type()
-            .map_err(|err| format!("get_element_type({index}): {err}"))?;
-        inputs.push((shape, element));
-    }
+    let inputs = probe_inputs(&mut compiled)?;
 
     let mut request = compiled
         .create_infer_request()
         .map_err(|err| format!("create_infer_request: {err}"))?;
 
-    // Feed every declared input with zeros. Layer 2 will feed real tokens; here the question is
-    // only whether the graph runs on this device at all, and zeros exercise the same kernels.
-    for (index, (shape, element)) in inputs.iter().enumerate() {
-        let tensor =
-            Tensor::new(*element, shape).map_err(|err| format!("tensor alloc({index}): {err}"))?;
+    // Layer 2 will feed real tokens; here the question is only whether the graph runs on this
+    // device at all, and a valid synthetic batch exercises the same kernels.
+    for (index, tensor) in inputs.iter().enumerate() {
         request
-            .set_input_tensor_by_index(index, &tensor)
+            .set_input_tensor_by_index(index, tensor)
             .map_err(|err| format!("set_input_tensor({index}): {err}"))?;
     }
 
@@ -289,22 +333,7 @@ pub fn run_for(xml: &Path, device: &str, duration: Duration) -> Result<(u64, Dur
         .compile_model(&model, DeviceType::from(device))
         .map_err(|err| format!("compile_model: {err}"))?;
 
-    let inputs = compiled
-        .get_input_size()
-        .map_err(|err| format!("get_input_size: {err}"))?;
-    let mut tensors = Vec::with_capacity(inputs);
-    for index in 0..inputs {
-        let node = compiled
-            .get_input_by_index(index)
-            .map_err(|err| format!("get_input_by_index: {err}"))?;
-        let shape = node
-            .get_shape()
-            .map_err(|err| format!("get_shape: {err}"))?;
-        let element = node
-            .get_element_type()
-            .map_err(|err| format!("get_element_type: {err}"))?;
-        tensors.push(Tensor::new(element, &shape).map_err(|err| format!("tensor alloc: {err}"))?);
-    }
+    let tensors = probe_inputs(&mut compiled)?;
 
     let mut request = compiled
         .create_infer_request()
