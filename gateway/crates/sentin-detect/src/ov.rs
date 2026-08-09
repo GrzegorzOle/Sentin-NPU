@@ -133,7 +133,7 @@ pub fn probe(model_xml: Option<&Path>) -> Result<Report, OvError> {
     }
     notes.push(
         "Operator-level fallback lists are not available from Rust (the openvino crate exposes \
-         neither query_model nor compiled-model properties). Use the Python toolchain for that."
+         neither query_model nor compiled-model properties). Run tools/query_ops.py for that."
             .to_string(),
     );
 

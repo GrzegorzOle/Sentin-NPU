@@ -120,7 +120,10 @@ Raw report: `docs/doctor-intel-lunarlake.json`.
 | GPU | FP32 BIN FP16 INT8 GPU_HW_MATMUL GPU_USM_MEMORY EXPORT_IMPORT | 913 ms / 2.7 ms | 996 ms / 9.7 ms |
 | NPU | FP16 INT8 EXPORT_IMPORT | 1 879 ms / 5.9 ms | 6 090 ms / 20.7 ms |
 
-**HerBERT INT8 compiles and executes on the NPU in both shape variants.** The B1 fallback model was
+**HerBERT INT8 compiles and executes on the NPU in both shape variants**, and **no operator falls
+back** — `query_model` accepts all 1 467 nodes (25 distinct types) for NPU, GPU and CPU alike, in
+both variants. Reproduce with `tools/query_ops.py`; that check exists because a graph can compile
+and still be split across devices, which no latency number would reveal. The B1 fallback model was
 not needed. Latency, throughput and the energy comparison are in `docs/benchmarks.md`.
 
 Three things a reproducer needs to know:

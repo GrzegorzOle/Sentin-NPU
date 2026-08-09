@@ -723,10 +723,22 @@ seq512** — fifty- to hundred-fold. So a cold first start pays six seconds for 
 start after that pays sixty milliseconds. Packaging should expect that cache directory to exist and
 grow; a deployment that wipes it between restarts re-pays the full compile each time.
 
-Operator-level fallback lists are still not available: the `openvino` crate 0.11 exposes neither
-`query_model` nor compiled-model properties. Nothing in these results suggests partial fallback —
-compile succeeded outright on both variants — but confirming that per operator remains a job for
-the Python toolchain.
+**No operator falls back.** A model that compiles can still be split across devices, and that split
+is invisible in a latency figure — so it was checked rather than assumed. `openvino` 0.11 exposes
+neither `query_model` nor compiled-model properties, so this comes from the Python side:
+
+```bash
+tools/.venv/bin/python tools/query_ops.py --model herbert --seq 128 --json ops.json
+```
+
+| Variant | Operations | Distinct types | NPU claims | GPU claims | CPU claims |
+|---|---|---|---|---|---|
+| seq128 | 1 467 | 25 | **1 467 — none unclaimed** | 1 467 | 1 467 |
+| seq512 | 1 467 | 25 | **1 467 — none unclaimed** | 1 467 | 1 467 |
+
+Every one of the 1 467 nodes is accepted by the NPU plugin in both variants, so the timings above
+describe the NPU running the whole graph, not the NPU running most of it while the CPU quietly
+finishes the rest.
 
 Note: the dev machine's `GPU` device is an NVIDIA dGPU reached through the OpenCL ICD, not an
 Intel iGPU — it does not belong in this table. See `docs/npu-compat.md`.
