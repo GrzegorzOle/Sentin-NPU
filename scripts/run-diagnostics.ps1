@@ -111,7 +111,7 @@ if ($Power) {
     # Windows has no powercap sysfs; RAPL is reachable only through a signed kernel driver, so the
     # doctor reports energy as unsupported here. Intel PCM is the fallback, and its numbers are a
     # different measurement that must not be put in the same column as Linux RAPL figures.
-    Run 'power (expected: unsupported on Windows)' { & $Exe --model $Model128 --power }
+    Run 'power (expected: unsupported on Windows)' { & $Exe --model $Model128 --power --power-repeats 1 }
 }
 
 Section 'collecting'

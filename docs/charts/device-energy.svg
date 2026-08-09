@@ -1,30 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 300" width="780" height="300" role="img" aria-label="Energy per inference — the result the project exists to report">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 300" width="780" height="300" role="img" aria-label="Energy per inference at 10 requests per second">
 <rect width="780" height="300" fill="#fcfcfb"/>
-<text x="32.0" y="40.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" fill="#0b0b0b" text-anchor="start">Energy per inference — the result the project exists to report</text>
-<text x="32.0" y="64.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="start">Package RAPL, idle subtracted, 20 s per device. Intel Core Ultra 7 258V, HerBERT INT8 sequence 128.</text>
+<text x="32.0" y="40.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" fill="#0b0b0b" text-anchor="start">Energy per inference at 10 requests per second</text>
+<text x="32.0" y="64.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="start">The load a gateway in front of a few agents sees. Median of 5 repeats, package RAPL, idle subtracted.</text>
 <line x1="248.0" y1="88.0" x2="248.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
 <text x="248.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">0</text>
 <line x1="357.0" y1="88.0" x2="357.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
-<text x="357.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">150</text>
+<text x="357.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">200</text>
 <line x1="466.0" y1="88.0" x2="466.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
-<text x="466.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">300</text>
+<text x="466.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">400</text>
 <line x1="575.0" y1="88.0" x2="575.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
-<text x="575.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">450</text>
+<text x="575.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">600</text>
 <line x1="684.0" y1="88.0" x2="684.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
-<text x="684.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">600</text>
+<text x="684.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">800</text>
 <line x1="248.0" y1="88.0" x2="248.0" y2="228.0" stroke="#c3c2b7" stroke-width="1"/>
 <text x="748.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">mJ</text>
 <text x="232.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">NPU — Intel AI Boost</text>
-<g fill="#2a78d6"><path d="M 248.0 107.0 H 279.9 A 4 4 0 0 1 283.9 111.0 V 125.0 A 4 4 0 0 1 279.9 129.0 H 248.0 Z" /></g>
-<text x="293.9" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">49.45 mJ</text>
-<text x="359.5" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">17.09 W package</text>
+<g fill="#2a78d6"><path d="M 248.0 107.0 H 286.6 A 4 4 0 0 1 290.6 111.0 V 125.0 A 4 4 0 0 1 286.6 129.0 H 248.0 Z" /></g>
+<text x="300.6" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">78.21 mJ</text>
+<text x="366.2" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">0.78 W above idle</text>
 <text x="232.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">GPU — Intel Arc 140V (iGPU)</text>
-<g fill="#2a78d6"><path d="M 248.0 151.0 H 281.3 A 4 4 0 0 1 285.3 155.0 V 169.0 A 4 4 0 0 1 281.3 173.0 H 248.0 Z" /></g>
-<text x="295.3" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">51.34 mJ</text>
-<text x="360.9" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">21.59 W package</text>
+<g fill="#2a78d6"><path d="M 248.0 151.0 H 331.2 A 4 4 0 0 1 335.2 155.0 V 169.0 A 4 4 0 0 1 331.2 173.0 H 248.0 Z" /></g>
+<text x="345.2" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">160.08 mJ</text>
+<text x="418.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">1.53 W above idle</text>
 <text x="232.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">CPU — Core Ultra 7 258V</text>
-<g fill="#2a78d6"><path d="M 248.0 195.0 H 648.3 A 4 4 0 0 1 652.3 199.0 V 213.0 A 4 4 0 0 1 648.3 217.0 H 248.0 Z" /></g>
-<text x="662.3" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">556.33 mJ</text>
-<text x="640.3" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#ffffff" text-anchor="end">25.06 W package</text>
-<text x="32.0" y="276.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">Getting off the CPU is the 11x win. Between the two accelerators the energy is a tie; the NPU&#x27;s advantage is drawing 4.5 W less while it works.</text>
+<g fill="#2a78d6"><path d="M 248.0 195.0 H 638.7 A 4 4 0 0 1 642.7 199.0 V 213.0 A 4 4 0 0 1 638.7 217.0 H 248.0 Z" /></g>
+<text x="652.7" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">724.14 mJ</text>
+<text x="630.7" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#ffffff" text-anchor="end">6.92 W above idle</text>
+<text x="32.0" y="276.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">At saturation these two are 5% apart. At a realistic rate the iGPU still pays to be clocked up.</text>
 </svg>

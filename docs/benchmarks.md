@@ -37,8 +37,8 @@ table beside it; nothing is readable only as a coloured bar.
 | M2b | Full pipeline overhead (L1+L2) | p95 < 150 ms CPU / < 80 ms NPU | **PASS on all three** — +10.8 ms dev CPU; Intel NPU +3.85 ms |
 | M2c | Streaming TTFT impact | decided by B2; always reported | **measured** — see B2 |
 | M3 | INT8 quality degradation | ΔF1 < 2 pp | **PASS** — see B1 below |
-| M4 | NER quality PL+EN | reported, no hard threshold | **measured** — Rust == Python exactly; see below |
-| M5 | Power draw per device | no threshold — **headline result** | **measured** — NPU 49.45 mJ, iGPU 51.34, CPU 556.33 per inference |
+| M4 | NER quality PL+EN | reported, no hard threshold | **measured** — Rust == Python exactly; NPU within 0.25 pp of CPU |
+| M5 | Power draw per device | no threshold — **headline result** | **measured**, 5 repeats — at 10 rps: NPU 78.21 mJ, iGPU 160.08, CPU 724.14 per inference |
 | M6 | Gateway resource use | RSS < 50 MB without model | **PASS** — 9 MB; 506 MB with the model |
 | M7 | L1 false positives | 0 for checksum detectors | **PASS** on prose; see caveat below |
 
@@ -492,6 +492,51 @@ LD_LIBRARY_PATH=$OVLIB cargo test --release --manifest-path gateway/Cargo.toml \
     -p sentin-detect --test ner_quality -- --nocapture
 ```
 
+### Does the NPU detect the same things as the CPU? — measured 2026-08-09
+
+Everything above was scored with `device = CPU`. That leaves a hole under the project's central
+claim: the NPU advertises `FP16 INT8` and a plugin is free to compute in FP16 internally, so
+"the model runs on the NPU" is not the same statement as "the model detects the same entities on
+the NPU". Identical timings would not reveal a difference; only scoring on the device does.
+
+Both rows below are the **same IR** on the **same machine**, WikiANN, 500 sentences per language
+(745 PL / 761 EN gold entities), only the device changed.
+
+| Device | P (pl) | R (pl) | **F1 (pl)** | P (en) | R (en) | **F1 (en)** |
+|---|---|---|---|---|---|---|
+| CPU | 87.05 | 88.46 | **87.75** | 58.34 | 61.10 | **59.69** |
+| NPU | 87.42 | 88.59 | **88.00** | 58.64 | 61.10 | **59.85** |
+
+**The NPU is not bit-identical to the CPU, and the difference is immaterial.** ΔF1 is +0.25 pp
+Polish and +0.16 pp English — on 745 and 761 gold entities that is one to three entities, and it
+falls on the precision side (English recall is identical to the second decimal). The direction is
+in the NPU's favour in this run, which is a coincidence of rounding rather than a finding: what
+matters is the magnitude, and it is the size of FP16 rounding flipping a couple of borderline
+tokens. There is no quality reason to prefer either device.
+
+#### The published model is not the model these figures were measured on
+
+Running the same command on this machine's copy exposed something worth stating plainly. The
+released IR scores **87.75 / 59.69**; the locally generated IR scores **87.57 / 59.51** — the
+figures quoted in B1 throughout this document. Same code, same corpus, same toolchain versions
+(checked by pinning `transformers` and `numpy` to the lockfile and re-running: unchanged). The
+artefacts simply differ:
+
+| IR | sha256 of `openvino_model.bin` (first 16) | F1 pl / en |
+|---|---|---|
+| generated locally | `b07025a43698833e` | 87.57 / 59.51 |
+| downloaded from the v0.0.0.5 release | `aaa3dc0fd500d790` | 87.75 / 59.69 |
+
+**INT8 quantization is not reproducible.** NNCF calibrates over sampled data, CI regenerates the IR
+from scratch on every tag, and the result is a different set of weights each time — worth about
+±0.2 pp of F1 here. Two consequences:
+
+- The B1 numbers describe *an* INT8 quantization of HerBERT, not *the* one you download. Treat
+  ±0.2 pp as the reproducibility floor for any figure in this document that came from a quantized
+  model.
+- `SHA256SUMS.txt` verifies a download, never a rebuild — already noted for the archives, and true
+  of the weights inside them for the same underlying reason.
+
 ## Energy (M5, M5b) — methodology fixed 2026-08-08, results pending hardware
 
 Two different questions, deliberately kept apart:
@@ -651,36 +696,74 @@ what makes the per-request cost measurable; the 10 rps figure above is derived f
 Governor `powersave`, on mains. HerBERT INT8 sequence 128, 20 s per device, idle subtracted.
 Raw report: `docs/doctor-intel-lunarlake.json`.
 
-Idle 2.33 W measured before and 2.77 W after; the 0.45 W between them is the noise floor every
-row below clears comfortably.
+**Five measured repeats per row plus a discarded warm-up, 15 s each**, at three load levels. Idle
+is re-sampled every round: six samples, median 2.22 W, spread **0.35 W — the noise floor**. Raw
+report including every individual repeat: `docs/power-intel-lunarlake.json`.
 
-| Device | Inferences in 20 s | Throughput | Package W | Active W (idle subtracted) | **Energy per inference** |
-|---|---|---|---|---|---|
-| CPU | 846 | 40.9 /s | 25.06 | 22.73 | **556.33 mJ** |
-| GPU — Arc 140V iGPU | 7 762 | 375.2 /s | 21.59 | 19.26 | **51.34 mJ** |
-| NPU — Intel AI Boost | 6 006 | 298.5 /s | **17.09** | **14.76** | **49.45 mJ** |
+Repeats are not decorum here. A first single-pass run put NPU and iGPU 3.7 % apart, which is the
+same order as the platform's own drift, and one measurement cannot tell "the NPU is cheaper" from
+"the machine was quieter that minute". With five it can — see the trial ranges below.
 
-![Energy per inference: 556.33 mJ on CPU, 51.34 mJ on the Intel iGPU and 49.45 mJ on the NPU, with
-package power of 25.06, 21.59 and 17.09 W](charts/device-energy.svg)
+| Device | Load | Throughput | Package W | Active W | **Energy per inference** | p95 |
+|---|---|---|---|---|---|---|
+| CPU | saturation | 40.1 /s | 24.41 | 22.19 | **554.60 mJ** | 557.53 |
+| GPU — Arc 140V | saturation | 375.4 /s | 20.79 | 18.54 | **49.51 mJ** | 49.99 |
+| NPU — AI Boost | saturation | 299.0 /s | **16.16** | **13.96** | **46.81 mJ** | 47.66 |
+| CPU | 10 rps | 9.6 /s | 9.00 | 6.92 | 724.14 mJ | 736.45 |
+| GPU — Arc 140V | 10 rps | 9.4 /s | 3.66 | 1.53 | 160.08 mJ | 182.12 |
+| NPU — AI Boost | 10 rps | 9.9 /s | **2.99** | **0.78** | **78.21 mJ** | 102.74 |
+| CPU | 1 rps | 0.9 /s | 3.41 | 1.19 | 1 267.08 mJ | 1 503.74 |
+| GPU — Arc 140V | 1 rps | 1.0 /s | 2.98 | 0.78 | 815.77 mJ | 1 002.87 |
+| NPU — AI Boost | 1 rps | 1.0 /s | 2.37 | 0.17 | *below noise* | — |
 
-**The headline is the CPU column, not the NPU one.** Moving this model off the CPU cuts energy per
-inference by a factor of eleven; that is the result that decides whether on-device inspection is
-affordable at all. Between the two accelerators the picture is more interesting than a winner:
+![Energy per inference at 10 rps: 724.14 mJ on CPU, 160.08 mJ on the Intel iGPU and 78.21 mJ on the
+NPU](charts/device-energy.svg)
 
-- On **energy per inference** the NPU beats the iGPU by 3.7 % — inside the run-to-run variation of
-  a laptop package, so treat it as a tie rather than a win.
-- On **sustained package power** the NPU draws 4.5 W less (14.76 W against 19.26 W active), because
-  it does the same work more slowly and more cheaply. The iGPU is 26 % faster and finishes sooner,
-  which is why the energy totals converge.
+**At saturation the accelerators are close; at a realistic load they are not.** That is the finding,
+and it is the opposite of what a single saturation run suggested:
 
-For a gateway that inspects traffic continuously in the background, the low-power row is worth more
-than the fast one — and the NPU leaves the iGPU free for whatever the user is actually doing.
-Neither device is close to being the bottleneck: at 298 inferences per second the NPU is roughly
-30× the load a single interactive agent generates.
+| Load | NPU vs iGPU | NPU vs CPU |
+|---|---|---|
+| saturation | **1.06× cheaper** | 11.8× |
+| 10 rps | **2.05× cheaper** | 9.3× |
+
+At saturation both accelerators amortise their fixed costs over as much work as possible and the
+gap narrows to 5.5 %. At ten requests per second — a plausible load for a gateway in front of a
+few agents — the iGPU still pays to be powered up and clocked while the NPU does not, and the
+NPU comes out **twice as cheap per inference**. A gateway inspecting traffic in the background
+lives at the second row, not the first.
+
+**The trial ranges do not overlap**, which is what makes the saturation comparison sayable at all:
+
+| Device | Five repeats, mJ per inference |
+|---|---|
+| NPU | 45.74 · 46.51 · 46.81 · 47.66 · 47.66 |
+| GPU | 49.15 · 49.43 · 49.51 · 49.85 · 49.99 |
+| CPU | 548.44 · 553.16 · 554.60 · 556.80 · 557.53 |
+
+The NPU's worst repeat is cheaper than the iGPU's best. With one sample each that separation could
+not have been claimed.
+
+![Energy per inference at saturation: 46.81 mJ on the NPU, 49.51 on the Intel iGPU and 554.60 on
+the CPU, with non-overlapping repeat ranges](charts/device-energy-saturation.svg)
+
+**One row is marked *below noise* and that is a result, not a gap.** At 1 rps the NPU's own draw is
+0.17 W against a 0.35 W noise floor — an inference costing tens of millijoules spread over a whole
+second is tens of milliwatts, and package RAPL on a laptop cannot separate that from the platform's
+drift. The harness says so on the row rather than printing a number that looks like a measurement.
+The honest reading is "at one request per second the NPU's inference is invisible in package
+power", which is itself worth knowing.
 
 Per the caveat above, these are package readings *while* a device was working. There is no NPU
 powercap domain, so the NPU's own draw is the distance between its row and the CPU row, not an
 absolute figure.
+
+Reproduce with:
+
+```bash
+sentin-doctor --model models/seq128/openvino_model.xml \
+    --power --power-seconds 15 --power-repeats 5 --power-json power.json
+```
 
 ### M5b on this machine — gateway overhead, Intel (2026-08-09)
 

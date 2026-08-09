@@ -405,21 +405,40 @@ CHARTS: list[Chart] = [
     ),
     Chart(
         slug="device-energy",
-        title="Energy per inference — the result the project exists to report",
+        title="Energy per inference at 10 requests per second",
         subtitle=(
-            "Package RAPL, idle subtracted, 20 s per device. "
-            "Intel Core Ultra 7 258V, HerBERT INT8 sequence 128."
+            "The load a gateway in front of a few agents sees. Median of 5 repeats, "
+            "package RAPL, idle subtracted."
         ),
         rows=[
-            Row("NPU — Intel AI Boost", 49.45, "49.45 mJ", "17.09 W package"),
-            Row("GPU — Intel Arc 140V (iGPU)", 51.34, "51.34 mJ", "21.59 W package"),
-            Row("CPU — Core Ultra 7 258V", 556.33, "556.33 mJ", "25.06 W package"),
+            Row("NPU — Intel AI Boost", 78.21, "78.21 mJ", "0.78 W above idle"),
+            Row("GPU — Intel Arc 140V (iGPU)", 160.08, "160.08 mJ", "1.53 W above idle"),
+            Row("CPU — Core Ultra 7 258V", 724.14, "724.14 mJ", "6.92 W above idle"),
+        ],
+        unit="mJ",
+        ticks=[0, 200, 400, 600, 800],
+        footnote=(
+            "At saturation these two are 5% apart. At a realistic rate the iGPU still "
+            "pays to be clocked up."
+        ),
+        label_w=248,
+    ),
+    Chart(
+        slug="device-energy-saturation",
+        title="Energy per inference at saturation, and why repeats were needed",
+        subtitle=(
+            "Driven as fast as each device will go. Median of 5 repeats after a discarded warm-up."
+        ),
+        rows=[
+            Row("NPU — Intel AI Boost", 46.81, "46.81 mJ", "range 45.74-47.66"),
+            Row("GPU — Intel Arc 140V (iGPU)", 49.51, "49.51 mJ", "range 49.15-49.99"),
+            Row("CPU — Core Ultra 7 258V", 554.60, "554.60 mJ", "range 548.44-557.53"),
         ],
         unit="mJ",
         ticks=[0, 150, 300, 450, 600],
         footnote=(
-            "Getting off the CPU is the 11x win. Between the two accelerators the energy is "
-            "a tie; the NPU's advantage is drawing 4.5 W less while it works."
+            "One pass put these 3.7% apart, inside the platform's drift. Five repeats "
+            "separate them cleanly."
         ),
         label_w=248,
     ),
@@ -484,9 +503,12 @@ def check_against_docs() -> int:
         "62.62",
         "308",
         # Phase 5, Intel Core Ultra 7 258V
-        "556.33",
-        "51.34",
-        "49.45",
+        "554.60",
+        "49.51",
+        "46.81",
+        "78.21",
+        "160.08",
+        "724.14",
         "+3.85 ms",
         "23.6 ms",
     ]

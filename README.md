@@ -16,7 +16,8 @@ only on unambiguous policy violations.
 > with no Rust and no Python.
 >
 > **Verified on an Intel NPU as of 2026-08-09** — one machine, a Core Ultra 7 258V, where the
-> model runs on the NPU at 49.45 mJ per inference against 556.33 mJ on that machine's CPU. The
+> model runs on the NPU at 78.21 mJ per inference against 724.14 mJ on that machine's CPU, at a
+> realistic 10 requests per second. The
 > development machine has an AMD NPU that OpenVINO cannot address, so everything else here is
 > measured on CPU and every NPU claim rests on that single box — more reports welcome, see
 > [Help wanted](#help-wanted-npu-reports). Response-side masking is not implemented; responses are
@@ -109,6 +110,11 @@ curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/sent
 tar xzf sentin-npu-model-herbert-int8-seq128.tar.gz
 ```
 
+**Quantizing it yourself will not give you these exact weights.** NNCF calibrates over sampled
+data, so every run produces a slightly different INT8 model — worth about ±0.2 pp of F1 in
+measurements here. The published archive is one such quantization; if you need the numbers in
+`docs/benchmarks.md` to line up with what you are running, take the archive rather than rebuilding.
+
 `seq128` is the default and the shape every published latency figure was measured at; a `seq512`
 archive is published beside it for longer inputs. Point `inference.model_dir` at the extracted
 directory — as an **absolute** path, or it resolves against the working directory and layer 2
@@ -130,7 +136,8 @@ tools/.venv/bin/pip install -r tools/requirements.txt
 tools/.venv/bin/python tools/prepare_model.py --model herbert   # HF → IR, static shapes 128 and 512
 tools/.venv/bin/python tools/quantize.py      --model herbert   # → INT8
 # Or skip both: unpack the published IR into models/herbert/int8/seq128 instead (see "Just the
-# model" above). Step 1 exists to be reproducible, not because you have to run it.
+# model" above). Step 1 documents how the model was made; it does not reproduce it byte for byte
+# -- INT8 calibration samples data, so your weights will differ slightly from the published ones.
 
 # 2. Gateway (Rust, edition 2021, MSRV 1.82).
 #    The Cargo workspace lives in gateway/, so build it by manifest path and run the
@@ -261,20 +268,29 @@ Per-device inference latency and power — the NPU-vs-GPU-vs-CPU comparison this
 produce. Measured 2026-08-09 on one **Intel Core Ultra 7 258V** (Lunar Lake, Ubuntu 26.04), all
 three devices on the same machine, HerBERT INT8 sequence 128:
 
-| Device | Steady inference | Added p95 (full pipeline) | Package power | Energy per inference |
-|---|---|---|---|---|
-| NPU — Intel AI Boost | 5.9 ms | +3.85 ms | **17.09 W** | **49.45 mJ** |
-| GPU — Intel Arc 140V (iGPU) | 2.7 ms | +3.09 ms | 21.59 W | 51.34 mJ |
-| CPU — Core Ultra 7 258V | 23.6 ms | +24.97 ms | 25.06 W | 556.33 mJ |
+Energy is the median of five repeats after a discarded warm-up, at the load a gateway in front of
+a few agents actually sees — **10 requests per second**, not saturation.
 
-![Energy per inference: 556.33 mJ on CPU, 51.34 mJ on the Intel iGPU and 49.45 mJ on the
+| Device | Steady inference | Added p95 (full pipeline) | Above-idle power @10 rps | Energy per inference @10 rps |
+|---|---|---|---|---|
+| NPU — Intel AI Boost | 5.9 ms | +3.85 ms | **0.78 W** | **78.21 mJ** |
+| GPU — Intel Arc 140V (iGPU) | 2.7 ms | +3.09 ms | 1.53 W | 160.08 mJ |
+| CPU — Core Ultra 7 258V | 23.6 ms | +24.97 ms | 6.92 W | 724.14 mJ |
+
+![Energy per inference at 10 rps: 724.14 mJ on CPU, 160.08 mJ on the Intel iGPU and 78.21 mJ on the
 NPU](docs/charts/device-energy.svg)
 
-**The eleven-fold gap is between the CPU and either accelerator** — that is what decides whether
-continuous on-device inspection is affordable. Between NPU and iGPU the energy is effectively a
-tie; the NPU's advantage is drawing 4.5 W less while it works, and leaving the GPU free for
-whatever the user is actually doing. Both IR variants (sequence 128 and 512) compile and execute
-on the NPU. Full tables, method and caveats: [docs/benchmarks.md](docs/benchmarks.md).
+**The NPU is twice as cheap per inference as the iGPU at this load, and nine times cheaper than the
+CPU.** Drive all three flat out instead and the two accelerators converge to within 5 % — at
+saturation each amortises its fixed cost over as much work as possible, while at a realistic rate
+the iGPU still pays to be clocked up and the NPU does not. A background privacy gateway lives at
+the realistic rate, which is why that is the row quoted here.
+
+The iGPU is the faster device (2.7 ms against 5.9 ms); the NPU is the cheaper one, and it leaves
+the GPU for whatever the user is actually doing. Both IR variants (sequence 128 and 512) compile
+and execute on the NPU, with **no operator falling back**, and NER quality on the NPU matches the
+CPU to within 0.25 pp F1. Full tables, method and caveats:
+[docs/benchmarks.md](docs/benchmarks.md).
 
 ### Help wanted: NPU reports
 

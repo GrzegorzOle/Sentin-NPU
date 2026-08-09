@@ -1,0 +1,498 @@
+{
+  "idle_w": 2.2216696433070835,
+  "noise_floor_w": 0.34532521046764275,
+  "seconds_per_device": 15,
+  "repeats": 5,
+  "idle_samples_w": [
+    2.2216696433070835,
+    2.3796514259167783,
+    2.218199647501902,
+    2.0343262154491355,
+    2.224055404047907,
+    2.2014187876350912
+  ],
+  "devices": [
+    {
+      "device": "CPU",
+      "scenario": "1 rps",
+      "target_rps": 1.0,
+      "repeats": 5,
+      "inferences_per_second": 0.9397252712041964,
+      "package_w": 3.4094509524055288,
+      "idle_w": 2.2216696433070835,
+      "active_w": 1.1912513049036266,
+      "active_w_p95": 1.41309854284242,
+      "mj_per_inference": 1267.081983854578,
+      "mj_per_inference_p95": 1503.73581103297,
+      "active_w_spread": 0.5189535028654175,
+      "above_noise": true,
+      "trials": [
+        {
+          "inferences": 15,
+          "seconds": 15.962744949,
+          "package_w": 3.273796465893781,
+          "active_w": 0.8941450399770026,
+          "mj_per_inference": 951.5339480377532
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.954844859,
+          "package_w": 3.4094509524055288,
+          "active_w": 1.1912513049036266,
+          "mj_per_inference": 1267.081983854578
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.96211197,
+          "package_w": 3.4474247582915556,
+          "active_w": 1.41309854284242,
+          "mj_per_inference": 1503.73581103297
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.973738598,
+          "package_w": 3.5426709065519164,
+          "active_w": 1.3186155025040094,
+          "mj_per_inference": 1404.2146232179641
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.691442752,
+          "package_w": 3.200238741182644,
+          "active_w": 0.9988199535475526,
+          "mj_per_inference": 1044.8617413764482
+        }
+      ],
+      "error": null
+    },
+    {
+      "device": "CPU",
+      "scenario": "10 rps",
+      "target_rps": 10.0,
+      "repeats": 5,
+      "inferences_per_second": 9.56073322241592,
+      "package_w": 9.001119063546668,
+      "idle_w": 2.2216696433070835,
+      "active_w": 6.917178733374252,
+      "active_w_p95": 7.036524859882605,
+      "mj_per_inference": 724.1412904588088,
+      "mj_per_inference_p95": 736.4506318030552,
+      "active_w_spread": 0.4613642833019602,
+      "above_noise": true,
+      "trials": [
+        {
+          "inferences": 150,
+          "seconds": 15.689173258,
+          "package_w": 8.954812002497423,
+          "active_w": 6.575160576580645,
+          "mj_per_inference": 687.7255565676327
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.688185317,
+          "package_w": 8.932499786839433,
+          "active_w": 6.714300139337531,
+          "mj_per_inference": 702.234565732574
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.688750699,
+          "package_w": 9.001119063546668,
+          "active_w": 6.966792848097532,
+          "mj_per_inference": 728.668507769189
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.699169259,
+          "package_w": 9.260580263930512,
+          "active_w": 7.036524859882605,
+          "mj_per_inference": 736.4506318030552
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.70310639,
+          "package_w": 9.118597521009344,
+          "active_w": 6.917178733374252,
+          "mj_per_inference": 724.1412904588088
+        }
+      ],
+      "error": null
+    },
+    {
+      "device": "CPU",
+      "scenario": "saturation",
+      "target_rps": null,
+      "repeats": 5,
+      "inferences_per_second": 40.0757814040449,
+      "package_w": 24.41384793567044,
+      "idle_w": 2.2216696433070835,
+      "active_w": 22.189792531622533,
+      "active_w_p95": 22.624698506805725,
+      "mj_per_inference": 554.5990070069051,
+      "mj_per_inference_p95": 557.5324741751094,
+      "active_w_spread": 0.6456296842269715,
+      "above_noise": true,
+      "trials": [
+        {
+          "inferences": 640,
+          "seconds": 15.969744758000001,
+          "package_w": 24.358720248495533,
+          "active_w": 21.979068822578753,
+          "mj_per_inference": 548.4376861173412
+        },
+        {
+          "inferences": 639,
+          "seconds": 15.978963813,
+          "package_w": 24.33928830125951,
+          "active_w": 22.12108865375761,
+          "mj_per_inference": 553.1644367802156
+        },
+        {
+          "inferences": 638,
+          "seconds": 15.721085828,
+          "package_w": 24.630739519934387,
+          "active_w": 22.596413304485253,
+          "mj_per_inference": 556.8027475936893
+        },
+        {
+          "inferences": 640,
+          "seconds": 15.995794642,
+          "package_w": 24.41384793567044,
+          "active_w": 22.189792531622533,
+          "mj_per_inference": 554.5990070069051
+        },
+        {
+          "inferences": 638,
+          "seconds": 15.72200922,
+          "package_w": 24.826117294440817,
+          "active_w": 22.624698506805725,
+          "mj_per_inference": 557.5324741751094
+        }
+      ],
+      "error": null
+    },
+    {
+      "device": "GPU",
+      "scenario": "1 rps",
+      "target_rps": 1.0,
+      "repeats": 5,
+      "inferences_per_second": 0.9529508425783512,
+      "package_w": 2.9782147451914227,
+      "idle_w": 2.2216696433070835,
+      "active_w": 0.7804068002961477,
+      "active_w_p95": 0.9438885297422872,
+      "mj_per_inference": 815.7721926234112,
+      "mj_per_inference_p95": 1002.8706920869831,
+      "active_w_spread": 0.46601985687355096,
+      "above_noise": true,
+      "trials": [
+        {
+          "inferences": 15,
+          "seconds": 15.711142336,
+          "package_w": 2.8575200987855145,
+          "active_w": 0.47786867286873624,
+          "mj_per_inference": 500.5241824904091
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.679749183,
+          "package_w": 2.99860644779805,
+          "active_w": 0.7804068002961477,
+          "mj_per_inference": 815.7721926234112
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.937327245,
+          "package_w": 2.9782147451914227,
+          "active_w": 0.9438885297422872,
+          "mj_per_inference": 1002.8706920869831
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.748718389,
+          "package_w": 3.1581342539428148,
+          "active_w": 0.9340788498949077,
+          "mj_per_inference": 980.702984007727
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.740581077,
+          "package_w": 2.945233328631074,
+          "active_w": 0.7438145409959827,
+          "mj_per_inference": 780.5382059199203
+        }
+      ],
+      "error": null
+    },
+    {
+      "device": "GPU",
+      "scenario": "10 rps",
+      "target_rps": 10.0,
+      "repeats": 5,
+      "inferences_per_second": 9.418363479925954,
+      "package_w": 3.6599423305579677,
+      "idle_w": 2.2216696433070835,
+      "active_w": 1.5288055558851554,
+      "active_w_p95": 1.713691199656561,
+      "mj_per_inference": 160.08089461198068,
+      "mj_per_inference_p95": 182.11846737940004,
+      "active_w_spread": 0.44279824957083047,
+      "above_noise": true,
+      "trials": [
+        {
+          "inferences": 150,
+          "seconds": 15.694707446,
+          "package_w": 3.6505443760025087,
+          "active_w": 1.2708929500857304,
+          "mj_per_inference": 132.97528697852948
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.926333733,
+          "package_w": 3.6599423305579677,
+          "active_w": 1.4417426830560656,
+          "mj_per_inference": 153.0778341830783
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.706467117,
+          "package_w": 3.563131771334291,
+          "active_w": 1.5288055558851554,
+          "mj_per_inference": 160.08089461198068
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.940894201,
+          "package_w": 3.937746603704468,
+          "active_w": 1.713691199656561,
+          "mj_per_inference": 182.11846737940004
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.941086377,
+          "package_w": 3.731136109130939,
+          "active_w": 1.529717321495848,
+          "mj_per_inference": 162.56903969572258
+        }
+      ],
+      "error": null
+    },
+    {
+      "device": "GPU",
+      "scenario": "saturation",
+      "target_rps": null,
+      "repeats": 5,
+      "inferences_per_second": 375.3736100465624,
+      "package_w": 20.785097305743303,
+      "idle_w": 2.2216696433070835,
+      "active_w": 18.54254751633942,
+      "active_w_p95": 18.78756209059846,
+      "mj_per_inference": 49.50715239625673,
+      "mj_per_inference_p95": 49.99479768807546,
+      "active_w_spread": 0.33063039861759336,
+      "above_noise": true,
+      "trials": [
+        {
+          "inferences": 5906,
+          "seconds": 15.725596373,
+          "package_w": 20.840533180839767,
+          "active_w": 18.460881754922987,
+          "mj_per_inference": 49.15482139647795
+        },
+        {
+          "inferences": 5894,
+          "seconds": 15.712157295,
+          "package_w": 20.760747163841323,
+          "active_w": 18.54254751633942,
+          "mj_per_inference": 49.430509539656704
+        },
+        {
+          "inferences": 5896,
+          "seconds": 15.689599627,
+          "package_w": 20.821888306047594,
+          "active_w": 18.78756209059846,
+          "mj_per_inference": 49.99479768807546
+        },
+        {
+          "inferences": 5821,
+          "seconds": 15.72326739,
+          "package_w": 20.680987096028772,
+          "active_w": 18.456931691980866,
+          "mj_per_inference": 49.85453911561248
+        },
+        {
+          "inferences": 5895,
+          "seconds": 15.704353855,
+          "package_w": 20.785097305743303,
+          "active_w": 18.58367851810821,
+          "mj_per_inference": 49.50715239625673
+        }
+      ],
+      "error": null
+    },
+    {
+      "device": "NPU",
+      "scenario": "1 rps",
+      "target_rps": 1.0,
+      "repeats": 5,
+      "inferences_per_second": 0.9927483004777505,
+      "package_w": 2.372830810095195,
+      "idle_w": 2.2216696433070835,
+      "active_w": 0.17141202246010367,
+      "active_w_p95": 0.4195242811474764,
+      "mj_per_inference": 172.71760072166177,
+      "mj_per_inference_p95": 422.58876791386535,
+      "active_w_spread": 0.4195242811474764,
+      "above_noise": false,
+      "trials": [
+        {
+          "inferences": 15,
+          "seconds": 15.11024326,
+          "package_w": 2.3039311413441794,
+          "active_w": 0.0,
+          "mj_per_inference": 0.0
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.09032879,
+          "package_w": 2.3296579875248695,
+          "active_w": 0.1114583400229674,
+          "mj_per_inference": 112.12953315561293
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.109570062,
+          "package_w": 2.453850496596612,
+          "active_w": 0.4195242811474764,
+          "mj_per_inference": 422.58876791386535
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.089240023,
+          "package_w": 2.4275638762565928,
+          "active_w": 0.20350847220868573,
+          "mj_per_inference": 204.71921225805895
+        },
+        {
+          "inferences": 15,
+          "seconds": 15.114249127,
+          "package_w": 2.372830810095195,
+          "active_w": 0.17141202246010367,
+          "mj_per_inference": 172.71760072166177
+        }
+      ],
+      "error": null
+    },
+    {
+      "device": "NPU",
+      "scenario": "10 rps",
+      "target_rps": 10.0,
+      "repeats": 5,
+      "inferences_per_second": 9.94029923937137,
+      "package_w": 2.9909506248130917,
+      "idle_w": 2.2216696433070835,
+      "active_w": 0.777400920234248,
+      "active_w_p95": 1.0215628829917502,
+      "mj_per_inference": 78.20699372460857,
+      "mj_per_inference_p95": 102.7442888821772,
+      "active_w_spread": 0.41555315376544844,
+      "above_noise": true,
+      "trials": [
+        {
+          "inferences": 150,
+          "seconds": 15.111495463,
+          "package_w": 2.98566115514308,
+          "active_w": 0.6060097292263018,
+          "mj_per_inference": 61.05142182491413
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.105971493,
+          "package_w": 2.9667243858342425,
+          "active_w": 0.7485247383323403,
+          "mj_per_inference": 75.38128906035745
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.086338383,
+          "package_w": 3.0558890984408857,
+          "active_w": 1.0215628829917502,
+          "mj_per_inference": 102.7442888821772
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.090088979,
+          "package_w": 3.001456324282155,
+          "active_w": 0.777400920234248,
+          "mj_per_inference": 78.20699372460857
+        },
+        {
+          "inferences": 150,
+          "seconds": 15.089035782,
+          "package_w": 2.9909506248130917,
+          "active_w": 0.7895318371780005,
+          "mj_per_inference": 79.42182761471365
+        }
+      ],
+      "error": null
+    },
+    {
+      "device": "NPU",
+      "scenario": "saturation",
+      "target_rps": null,
+      "repeats": 5,
+      "inferences_per_second": 298.98647671117465,
+      "package_w": 16.163694453763473,
+      "idle_w": 2.2216696433070835,
+      "active_w": 13.962275666128381,
+      "active_w_p95": 14.253111569303048,
+      "mj_per_inference": 46.8078088902879,
+      "mj_per_inference_p95": 47.65857913625782,
+      "active_w_spread": 0.5734905963034453,
+      "above_noise": true,
+      "trials": [
+        {
+          "inferences": 4522,
+          "seconds": 15.118640183,
+          "package_w": 16.05927239891638,
+          "active_w": 13.679620972999603,
+          "mj_per_inference": 45.73579551760313
+        },
+        {
+          "inferences": 4514,
+          "seconds": 15.09767281,
+          "package_w": 16.12331993569014,
+          "active_w": 13.90512028818824,
+          "mj_per_inference": 46.50752248443929
+        },
+        {
+          "inferences": 4501,
+          "seconds": 15.091362474,
+          "package_w": 16.248501049687263,
+          "active_w": 14.214174834238127,
+          "mj_per_inference": 47.65857913625782
+        },
+        {
+          "inferences": 4514,
+          "seconds": 15.092831638,
+          "package_w": 16.477166973350954,
+          "active_w": 14.253111569303048,
+          "mj_per_inference": 47.656139395906266
+        },
+        {
+          "inferences": 4503,
+          "seconds": 15.096075201,
+          "package_w": 16.163694453763473,
+          "active_w": 13.962275666128381,
+          "mj_per_inference": 46.8078088902879
+        }
+      ],
+      "error": null
+    }
+  ],
+  "notes": [
+    "Idle sampled once per round: 6 values, median 2.22 W, spread 0.35 W. That spread is the noise floor — a difference between two devices smaller than it has not been measured.",
+    "Package RAPL covers the whole SoC, including the NPU — there is no separate NPU domain. These figures are therefore package power *while* a device was working, and the NPU's own draw is the difference between its row and the CPU row, not an absolute reading.",
+    "Rows marked `below noise` are upper bounds, not measurements. At low request rates an inference costing tens of millijoules is tens of milliwatts spread over a second, which package RAPL on a laptop cannot separate from the platform's own drift. That is a fact about the instrument, not about the device."
+  ]
+}

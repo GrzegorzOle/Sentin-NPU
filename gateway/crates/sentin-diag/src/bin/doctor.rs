@@ -29,9 +29,25 @@ fn main() -> ExitCode {
         let seconds = flag("--power-seconds")
             .and_then(|v| v.parse().ok())
             .unwrap_or(20);
+        // Five measured repeats is the project's own benchmarking rule, not a preference: the
+        // device differences this metric reports are the same size as the platform's drift, so a
+        // single pass cannot tell them apart.
+        let repeats = flag("--power-repeats")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5);
         match model.as_deref() {
             Some(path) => {
-                sentin_diag::doctor::print_power(&sentin_diag::doctor::measure_power(path, seconds))
+                let power = sentin_diag::doctor::measure_power(path, seconds, repeats);
+                sentin_diag::doctor::print_power(&power);
+                if let Some(path) = flag("--power-json") {
+                    match serde_json::to_string_pretty(&power) {
+                        Ok(text) => match std::fs::write(&path, text) {
+                            Ok(()) => println!("\nwrote {path}"),
+                            Err(err) => eprintln!("could not write {path}: {err}"),
+                        },
+                        Err(err) => eprintln!("could not serialise power report: {err}"),
+                    }
+                }
             }
             None => eprintln!("\n--power needs --model <openvino_model.xml>"),
         }
@@ -65,7 +81,11 @@ fn print_help() {
                                 enumeration alone proves nothing)\n  \
            --json <file>        write the machine-readable report, for an npu-report issue\n  \
            --power              also measure energy per device (needs readable RAPL counters)\n  \
-           --power-seconds <n>  seconds per device for the power run (default 20)\n\n\
+           --power-seconds <n>  seconds per measurement (default 20)\n  \
+           --power-repeats <n>  measured repeats per device and load, after one discarded\n                       \
+                                warm-up round (default 5). Fewer than 5 cannot separate a\n                       \
+                                device difference from the platform's own drift.\n  \
+           --power-json <file>  write the energy report, including every individual repeat\n\n\
          If the OpenVINO libraries cannot be found, they need *unversioned* symlinks on\n\
          LD_LIBRARY_PATH — the bundled run.sh does that for you."
     );

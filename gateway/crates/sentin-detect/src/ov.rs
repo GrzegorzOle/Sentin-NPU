@@ -324,6 +324,28 @@ fn compile_and_run(
 /// # Errors
 /// Returns the device's own refusal message when the model will not compile or run there.
 pub fn run_for(xml: &Path, device: &str, duration: Duration) -> Result<(u64, Duration), String> {
+    run_at_rate(xml, device, duration, None)
+}
+
+/// Run inference on `device` for `duration`, either saturating it or holding a fixed request rate.
+///
+/// `target_rps` of `None` means saturation. A rate is what makes the "what does this cost in
+/// practice" question answerable — a gateway in front of one interactive agent does not saturate
+/// anything — but be ready for the answer to be *unmeasurable*: at one request per second an
+/// inference costing tens of millijoules amounts to a few tens of milliwatts, and a laptop
+/// package's own drift is an order of magnitude larger. The caller is expected to compare the
+/// result against a noise floor and say so, rather than print a number that looks like a
+/// measurement.
+///
+/// # Errors
+/// Returns the device's own refusal message when the model will not compile or run there, or a
+/// message when `target_rps` is not positive.
+pub fn run_at_rate(
+    xml: &Path,
+    device: &str,
+    duration: Duration,
+    target_rps: Option<f64>,
+) -> Result<(u64, Duration), String> {
     let mut core = Core::new().map_err(|err| err.to_string())?;
     let bin = xml.with_extension("bin");
     let model = core
@@ -350,11 +372,38 @@ pub fn run_for(xml: &Path, device: &str, duration: Duration) -> Result<(u64, Dur
 
     let started = Instant::now();
     let mut count = 0u64;
-    while started.elapsed() < duration {
-        request
-            .infer()
-            .map_err(|err| format!("infer (loop): {err}"))?;
-        count += 1;
+    match target_rps {
+        // Saturation: as fast as the device will go. This is the only load at which a device's
+        // energy can be attributed at all — see the note on the paced arm below.
+        None => {
+            while started.elapsed() < duration {
+                request
+                    .infer()
+                    .map_err(|err| format!("infer (loop): {err}"))?;
+                count += 1;
+            }
+        }
+        // A fixed request rate, which is what a gateway in front of one interactive agent actually
+        // sees. Each inference is scheduled against the start of the run rather than against the
+        // previous one, so a slow call does not push the whole schedule later and quietly turn the
+        // measurement back into saturation.
+        Some(rps) if rps > 0.0 => {
+            let interval = Duration::from_secs_f64(1.0 / rps);
+            while started.elapsed() < duration {
+                let due = interval.saturating_mul(u32::try_from(count).unwrap_or(u32::MAX));
+                if let Some(wait) = due.checked_sub(started.elapsed()) {
+                    std::thread::sleep(wait);
+                }
+                if started.elapsed() >= duration {
+                    break;
+                }
+                request
+                    .infer()
+                    .map_err(|err| format!("infer (paced): {err}"))?;
+                count += 1;
+            }
+        }
+        Some(_) => return Err("target rate must be positive".to_string()),
     }
     Ok((count, started.elapsed()))
 }

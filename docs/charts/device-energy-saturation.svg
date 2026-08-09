@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 300" width="780" height="300" role="img" aria-label="Energy per inference at saturation, and why repeats were needed">
+<rect width="780" height="300" fill="#fcfcfb"/>
+<text x="32.0" y="40.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" fill="#0b0b0b" text-anchor="start">Energy per inference at saturation, and why repeats were needed</text>
+<text x="32.0" y="64.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="start">Driven as fast as each device will go. Median of 5 repeats after a discarded warm-up.</text>
+<line x1="248.0" y1="88.0" x2="248.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="248.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">0</text>
+<line x1="357.0" y1="88.0" x2="357.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="357.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">150</text>
+<line x1="466.0" y1="88.0" x2="466.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="466.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">300</text>
+<line x1="575.0" y1="88.0" x2="575.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="575.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">450</text>
+<line x1="684.0" y1="88.0" x2="684.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="684.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">600</text>
+<line x1="248.0" y1="88.0" x2="248.0" y2="228.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="748.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">mJ</text>
+<text x="232.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">NPU — Intel AI Boost</text>
+<g fill="#2a78d6"><path d="M 248.0 107.0 H 278.0 A 4 4 0 0 1 282.0 111.0 V 125.0 A 4 4 0 0 1 278.0 129.0 H 248.0 Z" /></g>
+<text x="292.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">46.81 mJ</text>
+<text x="357.6" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">range 45.74-47.66</text>
+<text x="232.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">GPU — Intel Arc 140V (iGPU)</text>
+<g fill="#2a78d6"><path d="M 248.0 151.0 H 280.0 A 4 4 0 0 1 284.0 155.0 V 169.0 A 4 4 0 0 1 280.0 173.0 H 248.0 Z" /></g>
+<text x="294.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">49.51 mJ</text>
+<text x="359.6" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">range 49.15-49.99</text>
+<text x="232.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">CPU — Core Ultra 7 258V</text>
+<g fill="#2a78d6"><path d="M 248.0 195.0 H 647.0 A 4 4 0 0 1 651.0 199.0 V 213.0 A 4 4 0 0 1 647.0 217.0 H 248.0 Z" /></g>
+<text x="661.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">554.60 mJ</text>
+<text x="639.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#ffffff" text-anchor="end">range 548.44-557.53</text>
+<text x="32.0" y="276.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">One pass put these 3.7% apart, inside the platform&#x27;s drift. Five repeats separate them cleanly.</text>
+</svg>

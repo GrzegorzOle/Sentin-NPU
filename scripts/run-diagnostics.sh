@@ -92,8 +92,12 @@ fi
 
 if [ "${WITH_POWER}" = "1" ] && [ -f "${MODEL}" ]; then
     section "energy per device"
+    # Repeats are what make this metric admissible: the device differences it reports are the same
+    # size as a laptop package's own drift, so a single pass cannot tell them apart. Five measured
+    # rounds plus a discarded warm-up, at three load levels, takes roughly fifteen minutes.
     if [ -r /sys/class/powercap/intel-rapl:0/energy_uj ]; then
-        run "'${HERE}/sentin-doctor' --model '${MODEL}' --power --power-seconds 20"
+        run "'${HERE}/sentin-doctor' --model '${MODEL}' --power --power-seconds 15 \
+             --power-repeats 5 --power-json '${RESULTS}/power.json'"
     else
         echo "RAPL counters are not readable, so energy cannot be measured."
         echo "To enable (needs root, lasts until reboot):"
