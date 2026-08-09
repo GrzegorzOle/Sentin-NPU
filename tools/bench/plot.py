@@ -379,8 +379,47 @@ CHARTS: list[Chart] = [
         unit="ms",
         ticks=[0, 30, 60, 90, 120],
         footnote=(
-            "The empty row is the point of the project. "
-            "The dev machine's AMD NPU is invisible to OpenVINO."
+            "The empty row is why the project needs Intel hardware: "
+            "the dev machine's AMD NPU is invisible to OpenVINO. Filled in by device-latency-intel."
+        ),
+        label_w=248,
+    ),
+    Chart(
+        slug="device-latency-intel",
+        title="Steady-state inference on hardware that has all three devices",
+        subtitle=(
+            "HerBERT INT8, sequence 128, Intel Core Ultra 7 258V. One machine, so the rows compare."
+        ),
+        rows=[
+            Row("NPU — Intel AI Boost", 5.9, "5.9 ms"),
+            Row("GPU — Intel Arc 140V (iGPU)", 2.7, "2.7 ms"),
+            Row("CPU — Core Ultra 7 258V", 23.6, "23.6 ms"),
+        ],
+        unit="ms",
+        ticks=[0, 5, 10, 15, 20, 25],
+        footnote=(
+            "Latency is not what separates these devices — every one of them clears the "
+            "budget. Energy is: see device-energy."
+        ),
+        label_w=248,
+    ),
+    Chart(
+        slug="device-energy",
+        title="Energy per inference — the result the project exists to report",
+        subtitle=(
+            "Package RAPL, idle subtracted, 20 s per device. "
+            "Intel Core Ultra 7 258V, HerBERT INT8 sequence 128."
+        ),
+        rows=[
+            Row("NPU — Intel AI Boost", 49.45, "49.45 mJ", "17.09 W package"),
+            Row("GPU — Intel Arc 140V (iGPU)", 51.34, "51.34 mJ", "21.59 W package"),
+            Row("CPU — Core Ultra 7 258V", 556.33, "556.33 mJ", "25.06 W package"),
+        ],
+        unit="mJ",
+        ticks=[0, 150, 300, 450, 600],
+        footnote=(
+            "Getting off the CPU is the 11x win. Between the two accelerators the energy is "
+            "a tie; the NPU's advantage is drawing 4.5 W less while it works."
         ),
         label_w=248,
     ),
@@ -444,6 +483,12 @@ def check_against_docs() -> int:
         "87.57",
         "62.62",
         "308",
+        # Phase 5, Intel Core Ultra 7 258V
+        "556.33",
+        "51.34",
+        "49.45",
+        "+3.85 ms",
+        "23.6 ms",
     ]
     missing = [needle for needle in expected if needle not in doc]
     if missing:

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 300" width="780" height="300" role="img" aria-label="Steady-state inference on hardware that has all three devices">
+<rect width="780" height="300" fill="#fcfcfb"/>
+<text x="32.0" y="40.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" fill="#0b0b0b" text-anchor="start">Steady-state inference on hardware that has all three devices</text>
+<text x="32.0" y="64.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="start">HerBERT INT8, sequence 128, Intel Core Ultra 7 258V. One machine, so the rows compare.</text>
+<line x1="248.0" y1="88.0" x2="248.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="248.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">0</text>
+<line x1="335.2" y1="88.0" x2="335.2" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="335.2" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">5</text>
+<line x1="422.4" y1="88.0" x2="422.4" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="422.4" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">10</text>
+<line x1="509.6" y1="88.0" x2="509.6" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="509.6" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">15</text>
+<line x1="596.8" y1="88.0" x2="596.8" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="596.8" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">20</text>
+<line x1="684.0" y1="88.0" x2="684.0" y2="228.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="684.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">25</text>
+<line x1="248.0" y1="88.0" x2="248.0" y2="228.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="748.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">ms</text>
+<text x="232.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">NPU — Intel AI Boost</text>
+<g fill="#2a78d6"><path d="M 248.0 107.0 H 346.9 A 4 4 0 0 1 350.9 111.0 V 125.0 A 4 4 0 0 1 346.9 129.0 H 248.0 Z" /></g>
+<text x="360.9" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">5.9 ms</text>
+<text x="232.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">GPU — Intel Arc 140V (iGPU)</text>
+<g fill="#2a78d6"><path d="M 248.0 151.0 H 291.1 A 4 4 0 0 1 295.1 155.0 V 169.0 A 4 4 0 0 1 291.1 173.0 H 248.0 Z" /></g>
+<text x="305.1" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">2.7 ms</text>
+<text x="232.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">CPU — Core Ultra 7 258V</text>
+<g fill="#2a78d6"><path d="M 248.0 195.0 H 655.6 A 4 4 0 0 1 659.6 199.0 V 213.0 A 4 4 0 0 1 655.6 217.0 H 248.0 Z" /></g>
+<text x="669.6" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">23.6 ms</text>
+<text x="32.0" y="276.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">Latency is not what separates these devices — every one of them clears the budget. Energy is: see device-energy.</text>
+</svg>

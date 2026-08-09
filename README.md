@@ -200,8 +200,8 @@ an operator configures `mode: block` for it — the request is masked instead.
 - Inference runs on its own OS thread, reached by channel, with a configurable timeout. Blocking
   inference on a tokio worker would stall every request that shares it, and a model that fails to
   load leaves layer 1 running rather than taking the gateway down.
-- Tested on: AMD Ryzen AI 7 350 / Fedora, OpenVINO 2026.3, **device CPU and GPU only**.
-  Intel NPU is **not yet verified** — see below.
+- Tested on: AMD Ryzen AI 7 350 / Fedora (CPU + NVIDIA dGPU via OpenCL), and on an **Intel Core
+  Ultra 7 258V / Ubuntu 26.04, where the model runs on the NPU** — see below.
 
 Measured with `--doctor` on the dev machine (HerBERT INT8, sequence 128):
 
@@ -246,19 +246,30 @@ the test suite; they agree to two decimal places (95.52 PL / 84.44 EN on the com
 That is a parity check, not a quality claim — the WikiANN figures above are the honest measure.
 
 Per-device inference latency and power — the NPU-vs-GPU-vs-CPU comparison this project exists to
-produce — requires Intel hardware and is not measured yet:
+produce. Measured 2026-08-09 on one **Intel Core Ultra 7 258V** (Lunar Lake, Ubuntu 26.04), all
+three devices on the same machine, HerBERT INT8 sequence 128:
 
-| Device | Latency p50 (ms) | Latency p95 (ms) | Power (W) |
-|---|---|---|---|
-| NPU | pending | pending | pending |
-| GPU (Intel iGPU) | pending | pending | pending |
-| CPU | pending | pending | pending |
+| Device | Steady inference | Added p95 (full pipeline) | Package power | Energy per inference |
+|---|---|---|---|---|
+| NPU — Intel AI Boost | 5.9 ms | +3.85 ms | **17.09 W** | **49.45 mJ** |
+| GPU — Intel Arc 140V (iGPU) | 2.7 ms | +3.09 ms | 21.59 W | 51.34 mJ |
+| CPU — Core Ultra 7 258V | 23.6 ms | +24.97 ms | 25.06 W | 556.33 mJ |
+
+![Energy per inference: 556.33 mJ on CPU, 51.34 mJ on the Intel iGPU and 49.45 mJ on the
+NPU](docs/charts/device-energy.svg)
+
+**The eleven-fold gap is between the CPU and either accelerator** — that is what decides whether
+continuous on-device inspection is affordable. Between NPU and iGPU the energy is effectively a
+tie; the NPU's advantage is drawing 4.5 W less while it works, and leaving the GPU free for
+whatever the user is actually doing. Both IR variants (sequence 128 and 512) compile and execute
+on the NPU. Full tables, method and caveats: [docs/benchmarks.md](docs/benchmarks.md).
 
 ### Help wanted: NPU reports
 
-The project targets the Intel NPU but is developed on a machine that does not have one, so the
-per-device table above stays empty until someone with the hardware runs the check. That is one
-command, and it takes a few minutes:
+The table above is one machine. The project is developed on hardware that has no Intel NPU at all,
+so everything known about NPU behaviour rests on a single Core Ultra 7 258V — a different
+generation, driver or shape may well behave differently, and that is exactly what is worth
+hearing about. Running the check is one command and takes a few minutes:
 
 ```bash
 # from a release bundle — no toolchain, no network, no Python
@@ -281,10 +292,22 @@ driver versions and timings; it never touches the inspection path and contains n
 
 ### Known NPU limitations
 
-Not yet established — this needs a session on Intel hardware, and reporting anything here from a
-machine without an Intel NPU would be guesswork. What *is* known so far:
+Established on one Core Ultra 7 258V; a single machine is not a generalisation, which is why the
+reports above are still wanted.
 
-- The dev machine's AMD XDNA NPU is invisible to OpenVINO; all development runs on CPU.
+- **First compilation for the NPU is slow**: 1.9 s for sequence 128 and **6.1 s for sequence 512**,
+  against roughly one second on CPU or iGPU. The Level Zero driver then caches the compiled blob in
+  `~/.cache/ze_intel_npu_cache` (329 MB for both variants) and later starts take 38–60 ms. A
+  deployment that wipes that cache pays the full compile on every restart.
+- **The iGPU is faster than the NPU** for this model — 2.7 ms against 5.9 ms steady. The NPU wins
+  on power, not latency. Choose it to stay out of the way, not to go quicker.
+- **`/dev/accel/accel0` is `root:render`.** It worked over SSH only because logind grants the seat
+  user an ACL; a service account that is not the seat user needs adding to the `render` group.
+- A diagnostic that feeds the graph uninitialised tensors makes the NPU hang and report
+  `ZE_RESULT_ERROR_DEVICE_LOST`, which is indistinguishable from the device refusing the model.
+  That was our own bug and it is fixed — but if you see that error, check your build is current
+  before filing it against Intel's driver.
+- The dev machine's AMD XDNA NPU is invisible to OpenVINO; all development there runs on CPU.
 - OpenVINO does expose a `GPU` device here, but it is the NVIDIA dGPU reached through the OpenCL
   ICD loader, not an Intel iGPU, and it advertises no FP16. Treated as opportunistic only.
 - The OpenVINO Python wheel already ships `libopenvino_intel_npu_plugin.so`, so an Intel machine

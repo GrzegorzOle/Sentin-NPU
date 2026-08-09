@@ -145,6 +145,25 @@ it falls back, and on this machine `--device NPU` returns the dGPU's ~119 ms loo
 an NPU measurement. The harness prints both, warns when they differ, and scores the result against
 the budget for the device that actually ran (80 ms for NPU, 150 ms otherwise).
 
+#### M2b on all three devices — Intel Core Ultra 7 258V, 2026-08-09
+
+The same metric taken on one machine that has an NPU, an Intel iGPU and a CPU, so the three rows
+are comparable. HerBERT INT8 sequence 128; `device_used` equals `device_requested` in every row.
+
+| Device | L1 only p95 | L1 + L2 p50 | L1 + L2 p95 | Added p95 | Budget | Verdict |
+|---|---|---|---|---|---|---|
+| NPU — Intel AI Boost | 0.158 ms | 3.643 ms | 3.913 ms | **+3.85 ms** | 80 ms | PASS |
+| GPU — Arc 140V iGPU | 0.142 ms | 2.750 ms | 3.139 ms | **+3.09 ms** | 150 ms | PASS |
+| CPU — Core Ultra 7 258V | 0.108 ms | 24.208 ms | 25.030 ms | **+24.97 ms** | 150 ms | PASS |
+
+The seq512 variant on the NPU adds **+12.75 ms p95**, also a pass. Every device clears its budget
+with room to spare, so latency is not what distinguishes them — energy is, and that comparison is
+under [M5](#m5-results--per-inference-device-b4--measured-2026-08-09).
+
+Note that the dev machine's CPU figure (+10.8 ms) is *better* than this machine's (+24.97 ms): the
+Ryzen AI 7 350 has more cores than the 8 of a Core Ultra 7 258V. Comparing CPU rows across the two
+machines describes the two CPUs, not the gateway.
+
 ### M2c — streaming, and the decision for B2
 
 The mock emits 40 SSE events 12 ms apart (~0.5 s of generation), ending a sentence every eighth
@@ -207,6 +226,60 @@ The GPU row is not a disappointing result for Intel iGPUs; it is a *different de
 dGPU that OpenVINO reaches through the OpenCL ICD loader, advertising no FP16. It is in the table
 because leaving it out would hide why `AUTO` resolves to something 10× slower than CPU here, which
 is a trap for anyone reproducing M2b on this machine. See `docs/npu-compat.md`.
+
+### Per-device inference on the Intel machine — measured 2026-08-09
+
+Same tool, on the hardware the project is about. HerBERT INT8 sequence 128, Level Zero blob cache
+cleared first. Raw report: `docs/doctor-intel-lunarlake.json`.
+
+| Device | Full name | Compile | First inference | Steady |
+|---|---|---|---|---|
+| CPU | Intel Core Ultra 7 258V | 905 ms | 26.3 ms | **23.6 ms** |
+| GPU | Intel Arc 140V (iGPU) | 913 ms | 5.9 ms | **2.7 ms** |
+| NPU | Intel AI Boost (arch 4000) | 1 879 ms | 17.7 ms | **5.9 ms** |
+
+![Steady-state inference on the Intel machine: 5.9 ms on the NPU, 2.7 ms on the Arc 140V iGPU and
+23.6 ms on the CPU](charts/device-latency-intel.svg)
+
+The full characterization, both shape variants and the energy comparison that is the point of the
+exercise, is under [Device characterization (B4)](#device-characterization-b4--closed-2026-08-09).
+
+#### The diagnostic reported a false negative on the NPU, and nearly published it
+
+On the first run of this session `--doctor` printed `compiles: NO` for the NPU on **both** IR
+variants, with Level Zero reporting `ZE_RESULT_ERROR_DEVICE_LOST — device hung, reset, was removed,
+or driver update occurred`. Read at face value that is the project's central negative result: the
+NPU refuses the model.
+
+It was wrong, and what contradicted it was the harness sitting next to it. `sentin-bench --device
+NPU` on the same IR reported `device used: NPU` and +3.85 ms, and the audit log settled it — 150
+`person`, 150 `location` and 150 `organization` findings tagged `device: NPU`, the same counts as
+the CPU and GPU runs. The model was executing on the NPU the whole time.
+
+The fault was in the probe, not the device. It allocated one tensor per declared input and fed them
+straight to the graph, with a comment saying it was feeding zeros — but `Tensor::new` only calls
+`ov_tensor_create`, which **allocates without initialising**. The buffers held whatever was in that
+memory, which as token ids are values around 1.4 × 10¹⁴ against a 50 k vocabulary, so the embedding
+gather indexed far out of bounds. The regression test's failure output shows what was actually
+being sent: `input_ids` full of heap pointer values. CPU and GPU absorb that silently; the NPU
+hangs, and the driver reports it as device loss.
+
+Three things are worth carrying out of this:
+
+- **A device that "refuses the model" and a device handed invalid input are indistinguishable in
+  the error.** `ZE_RESULT_ERROR_DEVICE_LOST` names no cause. Before recording an NPU refusal,
+  check that the inputs were written on purpose.
+- **Uninitialised memory is a device-dependent bug.** Fresh pages are often zero, which is why this
+  survived every CPU and GPU run on the dev machine, and why it needed the one piece of hardware
+  the project has least access to in order to show itself.
+- **The diagnostic is the artefact the community is asked to attach to `npu-report` issues.** A
+  false negative here would not have been a private mistake; it would have been a bug report
+  against Intel's driver for a defect that was ours.
+
+Fixed by writing every probe input explicitly — zeros, and ones for `attention_mask`, since an
+all-zero mask is a degenerate input real inference never produces. Guarded by
+`gateway/crates/sentin-detect/tests/probe_inputs.rs`, which asserts every byte reaching the device
+was written on purpose, and which was checked by reverting the fix and watching it fail.
 
 ## M6 — gateway resource use — measured 2026-08-08
 
@@ -560,23 +633,92 @@ what makes the per-request cost measurable; the 10 rps figure above is derived f
 
 | Machine | Backend | Status |
 |---|---|---|
-| Intel Core Ultra, Linux | powercap-rapl | pending — same interface, same command |
+| Intel Core Ultra 7 258V, Ubuntu 26.04 | powercap-rapl | **measured 2026-08-09** — +0.4120 mJ/req package; see below |
 | Intel Core Ultra, Windows 11 | Intel PCM | pending; separate backend, never in the same column as RAPL |
 
-### M5 results — per inference device (B4)
+### M5 results — per inference device (B4) — measured 2026-08-09
 
-Phase 5 fills this in, on one Intel Core Ultra machine. NPU rows are differenced against the CPU
-row, per the caveat above, not read from a domain.
+**Intel Core Ultra 7 258V (Lunar Lake), Ubuntu 26.04 LTS**, kernel 7.0.0-29-generic, OpenVINO
+2026.3.0-22451, `intel_vpu` 1.0.0, NPU user space `intel-level-zero-npu` 1.33.0.20260529.
+Governor `powersave`, on mains. HerBERT INT8 sequence 128, 20 s per device, idle subtracted.
+Raw report: `docs/doctor-intel-lunarlake.json`.
 
-## Device characterization (B4)
+Idle 2.33 W measured before and 2.77 W after; the 0.45 W between them is the noise floor every
+row below clears comfortably.
 
-Phase 5 fills this in, on one Intel Core Ultra machine.
+| Device | Inferences in 20 s | Throughput | Package W | Active W (idle subtracted) | **Energy per inference** |
+|---|---|---|---|---|---|
+| CPU | 846 | 40.9 /s | 25.06 | 22.73 | **556.33 mJ** |
+| GPU — Arc 140V iGPU | 7 762 | 375.2 /s | 21.59 | 19.26 | **51.34 mJ** |
+| NPU — Intel AI Boost | 6 006 | 298.5 /s | **17.09** | **14.76** | **49.45 mJ** |
 
-| Device | Latency p50 (ms) | Latency p95 (ms) | Throughput (rps) | Power idle (W) | Power @1 rps | Power @10 rps |
-|---|---|---|---|---|---|---|
-| NPU | | | | | | |
-| GPU (Intel iGPU) | | | | | | |
-| CPU | | | | | | |
+![Energy per inference: 556.33 mJ on CPU, 51.34 mJ on the Intel iGPU and 49.45 mJ on the NPU, with
+package power of 25.06, 21.59 and 17.09 W](charts/device-energy.svg)
+
+**The headline is the CPU column, not the NPU one.** Moving this model off the CPU cuts energy per
+inference by a factor of eleven; that is the result that decides whether on-device inspection is
+affordable at all. Between the two accelerators the picture is more interesting than a winner:
+
+- On **energy per inference** the NPU beats the iGPU by 3.7 % — inside the run-to-run variation of
+  a laptop package, so treat it as a tie rather than a win.
+- On **sustained package power** the NPU draws 4.5 W less (14.76 W against 19.26 W active), because
+  it does the same work more slowly and more cheaply. The iGPU is 26 % faster and finishes sooner,
+  which is why the energy totals converge.
+
+For a gateway that inspects traffic continuously in the background, the low-power row is worth more
+than the fast one — and the NPU leaves the iGPU free for whatever the user is actually doing.
+Neither device is close to being the bottleneck: at 298 inferences per second the NPU is roughly
+30× the load a single interactive agent generates.
+
+Per the caveat above, these are package readings *while* a device was working. There is no NPU
+powercap domain, so the NPU's own draw is the distance between its row and the CPU row, not an
+absolute figure.
+
+### M5b on this machine — gateway overhead, Intel (2026-08-09)
+
+Same harness and interleaving as the dev-machine run, saturation, 30 s phases, `powersave`
+governor (flagged by the harness as a comparability warning).
+
+| Domain | Idle (W) | Noise (W) | Direct (W) | Gateway (W) | mJ/req direct | mJ/req gateway | Overhead |
+|---|---|---|---|---|---|---|---|
+| core | 0.63 | 0.06 | 8.57 | 7.58 | 0.2904 | 0.6681 | **+0.3777 mJ/req** |
+| dram | 0.16 | 0.00 | 0.20 | 0.21 | 0.0015 | 0.0052 | +0.0038 mJ/req |
+| package-0 | 2.34 | 0.06 | 11.21 | 10.00 | 0.3245 | 0.7364 | **+0.4120 mJ/req** |
+
+Requests completed: direct 1 641 132, gateway 624 078 — different by design at saturation, which is
+why the comparison is per request rather than in total.
+
+**This does not go in the same column as the dev machine's +0.570 mJ/req.** Per the rule above,
+M5b results are per machine and are never merged: the two numbers describe two CPUs under two
+governors, not two versions of the gateway.
+
+## Device characterization (B4) — closed 2026-08-09
+
+Measured on one Intel Core Ultra 7 258V, all three devices on the same physical machine, as the
+method requires. HerBERT INT8; both IR variants tried.
+
+**Both shape variants compile and execute on the NPU.** The backup model from B1 was not needed.
+
+| Device | seq128 compile | seq128 steady | seq512 compile | seq512 steady | M2b added p95 (seq128) |
+|---|---|---|---|---|---|
+| NPU — Intel AI Boost (arch 4000) | 1 878.9 ms | 5.9 ms | 6 090.0 ms | 20.7 ms | **+3.85 ms** (budget 80) |
+| GPU — Arc 140V iGPU | 912.6 ms | **2.7 ms** | 995.5 ms | **9.7 ms** | +3.09 ms (budget 150) |
+| CPU — Core Ultra 7 258V | 905.1 ms | 23.6 ms | 661.4 ms | 108.4 ms | +24.97 ms (budget 150) |
+
+Every device passes M2b with large margin; the seq512 variant on NPU adds +12.75 ms p95, also a
+pass. Latency is not what separates these devices — energy is, and that is the table above.
+
+**NPU compile time is a first-run cost, not a per-start cost.** The figures above are with the
+Level Zero blob cache cleared. Left in place, the driver's cache (`~/.cache/ze_intel_npu_cache`,
+329 MB after both variants) brings NPU compilation down to **37.8 ms for seq128 and 60.4 ms for
+seq512** — fifty- to hundred-fold. So a cold first start pays six seconds for seq512 and every
+start after that pays sixty milliseconds. Packaging should expect that cache directory to exist and
+grow; a deployment that wipes it between restarts re-pays the full compile each time.
+
+Operator-level fallback lists are still not available: the `openvino` crate 0.11 exposes neither
+`query_model` nor compiled-model properties. Nothing in these results suggests partial fallback —
+compile succeeded outright on both variants — but confirming that per operator remains a job for
+the Python toolchain.
 
 Note: the dev machine's `GPU` device is an NVIDIA dGPU reached through the OpenCL ICD, not an
 Intel iGPU — it does not belong in this table. See `docs/npu-compat.md`.

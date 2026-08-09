@@ -88,17 +88,63 @@ out of PoC scope (roadmap: multi-vendor NPU).
 
 ---
 
-## Intel test machines (secondary) — pending
-
-Phase 5 fills these in. Required per machine: NPU driver version (Windows: Intel NPU driver
-package; Linux: `intel-npu-driver` + Level Zero), `available_devices`, per-IR-variant (seq 128 /
-512) compile result, list of operators that fell back to CPU, model compile time, first-inference
-time.
+## Intel test machines (secondary)
 
 | Machine | OS | OV | Driver | `available_devices` | IR-128 | IR-512 | Notes |
 |---|---|---|---|---|---|---|---|
+| Core Ultra 7 258V | Ubuntu 26.04 | 2026.3.0 | `intel_vpu` 1.0.0 / L0 NPU 1.33.0 | `CPU, GPU, NPU` | **runs** | **runs** | see below |
 | Intel Core Ultra | Windows 11 | — | — | — | — | — | not yet run |
-| Intel Core Ultra | Linux | — | — | — | — | — | not yet run |
+
+### Core Ultra 7 258V (Lunar Lake) — Ubuntu 26.04 — 2026-08-09
+
+| | |
+|---|---|
+| OS | Ubuntu 26.04 LTS (kernel 7.0.0-29-generic) |
+| CPU | Intel Core Ultra 7 258V, 8 logical CPUs |
+| NPU | Intel AI Boost — `[8086:643e]`, `/dev/accel/accel0`, OpenVINO architecture `4000` |
+| iGPU | Intel Arc 140V — `[8086:64a0]` |
+| Kernel driver | `intel_vpu` 1.0.0, firmware `intel/vpu/vpu_60xx_v1.bin` |
+| User space | `intel-level-zero-npu`, `intel-driver-compiler-npu`, `intel-fw-npu` — all 1.33.0.20260529 |
+| OpenVINO | 2026.3.0-22451-8a17657b995 (shipped inside the release bundle, no system install) |
+| Date | 2026-08-09 |
+
+```
+available_devices → ['CPU', 'GPU', 'NPU']
+```
+
+Raw report: `docs/doctor-intel-lunarlake.json`.
+
+| Device | Capabilities | seq128 compile / steady | seq512 compile / steady |
+|---|---|---|---|
+| CPU | BF16 FP32 FP16 INT8 BIN EXPORT_IMPORT | 905 ms / 23.6 ms | 661 ms / 108.4 ms |
+| GPU | FP32 BIN FP16 INT8 GPU_HW_MATMUL GPU_USM_MEMORY EXPORT_IMPORT | 913 ms / 2.7 ms | 996 ms / 9.7 ms |
+| NPU | FP16 INT8 EXPORT_IMPORT | 1 879 ms / 5.9 ms | 6 090 ms / 20.7 ms |
+
+**HerBERT INT8 compiles and executes on the NPU in both shape variants.** The B1 fallback model was
+not needed. Latency, throughput and the energy comparison are in `docs/benchmarks.md`.
+
+Three things a reproducer needs to know:
+
+- **The Level Zero blob cache dominates compile time.** The numbers above are with
+  `~/.cache/ze_intel_npu_cache` cleared. With it warm, NPU compilation drops to 37.8 ms (seq128)
+  and 60.4 ms (seq512); the cache reached 329 MB after both. A benchmark that does not say which
+  state it measured is not reproducible.
+- **`/dev/accel/accel0` is `root:render`, and the SSH user was in neither.** It worked anyway
+  because logind grants the seat user an ACL (`user:goleksy:rw-`). On a machine where the account
+  running the gateway is not the seat user, add it to `render` or the NPU will be enumerated and
+  then refuse to open.
+- **The Python wheel's bundled NPU plugin was sufficient.** No system OpenVINO install; the kernel
+  driver and Level Zero packages are the only prerequisites.
+
+#### A probe bug that looked exactly like an NPU refusal
+
+The first run on this machine reported `compiles: NO` for the NPU on both variants, with
+`ZE_RESULT_ERROR_DEVICE_LOST`. That was our bug, not the driver's: `--doctor` fed the graph
+uninitialised tensors, whose contents as token ids are far outside the vocabulary. CPU and GPU
+tolerated it; the NPU hung. Full account and the fix in `docs/benchmarks.md`.
+
+Anyone filing an `npu-report` issue should be running a build that contains that fix — a
+`DEVICE_LOST` from an older bundle says nothing about the hardware.
 
 ---
 

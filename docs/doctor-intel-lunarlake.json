@@ -1,0 +1,84 @@
+{
+  "sentin_version": "0.0.1",
+  "machine": {
+    "cpu_model": "Intel(R) Core(TM) Ultra 7 258V",
+    "logical_cpus": 8,
+    "os": "Ubuntu 26.04 LTS",
+    "kernel": "7.0.0-29-generic",
+    "cpu_governor": "powersave",
+    "platform_profile": null,
+    "on_ac_power": true,
+    "energy_backend": "powercap-rapl",
+    "energy_domains": [
+      "core",
+      "dram",
+      "dram",
+      "package-0",
+      "package-0"
+    ]
+  },
+  "accelerator_drivers": [
+    {
+      "name": "intel_vpu",
+      "version": "1.0.0 7.0.0-29-generic",
+      "detail": "Intel NPU (VPU/NPU driver)"
+    },
+    {
+      "name": "/dev/accel",
+      "version": null,
+      "detail": "accelerator device nodes: accel"
+    }
+  ],
+  "openvino": {
+    "runtime_version": "2026.3.0-22451-8a17657b995-releases/2026/3",
+    "available_devices": [
+      "CPU",
+      "GPU",
+      "NPU"
+    ],
+    "npu_present": true,
+    "model_probed": "/home/goleksy/sentin-phase5/sentin-npu-diag-0.0.0.5-linux-x64/models/seq128/openvino_model.xml",
+    "devices": [
+      {
+        "device": "CPU",
+        "full_name": "Intel(R) Core(TM) Ultra 7 258V",
+        "capabilities": "BF16 FP32 FP16 INT8 BIN EXPORT_IMPORT",
+        "device_type": "integrated",
+        "architecture": "intel64",
+        "compiles": true,
+        "compile_ms": 910.429833,
+        "first_infer_ms": 26.571093,
+        "steady_infer_ms": 23.468697,
+        "error": null
+      },
+      {
+        "device": "GPU",
+        "full_name": "Intel(R) Arc(TM) Graphics (iGPU)",
+        "capabilities": "FP32 BIN FP16 INT8 GPU_HW_MATMUL GPU_USM_MEMORY EXPORT_IMPORT",
+        "device_type": "integrated",
+        "architecture": "GPU: vendor=0x8086 arch=v20.4.4",
+        "compiles": true,
+        "compile_ms": 914.092118,
+        "first_infer_ms": 8.794375,
+        "steady_infer_ms": 3.72091,
+        "error": null
+      },
+      {
+        "device": "NPU",
+        "full_name": "Intel(R) AI Boost",
+        "capabilities": "FP16 INT8 EXPORT_IMPORT",
+        "device_type": "integrated",
+        "architecture": "4000",
+        "compiles": true,
+        "compile_ms": 2497.362431,
+        "first_infer_ms": 16.215525000000003,
+        "steady_infer_ms": 5.339325,
+        "error": null
+      }
+    ],
+    "notes": [
+      "Operator-level fallback lists are not available from Rust (the openvino crate exposes neither query_model nor compiled-model properties). Use the Python toolchain for that."
+    ]
+  },
+  "openvino_error": null
+}
