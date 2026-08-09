@@ -54,6 +54,16 @@ jobs:
       # that make-release.sh produces alongside it (sentin-npu-model-herbert-int8-seq*.tar.gz).
       # The model archives are named without a version so that a
       # releases/latest/download/<name> URL keeps working; SHA256SUMS.txt pins them per release.
+      #
+      # `prerelease: false` is load-bearing, not a claim of maturity -- the 0.0.0.x version and the
+      # README's status banner do that job. GitHub excludes prereleases from `latest`, so while
+      # every release was flagged as one, every releases/latest/download/... URL in the README
+      # returned 404, including the versionless model URLs that exist precisely to be stable.
+      # The scheme only works if some release is actually the latest one.
+      #
+      # generate_release_notes fills the body with the commit range. The title and a hand-written
+      # summary still get added afterwards (gh release edit), but an empty release is no longer
+      # what happens when that step is forgotten.
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:
@@ -61,5 +71,6 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/SHA256SUMS.txt
-          prerelease: true
+          prerelease: false
+          generate_release_notes: true
           fail_on_unmatched_files: true

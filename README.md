@@ -66,14 +66,23 @@ The bundle carries the gateway, the diagnostics, the latency harness, the OpenVI
 quantized model. Nothing else is required: no Rust, no Python, no OpenVINO installation. `./run.sh`
 collects a device report and pipeline latency for NPU, GPU and CPU into one archive.
 
+The bundle filename carries the release version, so the commands below read the newest tag rather
+than hard-coding one — a pasted version number here goes stale the day the next release lands, and
+has done.
+
 ```bash
-# Linux x64 — the bundle name carries the version, so take the newest tag from the releases page
-curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/SHA256SUMS.txt
-curl -LO https://github.com/GrzegorzOle/Sentin-NPU/releases/latest/download/sentin-npu-diag-0.0.0.5-linux-x64.tar.gz
+# Linux x64
+REPO=GrzegorzOle/Sentin-NPU
+TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+        | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+BUNDLE="sentin-npu-diag-${TAG#v}-linux-x64.tar.gz"
+
+curl -LO "https://github.com/$REPO/releases/download/$TAG/SHA256SUMS.txt"
+curl -LO "https://github.com/$REPO/releases/download/$TAG/$BUNDLE"
 sha256sum -c SHA256SUMS.txt --ignore-missing
 
-tar xzf sentin-npu-diag-0.0.0.5-linux-x64.tar.gz
-cd sentin-npu-diag-0.0.0.5-linux-x64
+tar xzf "$BUNDLE"
+cd "${BUNDLE%.tar.gz}"
 
 ./run.sh              # every diagnostic, both shape variants, collected into one archive
 ./install.sh          # → ~/.local/share/sentin-npu, wrappers in ~/.local/bin
