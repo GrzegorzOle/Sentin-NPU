@@ -29,13 +29,28 @@ schema, however convenient.
 |---|---|---|
 | `ts` | RFC 3339 UTC | event time |
 | `event` | enum | see below |
-| `detector` | string | e.g. `pesel`, `iban`, `ner_npu` |
+| `detector` | string | the **configured detector key**, which is also what the operator writes in `config/default.yaml`: `pesel`, `nip`, `regon`, `iban`, `payment_card`, `email`, `phone_pl`, `person`, `organization`, `location` |
 | `data_type` | enum | `PESEL`, `NIP`, `REGON`, `IBAN`, `PAYMENT_CARD`, `EMAIL`, `PHONE_PL`, `PERSON`, `ORGANIZATION`, `LOCATION` |
 | `target_host` | string | upstream the request was bound for, e.g. `api.anthropic.com` |
 | `decision` | enum | `observed`, `advised`, `masked`, `blocked`, `user_override` |
 | `content_sha256` | hex | hash of the inspected payload, never the payload |
-| `model_id` | string | IR model identifier, empty for layer-1-only events |
-| `device` | enum | `NPU`, `GPU`, `CPU` — the device that *actually* executed |
+| `model_id` | string | **the IR directory name**, e.g. `seq128`; absent for layer-1-only events |
+| `device` | enum | `NPU`, `GPU`, `CPU`, `AUTO` — the device that *actually* executed |
+
+Every optional field is **omitted** when unset rather than serialised as `null`, so a parser must
+treat absence as normal — a layer-1 finding carries no `model_id` and no `device`.
+
+`detector` and `data_type` are close to redundant today: a layer-2 `PERSON` finding reports
+`detector: "person"`. They are kept apart because `detector` names the thing an operator configures
+and `data_type` names the class of data, and those stop coinciding as soon as two detectors find
+the same class.
+
+**Known limitation of `model_id`.** It is the last path component of `inference.model_dir`, so both
+`models/herbert/int8/seq128` and a bundle's `models/seq128` report `seq128`. That identifies the
+shape but *not* the model or its precision, which means two models of the same shape are
+indistinguishable in the audit trail — the thing this field exists to prevent. Anyone correlating
+events across a model change should pin the version some other way until this carries the model
+identity.
 
 ## Event types
 
@@ -53,12 +68,12 @@ schema, however convenient.
 {
   "ts": "2026-08-08T12:00:00Z",
   "event": "pii_detected",
-  "detector": "ner_npu",
+  "detector": "person",
   "data_type": "PERSON",
   "target_host": "api.anthropic.com",
   "decision": "masked",
   "content_sha256": "sha256:…",
-  "model_id": "xlm-roberta-ner-int8-128",
+  "model_id": "seq128",
   "device": "NPU"
 }
 ```

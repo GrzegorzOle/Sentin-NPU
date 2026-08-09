@@ -115,7 +115,14 @@ pub fn record_request(
             event = event.model_id(model);
         }
         if let Some(device) = device {
-            event = event.detail("device", device);
+            // The schema types this field, so fill it rather than smuggling the device through a
+            // free-form detail: a SIEM parser written from docs/events.md looks for `device`, and
+            // for a long time would not have found it. An unrecognised name still goes to detail,
+            // because inventing an enum value would be worse than reporting the string.
+            event = match sentin_core::Device::parse_name(device) {
+                Some(parsed) => event.device(parsed),
+                None => event.detail("device", device),
+            };
         }
         emitter.emit(&event);
     }

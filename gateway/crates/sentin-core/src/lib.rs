@@ -182,9 +182,46 @@ pub enum Device {
     Auto,
 }
 
+impl Device {
+    /// Parse a device name as OpenVINO reports it, case-insensitively.
+    ///
+    /// Needed because the inference engine hands back the executing device as a plain string while
+    /// the audit schema types it. Returns `None` for anything unrecognised — an unknown device
+    /// belongs in a free-form detail, not silently mapped onto one of these.
+    ///
+    /// OpenVINO reports multi-adapter systems as `GPU.0`, `GPU.1` and so on, so the match is on the
+    /// prefix rather than the whole string.
+    #[must_use]
+    pub fn parse_name(name: &str) -> Option<Self> {
+        let name = name.trim();
+        for (prefix, device) in [
+            ("NPU", Self::Npu),
+            ("GPU", Self::Gpu),
+            ("CPU", Self::Cpu),
+            ("AUTO", Self::Auto),
+        ] {
+            if name.len() >= prefix.len() && name[..prefix.len()].eq_ignore_ascii_case(prefix) {
+                return Some(device);
+            }
+        }
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn device_names_parse_the_way_openvino_reports_them() {
+        assert_eq!(Device::parse_name("NPU"), Some(Device::Npu));
+        assert_eq!(Device::parse_name("cpu"), Some(Device::Cpu));
+        // Multi-adapter machines report GPU.0, GPU.1 — still the GPU plugin.
+        assert_eq!(Device::parse_name("GPU.1"), Some(Device::Gpu));
+        // An unknown device must not be coerced into one of ours; the caller keeps it as detail.
+        assert_eq!(Device::parse_name("VPUX"), None);
+        assert_eq!(Device::parse_name(""), None);
+    }
 
     #[test]
     fn only_the_deterministic_layer_can_block() {

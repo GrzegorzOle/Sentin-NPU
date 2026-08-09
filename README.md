@@ -232,7 +232,9 @@ Measured with `--doctor` on the dev machine (HerBERT INT8, sequence 128):
 ![Steady-state inference per device: 11.8 ms on CPU, 115.8 ms on the NVIDIA GPU, and an empty row
 for the Intel NPU](docs/charts/device-latency.svg)
 
-The NPU row is empty on purpose. It is the row this project exists to fill.
+The NPU row is empty because this machine has no NPU that OpenVINO can address — that is a fact
+about the development hardware, not about the model. The Intel measurements that fill it are
+below.
 
 ### Benchmarks
 
@@ -245,6 +247,10 @@ Model quality (WikiANN, 500 sentences per language, exact span match, PER/ORG/LO
 | `herbert-base-ner` FP32 | CC-BY-4.0 | **88.06** | 58.97 | — |
 | `herbert-base-ner` INT8 | | **87.57** | 59.51 | 123 MB |
 | `xlm-roberta-base-ner-hrl` INT8 | AFL-3.0 | 62.62 | 53.36 | 284 MB |
+
+INT8 figures come from one quantization. NNCF calibrates over sampled data, so a rebuild produces
+slightly different weights — **±0.2 pp F1 is the reproducibility floor**, and the published archive
+scores 87.75 PL where the locally rebuilt model scores 87.57.
 
 Gateway cost, measured against a local mock upstream so the figures are the gateway's own and not
 the network's:
@@ -301,7 +307,8 @@ hearing about. Running the check is one command and takes a few minutes:
 
 ```bash
 # from a release bundle — no toolchain, no network, no Python
-./run.sh                     # add --power for energy per device
+./run.sh                     # a few minutes
+./run.sh --power             # adds energy per device: ~15 minutes, needs readable RAPL
 
 # or from a source build
 ./gateway/target/release/sentin-gateway --doctor \
@@ -353,12 +360,12 @@ Every detection produces an event — **metadata only, never content**:
 {
   "ts": "2026-08-08T12:00:00Z",
   "event": "pii_detected",
-  "detector": "ner_npu",
+  "detector": "person",
   "data_type": "PERSON",
   "target_host": "api.anthropic.com",
   "decision": "masked",
   "content_sha256": "sha256:…",
-  "model_id": "herbert-base-ner-int8-128",
+  "model_id": "seq128",
   "device": "NPU"
 }
 ```
