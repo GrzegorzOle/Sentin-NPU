@@ -206,6 +206,106 @@ The split inside layer 1 is enforced in the type system, not by configuration. B
 needs arithmetic proof, so a detector with no checksum behind it cannot reach that verdict even if
 an operator configures `mode: block` for it — the request is masked instead.
 
+## How the proxy works
+
+The gateway is a **reverse proxy that speaks each provider's own API**. You do not change your
+agent's code — you change its base URL, and the gateway forwards to the real upstream with the
+request body inspected and, where policy says so, rewritten.
+
+### Routing
+
+One prefix per provider. The prefix is stripped and the rest of the path, plus the query string, is
+appended to that provider's upstream:
+
+| You call | Goes to |
+|---|---|
+| `POST http://127.0.0.1:4141/anthropic/v1/messages` | `https://api.anthropic.com/v1/messages` |
+| `POST http://127.0.0.1:4141/openai/v1/chat/completions` | `http://localhost:4000/v1/chat/completions` |
+| `POST http://127.0.0.1:4141/google/v1beta/models/gemini-2.0-flash:generateContent` | `https://generativelanguage.googleapis.com/v1beta/…` |
+| `GET  http://127.0.0.1:4141/healthz` | answered locally with `ok` |
+
+So pointing an agent at it is a one-line change:
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:4141/anthropic
+export OPENAI_BASE_URL=http://127.0.0.1:4141/openai/v1
+```
+
+A path matching no configured prefix gets **404**; an upstream that cannot be reached gets **502**.
+
+### What the gateway does and does not touch
+
+- **Credentials pass through verbatim.** `authorization` and `x-api-key` are forwarded unchanged
+  and never logged — the gateway is a proxy, not a credential broker, so it needs no API keys of
+  its own and your billing and rate limits stay yours.
+- **Headers** are relayed except hop-by-hop ones, `host` and `content-length`. The method is
+  preserved.
+- **Only parseable JSON bodies are inspected.** Anything else — a different content type, a body
+  that will not parse — is forwarded untouched rather than rejected. A proxy in the path of real
+  work must not fail closed on a shape it does not recognise.
+- **Unknown fields survive.** Adapters locate text by JSON pointer instead of deserialising into a
+  common struct, so provider extensions the gateway has never heard of are forwarded exactly as
+  written; only the text at the located positions is rewritten when masking.
+- **No upstream timeout.** A streamed completion legitimately runs for minutes, so the proxy call
+  does not get to be the thing that gives up. Inspection has its own timeout, below.
+
+Two limits worth knowing: the request body is **read fully into memory** before forwarding, and
+there is **no TLS on the listening side** — the agent-to-gateway hop is plaintext on loopback.
+Both are fine for a local PoC and both are on the roadmap.
+
+### Defaults
+
+Shipped in [`config/default.yaml`](config/default.yaml); every section has a default, so a partial
+file is valid and a missing one still yields a working gateway with layer 1 only.
+
+| Setting | Default | Why |
+|---|---|---|
+| `listen.host` | `127.0.0.1` | loopback — putting a privacy gateway on the LAN should be a deliberate act |
+| `listen.port` | `4141` | **not 4000**: LiteLLM and similar routers commonly hold that port |
+| `providers.anthropic.upstream` | `https://api.anthropic.com` | |
+| `providers.openai.upstream` | `http://localhost:4000` | any OpenAI-compatible upstream — LiteLLM, Ollama on `:11434`, LM Studio, vLLM |
+| `providers.google.upstream` | `https://generativelanguage.googleapis.com` | |
+| `inference.device` | `AUTO` | tries NPU → GPU → CPU, and logs which one actually ran |
+| `inference.model_dir` | `models/herbert/int8/seq128` | the directory holding the IR **and** `tokenizer.json`; must be absolute once installed |
+| `inference.timeout_ms` | `250` | ceiling on inspection, not on the upstream call |
+| `inference.timeout_policy` | `fail_open` | advisory-first: a slow model must not become an outage |
+| `inspect.request` | `true` | data leaving the device is the threat model |
+| `inspect.response` | `false` | responses are inspected and audited, never rewritten (roadmap) |
+| `inspect.stream_strategy` | `passthrough` | +0.1 ms to first token; see B2 in the benchmarks |
+| `audit.jsonl` | on, `./sentin-audit.jsonl` | |
+| `audit.syslog_cef` | off, `127.0.0.1:514` UDP | |
+| `audit.otlp` | off, `http://localhost:4318` | OTLP over HTTP+JSON, so the **4318** port, not gRPC's 4317 |
+
+Detector verdict ceilings ship as:
+
+```yaml
+detectors:
+  pesel:        { layer: deterministic, mode: block }
+  iban:         { layer: deterministic, mode: block }
+  payment_card: { layer: deterministic, mode: block }
+  nip:          { layer: deterministic, mode: mask }
+  regon:        { layer: deterministic, mode: mask }
+  email:        { layer: deterministic, mode: advise }
+  phone_pl:     { layer: deterministic, mode: advise }
+  person:       { layer: ner, mode: advise }
+  organization: { layer: ner, mode: advise }
+  location:     { layer: ner, mode: observe }
+```
+
+`mode` is a **ceiling, not an instruction**, and it is clamped twice: by the layer, and by the
+evidence behind the individual finding. Setting `mode: block` on `email` yields masking, because
+email has no checksum to prove itself with. A detector absent from this map defaults to `observe`,
+so adding one in code can never silently start blocking traffic.
+
+The config path is the first argument, falling back to `config/default.yaml` relative to the
+working directory. A **missing** file is an error and the gateway exits — the per-section defaults
+above fill in what a *partial* file leaves out, they are not a substitute for having one:
+
+```bash
+sentin-gateway                         # reads ./config/default.yaml
+sentin-gateway /etc/sentin/gateway.yaml
+```
+
 ## NPU inference
 
 <!-- The core of the project for the OpenVINO community — keep this section honest and detailed -->

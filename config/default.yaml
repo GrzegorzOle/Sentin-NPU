@@ -82,4 +82,7 @@ audit:
     protocol: udp
   otlp:
     enabled: false
-    endpoint: http://localhost:4317
+    # OTLP over **HTTP with JSON encoding**, so this is the collector's HTTP port (4318), not the
+    # gRPC one (4317). `/v1/logs` is appended if the endpoint does not already end in it. Pointing
+    # this at 4317 posts JSON at a gRPC listener and every event is dropped.
+    endpoint: http://localhost:4318
