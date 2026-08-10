@@ -1,4 +1,4 @@
-Sentin-NPU — Local AI Privacy Gateway on Intel NPU
+Sentin-NPU - Local AI Privacy Gateway on Intel NPU
 Copyright 2026 Grzegorz Oleksy
 
 This product includes software developed by Grzegorz Oleksy

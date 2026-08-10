@@ -3,12 +3,12 @@
 Thanks for your interest in contributing! This is an early-stage proof of
 concept, so the most valuable contributions right now are:
 
-- **NPU compatibility reports** — which ops run on your NPU generation, which
+- **NPU compatibility reports** - which ops run on your NPU generation, which
   fall back to CPU, driver versions, logs. Open an issue with the `npu-report`
   label.
 - **Benchmarks** on hardware we haven't tested (Meteor Lake, Lunar Lake, Arrow Lake).
-- **Detection patterns** — checksums for national identifiers beyond PL
-  (PESEL/NIP/REGON) — see `gateway/crates/sentin-detect/`.
+- **Detection patterns** - checksums for national identifiers beyond PL
+  (PESEL/NIP/REGON) - see `gateway/crates/sentin-detect/`.
 - Bug fixes and documentation.
 
 Before starting larger work (new detection layer, new provider adapter),
@@ -48,7 +48,7 @@ the other, not both.
 git clone https://github.com/GrzegorzOle/Sentin-NPU.git
 cd Sentin-NPU
 
-# Rust side (the gateway that ships) — needs a stable toolchain, MSRV 1.82.
+# Rust side (the gateway that ships) - needs a stable toolchain, MSRV 1.82.
 # The Cargo workspace is in gateway/, not at the repo root.
 cd gateway && cargo test --workspace
 
@@ -68,7 +68,7 @@ set that CI installs. Bump the lock deliberately and re-run `tools/validate_mode
       `cargo clippy --all-targets -- -D warnings`
 - [ ] Python (only if `tools/` changed): `tools/.venv/bin/ruff check tools/` and `ruff format --check tools/`
 - [ ] New detectors include test cases with both positive and negative samples
-- [ ] No sensitive data (real PESEL/IBAN/names) in test fixtures — use
+- [ ] No sensitive data (real PESEL/IBAN/names) in test fixtures - use
       synthetic values with valid checksums. `sentin_detect::testdata` generates
       them with correct check digits; an identifier invented by eye fails its own
       checksum and the resulting test failure blames the code, not the fixture
@@ -81,7 +81,7 @@ set that CI installs. Bump the lock deliberately and re-run `tools/validate_mode
 - Python 3.11+, formatted with `ruff format`, linted with `ruff`
 - Type hints required for public functions
 - License header (Apache 2.0) in new source files
-- Do not trust training data or memory for OpenVINO APIs — the library moves fast; verify against
+- Do not trust training data or memory for OpenVINO APIs - the library moves fast; verify against
   the version pinned in `tools/requirements.lock.txt`
 
 ## Reporting security issues

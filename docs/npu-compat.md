@@ -9,19 +9,19 @@ This file is the running record of *which OpenVINO devices exist on which machin
 actually do*. It is also the artifact community `npu-report` issues feed into.
 
 Every entry states: machine, OS, OpenVINO version, driver versions, `available_devices`, and
-whether a model **compiled and executed** — enumeration alone proves nothing.
+whether a model **compiled and executed** - enumeration alone proves nothing.
 
 ---
 
-## Dev machine (primary) — no Intel NPU
+## Dev machine (primary) - no Intel NPU
 
 | | |
 |---|---|
 | OS | Fedora Linux (kernel 7.1.6) |
 | CPU | AMD Ryzen AI 7 350 w/ Radeon 860M |
-| NPU | AMD XDNA — present as `/dev/accel/accel0`, **not an OpenVINO device** |
+| NPU | AMD XDNA - present as `/dev/accel/accel0`, **not an OpenVINO device** |
 | dGPU | NVIDIA GeForce RTX 5070 Laptop |
-| OpenVINO | 2026.3.0-22451-8a17657b995 (project venv) — identical result on 2026.2.0 (system) |
+| OpenVINO | 2026.3.0-22451-8a17657b995 (project venv) - identical result on 2026.2.0 (system) |
 | Python | 3.11.15 (`tools/.venv`) |
 | Date | 2026-08-08 |
 
@@ -47,7 +47,7 @@ OPTIMIZATION_CAPABILITIES BF16, WINOGRAD, FP32, INT8, BIN, EXPORT_IMPORT
 
 Compile + execute: **OK**. This is the development target for Phases 1-4.
 
-### GPU — resolves B0, and it is not what the plan assumed
+### GPU - resolves B0, and it is not what the plan assumed
 
 The plan stated the NVIDIA GPU "is not an OpenVINO target (no CUDA support in OV)". On this
 machine that is **wrong in practice**:
@@ -61,13 +61,13 @@ OPTIMIZATION_CAPABILITIES FP32, BIN, INT8, EXPORT_IMPORT       ← note: no FP16
 
 **Why it appears:** OpenVINO's GPU plugin enumerates through the OpenCL ICD loader, and the only
 ICDs installed here are `/etc/OpenCL/vendors/nvidia.icd` and `xilinx.icd`. It therefore picks up
-NVIDIA's OpenCL driver. No CUDA is involved. The AMD Radeon 860M iGPU does **not** appear — no
+NVIDIA's OpenCL driver. No CUDA is involved. The AMD Radeon 860M iGPU does **not** appear - no
 Mesa/rusticl OpenCL ICD is installed.
 
 **It executes.** A matmul+ReLU model compiled and ran on `GPU`, producing output matching CPU to
 float tolerance (sum 2033.319 vs 2033.290). Reproduced on both OpenVINO 2026.2.0 and 2026.3.0.
 
-**Caveats — do not over-read this result:**
+**Caveats - do not over-read this result:**
 
 - One trivial op pair proves the OpenCL path works, not that a transformer NER model will compile.
   Retest in Phase 4 with the real IR before relying on it.
@@ -83,7 +83,7 @@ from this machine are labelled CPU-only unless the GPU entry is re-verified with
 
 ### AMD XDNA NPU
 
-Not visible to OpenVINO under any device name. Reaching it needs ONNX Runtime + Vitis AI EP —
+Not visible to OpenVINO under any device name. Reaching it needs ONNX Runtime + Vitis AI EP -
 out of PoC scope (roadmap: multi-vendor NPU).
 
 ---
@@ -93,18 +93,18 @@ out of PoC scope (roadmap: multi-vendor NPU).
 | Machine | OS | OV | Driver | `available_devices` | IR-128 | IR-512 | Notes |
 |---|---|---|---|---|---|---|---|
 | Core Ultra 7 258V | Ubuntu 26.04 | 2026.3.0 | `intel_vpu` 1.0.0 / L0 NPU 1.33.0 | `CPU, GPU, NPU` | **runs** | **runs** | see below |
-| Intel Core Ultra | Windows 11 | — | — | — | — | — | not yet run |
+| Intel Core Ultra | Windows 11 | - | - | - | - | - | not yet run |
 
-### Core Ultra 7 258V (Lunar Lake) — Ubuntu 26.04 — 2026-08-09
+### Core Ultra 7 258V (Lunar Lake) - Ubuntu 26.04 - 2026-08-09
 
 | | |
 |---|---|
 | OS | Ubuntu 26.04 LTS (kernel 7.0.0-29-generic) |
 | CPU | Intel Core Ultra 7 258V, 8 logical CPUs |
-| NPU | Intel AI Boost — `[8086:643e]`, `/dev/accel/accel0`, OpenVINO architecture `4000` |
-| iGPU | Intel Arc 140V — `[8086:64a0]` |
+| NPU | Intel AI Boost - `[8086:643e]`, `/dev/accel/accel0`, OpenVINO architecture `4000` |
+| iGPU | Intel Arc 140V - `[8086:64a0]` |
 | Kernel driver | `intel_vpu` 1.0.0, firmware `intel/vpu/vpu_60xx_v1.bin` |
-| User space | `intel-level-zero-npu`, `intel-driver-compiler-npu`, `intel-fw-npu` — all 1.33.0.20260529 |
+| User space | `intel-level-zero-npu`, `intel-driver-compiler-npu`, `intel-fw-npu` - all 1.33.0.20260529 |
 | OpenVINO | 2026.3.0-22451-8a17657b995 (shipped inside the release bundle, no system install) |
 | Date | 2026-08-09 |
 
@@ -121,7 +121,7 @@ Raw report: `docs/doctor-intel-lunarlake.json`.
 | NPU | FP16 INT8 EXPORT_IMPORT | 1 879 ms / 5.9 ms | 6 090 ms / 20.7 ms |
 
 **HerBERT INT8 compiles and executes on the NPU in both shape variants**, and **no operator falls
-back** — `query_model` accepts all 1 467 nodes (25 distinct types) for NPU, GPU and CPU alike, in
+back** - `query_model` accepts all 1 467 nodes (25 distinct types) for NPU, GPU and CPU alike, in
 both variants. Reproduce with `tools/query_ops.py`; that check exists because a graph can compile
 and still be split across devices, which no latency number would reveal. The B1 fallback model was
 not needed. Latency, throughput and the energy comparison are in `docs/benchmarks.md`.
@@ -146,12 +146,12 @@ The first run on this machine reported `compiles: NO` for the NPU on both varian
 uninitialised tensors, whose contents as token ids are far outside the vocabulary. CPU and GPU
 tolerated it; the NPU hung. Full account and the fix in `docs/benchmarks.md`.
 
-Anyone filing an `npu-report` issue should be running a build that contains that fix — a
+Anyone filing an `npu-report` issue should be running a build that contains that fix - a
 `DEVICE_LOST` from an older bundle says nothing about the hardware.
 
 ---
 
-## Quantization silently destroys static shapes — check before blaming the NPU
+## Quantization silently destroys static shapes - check before blaming the NPU
 
 **The single most important finding so far for anyone taking a quantized model to an NPU.**
 
@@ -160,12 +160,12 @@ before it:
 
 | Variant | Input shape |
 |---|---|
-| `fp32/seq128` | `[1,128]` — static, as exported |
-| `int8/seq128` *(before the fix)* | `[?,?]` — **dynamic** |
+| `fp32/seq128` | `[1,128]` - static, as exported |
+| `int8/seq128` *(before the fix)* | `[?,?]` - **dynamic** |
 
 Static shapes are an NPU requirement. Shipping the quantized model as produced would therefore
 have made the NPU reject it, and the symptom would have read as *"the NPU cannot run our model"*
-rather than *"our toolchain silently un-reshaped it"* — a wrong conclusion, drawn on scarce
+rather than *"our toolchain silently un-reshaped it"* - a wrong conclusion, drawn on scarce
 hardware, and quite possibly reported upstream as an OpenVINO defect.
 
 `tools/quantize.py` now re-applies the reshape after quantization and **verifies it took**, failing
@@ -175,7 +175,7 @@ Two further traps in the fix itself:
 
 - **Never re-save an IR into the directory it was loaded from.** OpenVINO keeps the weights file
   mapped while the model is live, so saving in place truncates the `.bin` and leaves an IR that no
-  longer parses at all — `Unable to read the model ... Available frontends: ir jax onnx ...`, which
+  longer parses at all - `Unable to read the model ... Available frontends: ir jax onnx ...`, which
   looks like a corrupt download rather than self-inflicted damage. Write to a sibling directory and
   swap.
 - `save_pretrained` does not re-emit the tokenizer or `config.json`, so those must be copied across
@@ -199,8 +199,8 @@ Result on the dev machine (AMD, no NPU), OpenVINO 2026.3, HerBERT INT8 seq128:
 
 | Device | Compiles | Compile (ms) | First infer (ms) | Steady (ms) |
 |---|---|---|---|---|
-| CPU — AMD Ryzen AI 7 350 | yes | 686 | 14.3 | **11.7** |
-| GPU — NVIDIA RTX 5070 (via OpenCL ICD) | yes | 706 | 116.5 | 116.0 |
+| CPU - AMD Ryzen AI 7 350 | yes | 686 | 14.3 | **11.7** |
+| GPU - NVIDIA RTX 5070 (via OpenCL ICD) | yes | 706 | 116.5 | 116.0 |
 
 The NVIDIA path runs the full transformer correctly but roughly ten times slower than CPU, which
 is what an unsupported configuration should be expected to look like. First-inference time is
@@ -221,10 +221,10 @@ openvino = { version = "0.11", features = ["runtime-linking"] }
 
 | Check | Result |
 |---|---|
-| Loads the installed runtime | yes — reports `2026.3.0-22451-8a17657b995` |
+| Loads the installed runtime | yes - reports `2026.3.0-22451-8a17657b995` |
 | `available_devices` | `[CPU, GPU]`, identical to the Python API |
 | `DeviceFullName`, `DeviceCapabilities` | read back correctly |
-| Arbitrary property keys | `PropertyKey::Other(..)` works — plugin-specific properties (including NPU ones) are reachable without patching the crate |
+| Arbitrary property keys | `PropertyKey::Other(..)` works - plugin-specific properties (including NPU ones) are reachable without patching the crate |
 
 **`runtime-linking` is the feature to use.** Without it the build script needs to find an OpenVINO
 installation at compile time and fails with *"Unable to find an OpenVINO installation on your
@@ -250,6 +250,6 @@ install. That simplifies both test-machine setup and release packaging.
 
 ## API notes (things that cost time)
 
-- `openvino.runtime` **no longer exists** in 2026.x — it was removed, not just deprecated. Use
+- `openvino.runtime` **no longer exists** in 2026.x - it was removed, not just deprecated. Use
   `import openvino as ov` plus `import openvino.opsetNN as ops`. Training-era snippets that
   `from openvino.runtime import ...` fail immediately with `ModuleNotFoundError`.

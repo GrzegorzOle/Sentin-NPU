@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 # SIEM event schema
 
 > **Status: implemented.** JSONL, CEF over syslog (UDP) and OTLP/HTTP-JSON emitters all ship, and
-> the gateway emits from the real request path. The field set below is binding — any PR that
+> the gateway emits from the real request path. The field set below is binding - any PR that
 > changes it updates this file in the same commit (see `CONTRIBUTING.md`).
 >
 > Verified on a live gateway: one request carrying a PESEL, an email and an IBAN produced three
@@ -15,7 +15,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ## The rule that governs everything here
 
-**Events carry metadata only. The detected text never appears in an event** — not in any emitter,
+**Events carry metadata only. The detected text never appears in an event** - not in any emitter,
 not at any log level, not in a debug field. Where the content matters for correlation, a
 `content_sha256` of the *whole inspected payload* stands in for it.
 
@@ -35,10 +35,10 @@ schema, however convenient.
 | `decision` | enum | `observed`, `advised`, `masked`, `blocked`, `user_override` |
 | `content_sha256` | hex | hash of the inspected payload, never the payload |
 | `model_id` | string | **the IR directory name**, e.g. `seq128`; absent for layer-1-only events |
-| `device` | enum | `NPU`, `GPU`, `CPU`, `AUTO` — the device that *actually* executed |
+| `device` | enum | `NPU`, `GPU`, `CPU`, `AUTO` - the device that *actually* executed |
 
 Every optional field is **omitted** when unset rather than serialised as `null`, so a parser must
-treat absence as normal — a layer-1 finding carries no `model_id` and no `device`.
+treat absence as normal - a layer-1 finding carries no `model_id` and no `device`.
 
 `detector` and `data_type` are close to redundant today: a layer-2 `PERSON` finding reports
 `detector: "person"`. They are kept apart because `detector` names the thing an operator configures
@@ -48,7 +48,7 @@ the same class.
 **Known limitation of `model_id`.** It is the last path component of `inference.model_dir`, so both
 `models/herbert/int8/seq128` and a bundle's `models/seq128` report `seq128`. That identifies the
 shape but *not* the model or its precision, which means two models of the same shape are
-indistinguishable in the audit trail — the thing this field exists to prevent. Anyone correlating
+indistinguishable in the audit trail - the thing this field exists to prevent. Anyone correlating
 events across a model change should pin the version some other way until this carries the model
 identity.
 
