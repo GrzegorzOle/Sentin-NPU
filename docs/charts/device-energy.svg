@@ -14,15 +14,15 @@
 <text x="684.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="middle">800</text>
 <line x1="248.0" y1="88.0" x2="248.0" y2="228.0" stroke="#c3c2b7" stroke-width="1"/>
 <text x="748.0" y="248.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="end">mJ</text>
-<text x="232.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">NPU — Intel AI Boost</text>
+<text x="232.0" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">NPU - Intel AI Boost</text>
 <g fill="#2a78d6"><path d="M 248.0 107.0 H 286.6 A 4 4 0 0 1 290.6 111.0 V 125.0 A 4 4 0 0 1 286.6 129.0 H 248.0 Z" /></g>
 <text x="300.6" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">78.21 mJ</text>
 <text x="366.2" y="122.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">0.78 W above idle</text>
-<text x="232.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">GPU — Intel Arc 140V (iGPU)</text>
+<text x="232.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">GPU - Intel Arc 140V (iGPU)</text>
 <g fill="#2a78d6"><path d="M 248.0 151.0 H 331.2 A 4 4 0 0 1 335.2 155.0 V 169.0 A 4 4 0 0 1 331.2 173.0 H 248.0 Z" /></g>
 <text x="345.2" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">160.08 mJ</text>
 <text x="418.0" y="166.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#898781" text-anchor="start">1.53 W above idle</text>
-<text x="232.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">CPU — Core Ultra 7 258V</text>
+<text x="232.0" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52514e" text-anchor="end">CPU - Core Ultra 7 258V</text>
 <g fill="#2a78d6"><path d="M 248.0 195.0 H 638.7 A 4 4 0 0 1 642.7 199.0 V 213.0 A 4 4 0 0 1 638.7 217.0 H 248.0 Z" /></g>
 <text x="652.7" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="650" fill="#0b0b0b" text-anchor="start">724.14 mJ</text>
 <text x="630.7" y="210.0" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#ffffff" text-anchor="end">6.92 W above idle</text>

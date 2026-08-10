@@ -2,8 +2,8 @@
      role="img" aria-labelledby="title desc">
   <title id="title">Sentin-NPU architecture</title>
   <desc id="desc">An LLM agent sends its request to the Sentin-NPU gateway running on the same
-    machine. The gateway inspects the request in four stages — deterministic checksum detectors,
-    NER inference on the NPU through OpenVINO, a policy decision, and an audit event — then
+    machine. The gateway inspects the request in four stages - deterministic checksum detectors,
+    NER inference on the NPU through OpenVINO, a policy decision, and an audit event - then
     forwards the masked request to the LLM provider. Detected content never leaves the machine;
     only metadata reaches the SIEM.</desc>
 
@@ -32,7 +32,7 @@
   <!-- trust boundary -->
   <rect x="24" y="26" width="606" height="392" rx="14"
         fill="#f8fafc" stroke="#9fb3c8" stroke-width="1.5" stroke-dasharray="7 5"/>
-  <text class="lbl s" x="44" y="50">your machine — nothing here leaves the device for inspection</text>
+  <text class="lbl s" x="44" y="50">your machine - nothing here leaves the device for inspection</text>
 
   <!-- agent -->
   <rect x="48" y="112" width="168" height="150" rx="10"
@@ -58,7 +58,7 @@
   <g>
     <circle cx="298" cy="220" r="11" fill="#0068b5"/>
     <text class="lbl num"  x="298" y="224" text-anchor="middle">2</text>
-    <text class="lbl step" x="318" y="216">NER — OpenVINO IR</text>
+    <text class="lbl step" x="318" y="216">NER - OpenVINO IR</text>
     <text class="lbl s"    x="318" y="234">NPU first, GPU / CPU fallback</text>
   </g>
   <g>
@@ -102,7 +102,7 @@
   <text class="lbl edge" x="640" y="322" text-anchor="middle">metadata only</text>
 
   <text class="lbl s" x="436" y="470" text-anchor="middle">
-    Detection runs on the device. The identifier itself is never sent anywhere — not to the
+    Detection runs on the device. The identifier itself is never sent anywhere - not to the
     provider, not to the SIEM.
   </text>
   <text class="lbl s" x="436" y="494" text-anchor="middle">

@@ -68,7 +68,7 @@ RADIUS = 4
 
 @dataclass
 class Row:
-    """One bar. ``value=None`` renders an empty track — a measurement not taken."""
+    """One bar. ``value=None`` renders an empty track - a measurement not taken."""
 
     label: str
     value: float | None
@@ -119,7 +119,7 @@ def bar_path(x0: float, y: float, length: float, height: float) -> str:
     """A bar squared at the baseline and rounded at the data end.
 
     Below the corner radius there is no room to round, so the bar degrades to a plain rectangle
-    rather than to a malformed path — which is what a 0.07 ms bar next to a 150 ms axis needs.
+    rather than to a malformed path - which is what a 0.07 ms bar next to a 150 ms axis needs.
     """
     if length <= RADIUS:
         return f'<rect x="{x0:.1f}" y="{y:.1f}" width="{max(length, 1.5):.1f}" height="{height}" />'
@@ -195,7 +195,7 @@ def render_bars(chart: Chart) -> str:
         if row.note:
             # A label is never clipped by the edge it ran into. Outside the bar while it fits;
             # once the bar is long enough to push it off the canvas, inside the bar end instead,
-            # in white — which clears contrast on every series colour used here.
+            # in white - which clears contrast on every series colour used here.
             note_x = plot_x + length + 18 + 7.2 * len(row.display or fmt(row.value))
             if note_x + 7.0 * len(row.note) < chart.width - 24:
                 out.append(text_el(note_x, y + 15, row.note, size=12, fill=INK_MUTED))
@@ -232,7 +232,7 @@ def render_bars(chart: Chart) -> str:
 
 
 def render_columns(chart: Chart) -> str:
-    """Grouped columns for two series, with a legend — identity is never colour alone."""
+    """Grouped columns for two series, with a legend - identity is never colour alone."""
     group_w = 150
     bar_w = 22
     gap = 2  # the surface gap that separates touching bars; never a stroke
@@ -324,7 +324,7 @@ def fmt(value: float) -> str:
 
 
 # ---------------------------------------------------------------------------
-# The measurements. Mirror of docs/benchmarks.md — keep the two in step.
+# The measurements. Mirror of docs/benchmarks.md - keep the two in step.
 # ---------------------------------------------------------------------------
 
 CHARTS: list[Chart] = [
@@ -355,7 +355,7 @@ CHARTS: list[Chart] = [
         ),
         rows=[
             Row("Direct to upstream (baseline)", 0.3, "0.3 ms"),
-            Row("passthrough — the default", 0.4, "0.4 ms"),
+            Row("passthrough - the default", 0.4, "0.4 ms"),
             Row("sliding_window", 92.5, "92.5 ms", "one sentence, whatever the length"),
             Row("buffer", 511.0, "511 ms", "the whole generation"),
         ],
@@ -372,9 +372,9 @@ CHARTS: list[Chart] = [
         title="Steady-state inference, per device",
         subtitle="HerBERT INT8, sequence 128, measured by sentin-gateway --doctor.",
         rows=[
-            Row("CPU — AMD Ryzen AI 7 350", 11.8, "11.8 ms"),
-            Row("GPU — NVIDIA dGPU via OpenCL", 115.8, "115.8 ms"),
-            Row("NPU — Intel", None, note="not measured — needs Intel hardware"),
+            Row("CPU - AMD Ryzen AI 7 350", 11.8, "11.8 ms"),
+            Row("GPU - NVIDIA dGPU via OpenCL", 115.8, "115.8 ms"),
+            Row("NPU - Intel", None, note="not measured - needs Intel hardware"),
         ],
         unit="ms",
         ticks=[0, 30, 60, 90, 120],
@@ -391,14 +391,14 @@ CHARTS: list[Chart] = [
             "HerBERT INT8, sequence 128, Intel Core Ultra 7 258V. One machine, so the rows compare."
         ),
         rows=[
-            Row("NPU — Intel AI Boost", 5.9, "5.9 ms"),
-            Row("GPU — Intel Arc 140V (iGPU)", 2.7, "2.7 ms"),
-            Row("CPU — Core Ultra 7 258V", 23.6, "23.6 ms"),
+            Row("NPU - Intel AI Boost", 5.9, "5.9 ms"),
+            Row("GPU - Intel Arc 140V (iGPU)", 2.7, "2.7 ms"),
+            Row("CPU - Core Ultra 7 258V", 23.6, "23.6 ms"),
         ],
         unit="ms",
         ticks=[0, 5, 10, 15, 20, 25],
         footnote=(
-            "Latency is not what separates these devices — every one of them clears the "
+            "Latency is not what separates these devices - every one of them clears the "
             "budget. Energy is: see device-energy."
         ),
         label_w=248,
@@ -411,9 +411,9 @@ CHARTS: list[Chart] = [
             "package RAPL, idle subtracted."
         ),
         rows=[
-            Row("NPU — Intel AI Boost", 78.21, "78.21 mJ", "0.78 W above idle"),
-            Row("GPU — Intel Arc 140V (iGPU)", 160.08, "160.08 mJ", "1.53 W above idle"),
-            Row("CPU — Core Ultra 7 258V", 724.14, "724.14 mJ", "6.92 W above idle"),
+            Row("NPU - Intel AI Boost", 78.21, "78.21 mJ", "0.78 W above idle"),
+            Row("GPU - Intel Arc 140V (iGPU)", 160.08, "160.08 mJ", "1.53 W above idle"),
+            Row("CPU - Core Ultra 7 258V", 724.14, "724.14 mJ", "6.92 W above idle"),
         ],
         unit="mJ",
         ticks=[0, 200, 400, 600, 800],
@@ -430,9 +430,9 @@ CHARTS: list[Chart] = [
             "Driven as fast as each device will go. Median of 5 repeats after a discarded warm-up."
         ),
         rows=[
-            Row("NPU — Intel AI Boost", 46.81, "46.81 mJ", "range 45.74-47.66"),
-            Row("GPU — Intel Arc 140V (iGPU)", 49.51, "49.51 mJ", "range 49.15-49.99"),
-            Row("CPU — Core Ultra 7 258V", 554.60, "554.60 mJ", "range 548.44-557.53"),
+            Row("NPU - Intel AI Boost", 46.81, "46.81 mJ", "range 45.74-47.66"),
+            Row("GPU - Intel Arc 140V (iGPU)", 49.51, "49.51 mJ", "range 49.15-49.99"),
+            Row("CPU - Core Ultra 7 258V", 554.60, "554.60 mJ", "range 548.44-557.53"),
         ],
         unit="mJ",
         ticks=[0, 150, 300, 450, 600],
@@ -487,7 +487,7 @@ def check_against_docs() -> int:
     """Fail if a headline figure no longer appears in docs/benchmarks.md.
 
     A chart that has quietly drifted from the document it illustrates is worse than no chart, and
-    the drift is invisible in review — the SVG diff looks like a number changing, which is exactly
+    the drift is invisible in review - the SVG diff looks like a number changing, which is exactly
     what an intentional update looks like too.
     """
     doc = BENCHMARKS.read_text(encoding="utf-8")

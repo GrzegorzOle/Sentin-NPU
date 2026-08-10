@@ -1,7 +1,7 @@
 # Copyright 2026 Grzegorz Oleksy
 # SPDX-License-Identifier: Apache-2.0
 #
-# Default gateway configuration. Phase 0 shape — keys are the contract the Rust
+# Default gateway configuration. Phase 0 shape - keys are the contract the Rust
 # crates will deserialize; most are not read yet.
 
 # Port 4141 rather than the more obvious 4000: LiteLLM, the usual model router in this kind of
@@ -41,7 +41,7 @@ inference:
   # If inspection exceeds this, apply timeout_policy and emit inspection_timeout.
   timeout_ms: 250
   # fail_open forwards the request uninspected; fail_closed refuses it.
-  # PoC default is fail_open — advisory-first: the gateway must not break the agent.
+  # PoC default is fail_open - advisory-first: the gateway must not break the agent.
   timeout_policy: fail_open
 
 # Per-detector verdict ceiling. `block` is only honoured for layer-1 detectors;
@@ -58,13 +58,13 @@ detectors:
   organization: { layer: ner, mode: advise }
   location:     { layer: ner, mode: observe }
 
-# Request-side inspection is the threat model — data leaving the device — and costs +0.07 ms p95.
+# Request-side inspection is the threat model - data leaving the device - and costs +0.07 ms p95.
 #
 # stream_strategy decides how a streamed response is inspected (research question B2, closed):
-#   passthrough    — request-side only. +0.1 ms to first token. The PoC default.
-#   sliding_window — inspect at sentence boundaries. Costs ~one sentence (+92 ms measured),
+#   passthrough    - request-side only. +0.1 ms to first token. The PoC default.
+#   sliding_window - inspect at sentence boundaries. Costs ~one sentence (+92 ms measured),
 #                    bounded regardless of how long the answer is.
-#   buffer         — hold the whole response, then emit. Its penalty *is* the generation time
+#   buffer         - hold the whole response, then emit. Its penalty *is* the generation time
 #                    (+511 ms on a 0.5 s answer, ~24 s on a 2000-token one). Not recommended.
 # Numbers and reasoning: docs/benchmarks.md.
 inspect:
