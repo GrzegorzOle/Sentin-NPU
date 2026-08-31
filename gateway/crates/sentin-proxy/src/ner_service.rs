@@ -56,13 +56,14 @@ impl NerService {
     /// Fails if the model cannot be loaded; the caller decides whether that is fatal. It is not
     /// fatal for the gateway — layer 1 still works without layer 2.
     pub fn start(config: &Inference) -> Result<Self, NerError> {
-        let objective = sentin_detect::select::Objective::parse(&config.select).unwrap_or_else(|| {
-            tracing::warn!(
-                value = %config.select,
-                "unknown inference.select; falling back to cost"
-            );
-            sentin_detect::select::Objective::Cost
-        });
+        let objective =
+            sentin_detect::select::Objective::parse(&config.select).unwrap_or_else(|| {
+                tracing::warn!(
+                    value = %config.select,
+                    "unknown inference.select; falling back to cost"
+                );
+                sentin_detect::select::Objective::Cost
+            });
         let selection = sentin_detect::select::Selection {
             measure: true,
             objective,

@@ -329,9 +329,7 @@ fn upstream_host(upstream: &str) -> String {
 /// The field remains weak by design and is documented as such in `docs/events.md`: it reports the
 /// shape (`seq128`), not the model.
 fn model_id(model_dir: &str) -> Option<&str> {
-    model_dir
-        .rsplit(['/', '\\'])
-        .find(|part| !part.is_empty())
+    model_dir.rsplit(['/', '\\']).find(|part| !part.is_empty())
 }
 
 /// A refusal carries the data kinds involved, never the text that triggered it.
@@ -385,7 +383,11 @@ mod tests {
             model_id(r"D:\git_v2\Sentin-NPU\dist\bundle\models\seq128"),
             Some("seq128")
         );
-        assert_eq!(model_id("models/seq512/"), Some("seq512"), "a trailing separator is not an id");
+        assert_eq!(
+            model_id("models/seq512/"),
+            Some("seq512"),
+            "a trailing separator is not an id"
+        );
         assert_eq!(model_id(""), None);
     }
 

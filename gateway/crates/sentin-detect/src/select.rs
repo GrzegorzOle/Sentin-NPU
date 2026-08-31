@@ -242,7 +242,11 @@ impl Choice {
             })
             .collect::<Vec<_>>()
             .join(" ");
-        let source = if self.from_cache { "cached" } else { "measured" };
+        let source = if self.from_cache {
+            "cached"
+        } else {
+            "measured"
+        };
         format!(
             "device={chosen} objective={:?} ceiling={:.0}ms {source} [{measured}]",
             self.objective, self.ceiling_ms
@@ -301,15 +305,14 @@ pub fn rank(trials: Vec<Trial>, objective: Objective, ceiling_ms: f64) -> Choice
 
     // Sort is stable, so the secondary key genuinely breaks ties in the primary one.
     ranked.sort_by(|a, b| {
-        let (a_ms, b_ms) = (a.steady_ms.unwrap_or(f64::MAX), b.steady_ms.unwrap_or(f64::MAX));
+        let (a_ms, b_ms) = (
+            a.steady_ms.unwrap_or(f64::MAX),
+            b.steady_ms.unwrap_or(f64::MAX),
+        );
         let by_time = a_ms.partial_cmp(&b_ms).unwrap_or(std::cmp::Ordering::Equal);
         match objective {
             Objective::Latency => by_time,
-            Objective::Cost => a
-                .class
-                .cost_rank()
-                .cmp(&b.class.cost_rank())
-                .then(by_time),
+            Objective::Cost => a.class.cost_rank().cmp(&b.class.cost_rank()).then(by_time),
         }
     });
 
@@ -340,7 +343,9 @@ pub fn measure_all(
     let mut trials = Vec::with_capacity(available.len());
     for name in available {
         let device = DeviceType::from(name.as_str());
-        let full_name = core.get_property(&device, &PropertyKey::DeviceFullName).ok();
+        let full_name = core
+            .get_property(&device, &PropertyKey::DeviceFullName)
+            .ok();
         let device_type = core
             .get_property(&device, &PropertyKey::Other("DEVICE_TYPE".into()))
             .ok();
@@ -472,10 +477,8 @@ mod tests {
     fn the_old_cascade_would_have_picked_the_rejected_device() {
         // Guards the regression this module exists for: AUTO_ORDER puts GPU before CPU, so the
         // pre-2026-08-31 resolver chose the 224.8 ms device over the 8.7 ms one.
-        let (cascade, _) = crate::ov::resolve_device(
-            "AUTO",
-            &["CPU".to_string(), "GPU".to_string()],
-        );
+        let (cascade, _) =
+            crate::ov::resolve_device("AUTO", &["CPU".to_string(), "GPU".to_string()]);
         assert_eq!(cascade, "GPU", "the cascade is what we are replacing");
 
         let choice = rank(
@@ -521,7 +524,9 @@ mod tests {
             trial("CPU", Class::Cpu, 9.0),
         ];
         assert_eq!(
-            rank(trials.clone(), Objective::Cost, 80.0).device.as_deref(),
+            rank(trials.clone(), Objective::Cost, 80.0)
+                .device
+                .as_deref(),
             Some("CPU")
         );
         assert_eq!(
@@ -536,9 +541,15 @@ mod tests {
         let mut refused = trial("NPU", Class::Npu, 1.0);
         refused.error = Some("ZE_RESULT_ERROR_DEVICE_LOST".to_string());
         refused.steady_ms = None;
-        let choice = rank(vec![refused, trial("CPU", Class::Cpu, 8.7)], Objective::Cost, 80.0);
+        let choice = rank(
+            vec![refused, trial("CPU", Class::Cpu, 8.7)],
+            Objective::Cost,
+            80.0,
+        );
         assert_eq!(choice.device.as_deref(), Some("CPU"));
-        assert!(choice.rejected[0].reason.contains("ZE_RESULT_ERROR_DEVICE_LOST"));
+        assert!(choice.rejected[0]
+            .reason
+            .contains("ZE_RESULT_ERROR_DEVICE_LOST"));
     }
 
     #[test]
@@ -568,7 +579,10 @@ mod tests {
         refused.steady_ms = None;
         let choice = rank(vec![refused], Objective::Cost, 80.0);
         assert!(choice.device.is_none(), "a hopeless machine must say so");
-        assert!(!choice.over_ceiling, "refusing is not the same as being slow");
+        assert!(
+            !choice.over_ceiling,
+            "refusing is not the same as being slow"
+        );
     }
 
     #[test]
@@ -587,7 +601,10 @@ mod tests {
             "the plugin's own answer wins over name guessing"
         );
         assert_eq!(classify("NPU", None, None), Class::Npu);
-        assert_eq!(classify("CPU", Some("Intel(R) Core(TM) i9-14900KF"), None), Class::Cpu);
+        assert_eq!(
+            classify("CPU", Some("Intel(R) Core(TM) i9-14900KF"), None),
+            Class::Cpu
+        );
     }
 
     #[test]
@@ -602,7 +619,11 @@ mod tests {
     fn the_cache_key_changes_with_the_device_list() {
         let path = Path::new("models/seq128/openvino_model.xml");
         let one = cache_key(path, Some("2026.3.0"), &["CPU".to_string()]);
-        let two = cache_key(path, Some("2026.3.0"), &["CPU".to_string(), "GPU".to_string()]);
+        let two = cache_key(
+            path,
+            Some("2026.3.0"),
+            &["CPU".to_string(), "GPU".to_string()],
+        );
         assert_ne!(one, two, "a new device must invalidate the measurement");
     }
 }

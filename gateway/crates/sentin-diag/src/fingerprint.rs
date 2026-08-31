@@ -185,7 +185,10 @@ fn kernel_version() -> String {
     if cfg!(windows) {
         // No /proc here. The build is what a Windows reader would quote, and it is what the
         // bundle's run.ps1 records beside this, so the two agree.
-        if let Ok(output) = std::process::Command::new("cmd").args(["/c", "ver"]).output() {
+        if let Ok(output) = std::process::Command::new("cmd")
+            .args(["/c", "ver"])
+            .output()
+        {
             let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !text.is_empty() {
                 return text;
