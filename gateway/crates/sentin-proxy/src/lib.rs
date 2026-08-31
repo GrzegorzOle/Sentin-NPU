@@ -217,7 +217,7 @@ async fn proxy(State(state): State<AppState>, request: Request) -> Response {
                 &verdict,
                 &bytes,
                 &host,
-                state.config.inference.model_dir.rsplit('/').next(),
+                model_id(&state.config.inference.model_dir),
                 state.ner.as_ref().map(|n| n.device()),
             );
 
@@ -319,6 +319,21 @@ fn upstream_host(upstream: &str) -> String {
         .to_string()
 }
 
+/// The `model_id` an audit event carries: the last component of the model directory.
+///
+/// Split on both separators, not just `/`. On Windows the configured path is
+/// `D:\...\models\seq128`, so splitting on `/` alone returns the **whole path** - which is what a
+/// first run on Windows put into every event on 2026-08-31, sending a local directory layout to
+/// the SIEM in a field a parser expects to be a short identifier.
+///
+/// The field remains weak by design and is documented as such in `docs/events.md`: it reports the
+/// shape (`seq128`), not the model.
+fn model_id(model_dir: &str) -> Option<&str> {
+    model_dir
+        .rsplit(['/', '\\'])
+        .find(|part| !part.is_empty())
+}
+
 /// A refusal carries the data kinds involved, never the text that triggered it.
 fn blocked_response(verdict: &inspect::Inspection) -> Response {
     let kinds: Vec<_> = verdict
@@ -361,6 +376,18 @@ pub type ProxyBody = Body;
 mod tests {
     use super::*;
     use axum::http::HeaderValue;
+
+    #[test]
+    fn model_id_is_the_last_path_component_on_both_platforms() {
+        assert_eq!(model_id("models/herbert/int8/seq128"), Some("seq128"));
+        // The Windows case that shipped a whole local path to the SIEM before it was fixed.
+        assert_eq!(
+            model_id(r"D:\git_v2\Sentin-NPU\dist\bundle\models\seq128"),
+            Some("seq128")
+        );
+        assert_eq!(model_id("models/seq512/"), Some("seq512"), "a trailing separator is not an id");
+        assert_eq!(model_id(""), None);
+    }
 
     fn headers() -> HeaderMap {
         let mut headers = HeaderMap::new();

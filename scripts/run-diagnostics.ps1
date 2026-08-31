@@ -28,9 +28,14 @@ function Run($description, [scriptblock]$block) {
     Write-Host "`n> $description"
     Add-Content -Path $Log -Value "`n> $description"
     try {
-        $out = & $block 2>&1 | Out-String
+        # The OpenCL kernel compiler on the NVIDIA path writes "N warnings generated." to the
+        # process output, once per compilation unit. It says nothing about this machine and it
+        # appeared thirteen times in the first Windows run, so it is dropped rather than collected.
+        $out = & $block 2>&1 |
+            Where-Object { "$_" -notmatch '^\s*\d+ warnings generated\.\s*$' } |
+            Out-String
     } catch {
-        $out = "(failed: $_ — recorded, continuing)"
+        $out = "(failed: $_ - recorded, continuing)"
     }
     Write-Host $out
     Add-Content -Path $Log -Value $out
@@ -48,13 +53,18 @@ Run 'memory' { Get-CimInstance Win32_ComputerSystem | Select-Object TotalPhysica
 Section 'npu: driver side'
 # The first question asked of any NPU report is which driver and which version.
 Run 'neural processors' {
+    # Word boundaries matter here: an unanchored 'NPU' matches the middle of "USB I-npu-t Device",
+    # which is how the first Windows run reported eight USB keyboards as neural processors.
     Get-CimInstance Win32_PnPSignedDriver |
-        Where-Object { $_.DeviceName -match 'Neural|NPU|VPU|AI Boost' } |
+        Where-Object { $_.DeviceName -match '(?i)\b(NPU|VPU)\b|(?i)(neural|ai boost)' } |
         Select-Object DeviceName, DriverVersion, DriverDate, Manufacturer | Format-List
 }
 Run 'all accelerator-ish devices' {
     Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue |
-        Where-Object { $_.Class -match 'ComputeAccelerator|System' -and $_.FriendlyName -match 'Neural|NPU|AI' } |
+        Where-Object {
+            $_.Class -match 'ComputeAccelerator|System' -and
+            $_.FriendlyName -match '(?i)\b(NPU|VPU|AI)\b|(?i)(neural|ai boost)'
+        } |
         Select-Object FriendlyName, Status, Class | Format-Table -AutoSize
 }
 Run 'display adapters (for the iGPU comparison)' {

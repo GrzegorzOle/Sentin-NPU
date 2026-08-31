@@ -197,7 +197,7 @@ impl NerEngine {
         }
         let Some((device, mut compiled)) = chosen else {
             return Err(NerError::OpenVino(format!(
-                "no device would compile the model — {}",
+                "no device would compile the model - {}",
                 refusals.join("; ")
             )));
         };

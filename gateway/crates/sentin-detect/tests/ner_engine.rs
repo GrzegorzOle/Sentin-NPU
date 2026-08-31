@@ -27,7 +27,7 @@ fn engine() -> Option<NerEngine> {
     let dir = repo_root().join("models/herbert/int8/seq128");
     if !dir.join("openvino_model.xml").exists() {
         println!(
-            "SKIP: no IR at {} — run tools/prepare_model.py",
+            "SKIP: no IR at {} - run tools/prepare_model.py",
             dir.display()
         );
         return None;

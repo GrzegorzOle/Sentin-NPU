@@ -118,7 +118,7 @@ async fn main() {
     )
     .await;
 
-    println!("M2a — request path, ~1 KB payload, non-streaming");
+    println!("M2a - request path, ~1 KB payload, non-streaming");
     println!(
         "  {:<34}{:>10}{:>10}",
         "configuration", "p50 (ms)", "p95 (ms)"
@@ -185,7 +185,7 @@ async fn main() {
         let (actual, fell_back) = resolved
             .clone()
             .unwrap_or_else(|| ("layer 2 not running".to_string(), false));
-        println!("\nM2b — full pipeline (L1+L2), model: {model_dir}");
+        println!("\nM2b - full pipeline (L1+L2), model: {model_dir}");
         println!("  device requested: {device}    device used: {actual}");
         // AUTO resolving to something concrete is the feature working, not a surprise; only a
         // named device that did not get used is worth shouting about.
@@ -236,13 +236,13 @@ async fn main() {
             "verdict": if added_p95 < budget { "PASS" } else { "FAIL" },
         }));
     } else {
-        println!("\nM2b — SKIPPED: no openvino_model.xml under {model_dir}");
+        println!("\nM2b - SKIPPED: no openvino_model.xml under {model_dir}");
         println!("  pass --model-dir, or run tools/prepare_model.py for the source-tree default");
     }
 
     // ---- M2c: streaming, time to first token ----------------------------------------------
     if m2b_only {
-        println!("\nM2c — skipped (--m2b-only); streaming does not depend on the inference device");
+        println!("\nM2c - skipped (--m2b-only); streaming does not depend on the inference device");
     } else {
         run_m2c(&client, &upstream, &mut results).await;
     }
@@ -262,7 +262,7 @@ async fn main() {
 /// Split out of `main` so `--m2b-only` can skip it by not calling it, rather than by wrapping
 /// forty lines in an `if` and re-indenting them.
 async fn run_m2c(client: &reqwest::Client, upstream: &str, results: &mut Vec<Value>) {
-    println!("\nM2c — streaming, time to first byte reaching the client");
+    println!("\nM2c - streaming, time to first byte reaching the client");
     println!(
         "  mock emits {} events, {} ms apart, sentence every 8th event",
         StreamShape::default().events,

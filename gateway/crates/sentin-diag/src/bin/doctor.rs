@@ -73,7 +73,7 @@ fn main() -> ExitCode {
 
 fn print_help() {
     println!(
-        "sentin-doctor — report what this machine can do with OpenVINO\n\n\
+        "sentin-doctor - report what this machine can do with OpenVINO\n\n\
          USAGE:\n  \
            sentin-doctor [--model <openvino_model.xml>] [--json <file>] [--power]\n\n\
          OPTIONS:\n  \
@@ -87,6 +87,6 @@ fn print_help() {
                                 device difference from the platform's own drift.\n  \
            --power-json <file>  write the energy report, including every individual repeat\n\n\
          If the OpenVINO libraries cannot be found, they need *unversioned* symlinks on\n\
-         LD_LIBRARY_PATH — the bundled run.sh does that for you."
+         LD_LIBRARY_PATH - the bundled run.sh does that for you."
     );
 }

@@ -38,7 +38,7 @@ pub enum OvError {
     Runtime(String),
     /// No IR at the given path. Models are gitignored and ship through releases, so a fresh clone
     /// has none until the toolchain has run.
-    #[error("no IR found at {0} — run tools/prepare_model.py first")]
+    #[error("no IR found at {0} - run tools/prepare_model.py first")]
     NoModel(PathBuf),
 }
 
@@ -127,7 +127,7 @@ pub fn probe(model_xml: Option<&Path>) -> Result<Report, OvError> {
     if model_xml.is_none() {
         notes.push(
             "No IR supplied, so only enumeration was performed. Enumeration proves nothing about \
-             whether a model will compile — run tools/prepare_model.py and re-run --doctor."
+             whether a model will compile - run tools/prepare_model.py and re-run --doctor."
                 .to_string(),
         );
     }

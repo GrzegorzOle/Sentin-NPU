@@ -49,7 +49,7 @@ fn every_probe_input_is_written_before_it_reaches_the_device() {
     let xml = dir.join("openvino_model.xml");
     if !xml.exists() {
         println!(
-            "SKIP: no IR at {} — run tools/prepare_model.py",
+            "SKIP: no IR at {} - run tools/prepare_model.py",
             xml.display()
         );
         return;

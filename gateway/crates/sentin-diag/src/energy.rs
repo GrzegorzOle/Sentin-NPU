@@ -52,13 +52,13 @@ pub const BACKEND: &str = if cfg!(target_os = "linux") {
 #[derive(Debug, thiserror::Error)]
 pub enum EnergyError {
     /// The kernel exposes no powercap domains — an old kernel, a VM, or a CPU without RAPL.
-    #[error("no RAPL domains found under {POWERCAP} — this kernel or CPU does not expose them")]
+    #[error("no RAPL domains found under {POWERCAP} - this kernel or CPU does not expose them")]
     Unsupported,
     #[error(
         "no energy backend on this platform.\n\
          Windows has no powercap sysfs; RAPL is reachable only through a signed kernel driver.\n\
          Options, in order of preference for this project:\n  \
-           1. Run the energy measurements on the Intel Core Ultra *Linux* installation — same\n     \
+           1. Run the energy measurements on the Intel Core Ultra *Linux* installation - same\n     \
               powercap interface as the dev machine, so the numbers are directly comparable.\n  \
            2. Intel PCM (`pcm-power.exe`, needs its driver and an elevated shell), recorded as a\n     \
               separate backend and never mixed into a RAPL column.\n  \

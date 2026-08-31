@@ -93,7 +93,7 @@ fn engine() -> Option<NerEngine> {
     let dir = repo_root().join("models/herbert/int8/seq128");
     if !dir.join("openvino_model.xml").exists() {
         println!(
-            "SKIP: no IR at {} — run tools/prepare_model.py",
+            "SKIP: no IR at {} - run tools/prepare_model.py",
             dir.display()
         );
         return None;
@@ -157,7 +157,7 @@ fn m4_the_rust_path_scores_the_same_as_the_python_reference() {
         assert!(
             (f1 - reference).abs() <= TOLERANCE_PP,
             "{lang}: Rust scores {f1:.2} against the Python reference {reference:.2}. \
-             The two implementations have drifted — check subword aggregation, BIO merging and \
+             The two implementations have drifted - check subword aggregation, BIO merging and \
              byte-versus-character offsets before adjusting this constant."
         );
     }

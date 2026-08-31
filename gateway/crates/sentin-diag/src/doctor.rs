@@ -63,7 +63,7 @@ fn accelerator_drivers() -> Vec<DriverInfo> {
 
     for (module, vendor) in [
         ("intel_vpu", "Intel NPU (VPU/NPU driver)"),
-        ("amdxdna", "AMD XDNA NPU — not an OpenVINO target"),
+        ("amdxdna", "AMD XDNA NPU - not an OpenVINO target"),
     ] {
         let base = PathBuf::from("/sys/module").join(module);
         if base.exists() {
@@ -392,7 +392,7 @@ pub fn measure_power(model_xml: &Path, seconds_per_device: u64, repeats: usize) 
             idle_samples_w: Vec::new(),
             devices: Vec::new(),
             notes: vec![
-                "RAPL counters unreadable — energy cannot be measured. On Linux: \
+                "RAPL counters unreadable - energy cannot be measured. On Linux: \
                  sudo chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj"
                     .to_string(),
             ],
@@ -524,12 +524,12 @@ pub fn measure_power(model_xml: &Path, seconds_per_device: u64, repeats: usize) 
 
     notes.push(format!(
         "Idle sampled once per round: {} values, median {idle_median:.2} W, spread \
-         {noise_floor_w:.2} W. That spread is the noise floor — a difference between two devices \
+         {noise_floor_w:.2} W. That spread is the noise floor - a difference between two devices \
          smaller than it has not been measured.",
         idle_samples.len()
     ));
     notes.push(
-        "Package RAPL covers the whole SoC, including the NPU — there is no separate NPU domain. \
+        "Package RAPL covers the whole SoC, including the NPU - there is no separate NPU domain. \
          These figures are therefore package power *while* a device was working, and the NPU's own \
          draw is the difference between its row and the CPU row, not an absolute reading."
             .to_string(),
