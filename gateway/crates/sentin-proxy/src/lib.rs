@@ -170,7 +170,11 @@ async fn proxy(State(state): State<AppState>, request: Request) -> Response {
     let client_addr = request
         .extensions()
         .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-        .map(|info| info.0.to_string());
+        // The address without the port. The port is ephemeral - a new one per request - so an
+        // event carrying it cannot be grouped by caller, which is the one thing a SIEM wants to do
+        // with this field. Found by a Wazuh frequency rule that could never fire: eight requests
+        // from one workstation looked like eight different callers.
+        .map(|info| info.0.ip().to_string());
 
     let Some((provider_name, provider_config)) = state.config.provider_for(&path) else {
         return error(

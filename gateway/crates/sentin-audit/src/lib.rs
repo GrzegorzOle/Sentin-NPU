@@ -87,9 +87,13 @@ pub struct Event {
     /// The device that *actually* executed, which `AUTO` makes worth recording.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device: Option<Device>,
-    /// Who sent the request, as `ip:port`. The one field that answers "whose workstation was
-    /// this", which a decision without an owner cannot. It is an address, not an identity, and it
-    /// is as personal as any proxy log - a deployment that must not record it turns the sink off.
+    /// Who sent the request: the caller's IP address, without the port.
+    ///
+    /// The one field that answers "whose workstation was this", which a decision without an owner
+    /// cannot. **No port**, deliberately: it is ephemeral, so an event carrying it cannot be
+    /// grouped by caller, and grouping by caller is the only thing a SIEM does with this field.
+    /// It is an address, not an identity, and it is as personal as any proxy log - a deployment
+    /// that must not record it turns the sink off.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_addr: Option<String>,
     /// The upstream model the caller asked for, e.g. `ovh-llama` or `claude-sonnet-4`.
@@ -442,13 +446,13 @@ mod tests {
         let event = Event::new("2026-08-31T20:00:00Z", EventKind::PiiDetected)
             .detector("pesel")
             .data_type(DataKind::Pesel)
-            .client_addr("172.19.0.4:52318")
+            .client_addr("172.19.0.4")
             .upstream_model("ovh-llama")
             .provider("openai")
             .model_id("seq128");
 
         let json = serde_json::to_string(&event).expect("serialises");
-        assert!(json.contains("172.19.0.4:52318"), "{json}");
+        assert!(json.contains(r#""client_addr":"172.19.0.4""#), "{json}");
         assert!(json.contains(r#""upstream_model":"ovh-llama""#), "{json}");
         assert!(json.contains(r#""provider":"openai""#), "{json}");
         assert!(

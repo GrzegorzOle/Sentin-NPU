@@ -534,7 +534,7 @@ Every detection produces an event - **metadata only, never content**:
   "content_sha256": "sha256:…",
   "model_id": "seq128",
   "device": "NPU",
-  "client_addr": "10.1.2.3:52318",
+  "client_addr": "10.1.2.3",
   "upstream_model": "claude-sonnet-4",
   "provider": "anthropic"
 }

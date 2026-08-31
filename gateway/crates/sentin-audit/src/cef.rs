@@ -66,13 +66,7 @@ pub fn render(event: &Event, product_version: &str) -> String {
     // The requester goes in CEF's own source fields rather than a custom string, so a SIEM that
     // knows CEF correlates it with everything else it already calls a source address.
     if let Some(addr) = &event.client_addr {
-        match addr.rsplit_once(':') {
-            Some((host, port)) => {
-                push("src", host);
-                push("spt", port);
-            }
-            None => push("src", addr),
-        }
+        push("src", addr);
     }
     if let Some(model) = &event.upstream_model {
         push("cs5Label", "upstreamModel");

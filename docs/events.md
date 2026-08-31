@@ -36,7 +36,7 @@ schema, however convenient.
 | `content_sha256` | hex | hash of the inspected payload, never the payload |
 | `model_id` | string | **the IR directory name**, e.g. `seq128`; absent for layer-1-only events |
 | `device` | enum | `NPU`, `GPU`, `CPU`, `AUTO` - the device that *actually* executed |
-| `client_addr` | string | who sent the request, as `ip:port`, taken from the connection and never from a header a caller controls |
+| `client_addr` | string | who sent the request: the caller's IP, taken from the connection and never from a header a caller controls. **No port** - it is ephemeral, so an event carrying it cannot be grouped by caller |
 | `upstream_model` | string | the model the caller asked for, e.g. `ovh-llama`, `claude-sonnet-4`, `gemini-2.5-pro` |
 | `provider` | string | the adapter that handled it: `anthropic`, `openai`, `google` |
 

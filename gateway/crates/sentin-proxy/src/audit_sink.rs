@@ -98,7 +98,7 @@ pub struct RequestContext<'a> {
     pub model_id: Option<&'a str>,
     /// The device that executed inspection.
     pub device: Option<&'a str>,
-    /// Who sent it, `ip:port`. `None` where the server exposes no peer address.
+    /// Who sent it, by IP. `None` where the server exposes no peer address.
     pub client_addr: Option<&'a str>,
     /// The model the caller asked for, e.g. `ovh-llama`.
     pub upstream_model: Option<&'a str>,

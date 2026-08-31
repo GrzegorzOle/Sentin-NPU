@@ -164,7 +164,7 @@ All under `data.`, straight from the JSON. The schema is authoritative in
 | `data.detector` | `pesel` | the configured detector key |
 | `data.data_type` | `PESEL` | `NIP`, `REGON`, `IBAN`, `PAYMENT_CARD`, `EMAIL`, `PHONE_PL`, `PERSON`, `ORGANIZATION`, `LOCATION` |
 | `data.decision` | `masked` | `observed`, `advised`, `masked`, `blocked`, `user_override` |
-| `data.client_addr` | `10.1.2.3:52318` | who sent it |
+| `data.client_addr` | `10.1.2.3` | who sent it. No port: it changes per request, and a frequency rule keyed on it would never group |
 | `data.upstream_model` | `claude-sonnet-4` | the model the data was heading for |
 | `data.provider` | `openai` | the adapter that handled it |
 | `data.target_host` | `api.anthropic.com` | host only, never a full URL |
