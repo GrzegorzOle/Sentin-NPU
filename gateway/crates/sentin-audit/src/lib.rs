@@ -87,6 +87,23 @@ pub struct Event {
     /// The device that *actually* executed, which `AUTO` makes worth recording.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device: Option<Device>,
+    /// Who sent the request, as `ip:port`. The one field that answers "whose workstation was
+    /// this", which a decision without an owner cannot. It is an address, not an identity, and it
+    /// is as personal as any proxy log - a deployment that must not record it turns the sink off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_addr: Option<String>,
+    /// The upstream model the caller asked for, e.g. `ovh-llama` or `claude-sonnet-4`.
+    ///
+    /// Not to be confused with [`Event::model_id`], which names the *inspecting* NER model. This
+    /// is the model the data was about to be sent to, and it is what makes "which model is our
+    /// data leaking towards" answerable at all.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upstream_model: Option<String>,
+    /// Which adapter handled it - `anthropic`, `openai`, `google`. Coarser than `target_host` and
+    /// stable across upstream changes, so a dashboard can group by it without breaking when a
+    /// router moves.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
     /// Free-form context that is safe to record: policy names, versions, requested-vs-actual
     /// device. Never text taken from a request — see [`Event::detail`].
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
@@ -107,6 +124,9 @@ impl Event {
             content_sha256: None,
             model_id: None,
             device: None,
+            client_addr: None,
+            upstream_model: None,
+            provider: None,
             detail: std::collections::BTreeMap::new(),
         }
     }
@@ -157,6 +177,27 @@ impl Event {
     #[must_use]
     pub fn device(mut self, device: Device) -> Self {
         self.device = Some(device);
+        self
+    }
+
+    /// Record who sent the request, as `ip:port`.
+    #[must_use]
+    pub fn client_addr(mut self, addr: impl Into<String>) -> Self {
+        self.client_addr = Some(addr.into());
+        self
+    }
+
+    /// Record the upstream model the caller asked for.
+    #[must_use]
+    pub fn upstream_model(mut self, model: impl Into<String>) -> Self {
+        self.upstream_model = Some(model.into());
+        self
+    }
+
+    /// Record which provider adapter handled the request.
+    #[must_use]
+    pub fn provider(mut self, provider: impl Into<String>) -> Self {
+        self.provider = Some(provider.into());
         self
     }
 
@@ -392,6 +433,40 @@ mod tests {
             "the data kind is what gets recorded"
         );
         assert!(json.contains("masked"));
+    }
+
+    #[test]
+    fn an_event_names_the_caller_and_the_model_the_data_was_heading_for() {
+        // The two questions a SOC asks about a detection are whose machine sent it and where it
+        // was going. Both are metadata; neither is content.
+        let event = Event::new("2026-08-31T20:00:00Z", EventKind::PiiDetected)
+            .detector("pesel")
+            .data_type(DataKind::Pesel)
+            .client_addr("172.19.0.4:52318")
+            .upstream_model("ovh-llama")
+            .provider("openai")
+            .model_id("seq128");
+
+        let json = serde_json::to_string(&event).expect("serialises");
+        assert!(json.contains("172.19.0.4:52318"), "{json}");
+        assert!(json.contains(r#""upstream_model":"ovh-llama""#), "{json}");
+        assert!(json.contains(r#""provider":"openai""#), "{json}");
+        assert!(
+            json.contains(r#""model_id":"seq128""#),
+            "the inspecting model stays a separate field from the model being queried: {json}"
+        );
+    }
+
+    #[test]
+    fn the_new_fields_are_omitted_rather_than_null_when_unknown() {
+        // A parser written from docs/events.md treats an absent field as absent. Serialising
+        // nulls would make every event carry three fields that say nothing.
+        let json =
+            serde_json::to_string(&Event::new("2026-08-31T20:00:00Z", EventKind::PiiDetected))
+                .expect("serialises");
+        assert!(!json.contains("client_addr"), "{json}");
+        assert!(!json.contains("upstream_model"), "{json}");
+        assert!(!json.contains("provider"), "{json}");
     }
 
     #[test]

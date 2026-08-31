@@ -85,6 +85,27 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
+/// Everything about a request that an audit event may record, and nothing from its body.
+///
+/// A struct rather than six positional arguments: the fields are all `Option<&str>` of the same
+/// type, and two of them swapping places would compile and quietly mislabel every event a SIEM
+/// receives.
+#[derive(Debug, Clone, Copy)]
+pub struct RequestContext<'a> {
+    /// Upstream host the request was bound for. Host only, never the full URL.
+    pub target_host: &'a str,
+    /// The inspecting NER model, by IR directory name.
+    pub model_id: Option<&'a str>,
+    /// The device that executed inspection.
+    pub device: Option<&'a str>,
+    /// Who sent it, `ip:port`. `None` where the server exposes no peer address.
+    pub client_addr: Option<&'a str>,
+    /// The model the caller asked for, e.g. `ovh-llama`.
+    pub upstream_model: Option<&'a str>,
+    /// The adapter that handled it: `anthropic`, `openai`, `google`.
+    pub provider: &'a str,
+}
+
 /// Emit everything one inspected request warrants.
 ///
 /// One `pii_detected` per finding, so a SIEM can count data types, plus one `decision_made` for
@@ -94,15 +115,14 @@ pub fn record_request(
     emitter: &Fanout,
     verdict: &Inspection,
     payload: &[u8],
-    target_host: &str,
-    model_id: Option<&str>,
-    device: Option<&str>,
+    context: &RequestContext<'_>,
 ) {
     if verdict.findings.is_empty() && verdict.ner_skipped.is_none() {
         return;
     }
     let ts = now_rfc3339();
     let hash = digest(payload);
+    let target_host = context.target_host;
 
     for finding in &verdict.findings {
         let mut event = Event::new(&ts, EventKind::PiiDetected)
@@ -110,11 +130,18 @@ pub fn record_request(
             .data_type(finding.kind)
             .target_host(target_host)
             .decision(finding.decision)
-            .content_sha256(&hash);
-        if let Some(model) = model_id {
+            .content_sha256(&hash)
+            .provider(context.provider);
+        if let Some(model) = context.model_id {
             event = event.model_id(model);
         }
-        if let Some(device) = device {
+        if let Some(addr) = context.client_addr {
+            event = event.client_addr(addr);
+        }
+        if let Some(model) = context.upstream_model {
+            event = event.upstream_model(model);
+        }
+        if let Some(device) = context.device {
             // The schema types this field, so fill it rather than smuggling the device through a
             // free-form detail: a SIEM parser written from docs/events.md looks for `device`, and
             // for a long time would not have found it. An unrecognised name still goes to detail,
@@ -128,13 +155,22 @@ pub fn record_request(
     }
 
     if !verdict.findings.is_empty() {
-        emitter.emit(
-            &Event::new(&ts, EventKind::DecisionMade)
-                .target_host(target_host)
-                .decision(verdict.decision)
-                .content_sha256(&hash)
-                .detail("findings", verdict.findings.len().to_string()),
-        );
+        // The summary event carries the same context as the detections. A dashboard that counts
+        // requests rather than findings would otherwise have no caller and no destination to group
+        // by, and counting findings over-weights one request that happened to carry six numbers.
+        let mut event = Event::new(&ts, EventKind::DecisionMade)
+            .target_host(target_host)
+            .decision(verdict.decision)
+            .content_sha256(&hash)
+            .provider(context.provider)
+            .detail("findings", verdict.findings.len().to_string());
+        if let Some(addr) = context.client_addr {
+            event = event.client_addr(addr);
+        }
+        if let Some(model) = context.upstream_model {
+            event = event.upstream_model(model);
+        }
+        emitter.emit(&event);
     }
 
     if let Some(reason) = &verdict.ner_skipped {
@@ -215,6 +251,17 @@ mod tests {
         assert_eq!(civil_from_days(19_782), (2024, 2, 29), "a leap day");
     }
 
+    fn context<'a>(target_host: &'a str) -> RequestContext<'a> {
+        RequestContext {
+            target_host,
+            model_id: None,
+            device: None,
+            client_addr: None,
+            upstream_model: None,
+            provider: "anthropic",
+        }
+    }
+
     #[test]
     fn one_event_per_finding_plus_one_decision() {
         let sink = Fanout::new().with(Box::new(MemoryEmitter::new()));
@@ -222,9 +269,7 @@ mod tests {
             &sink,
             &inspection(),
             b"payload",
-            "api.anthropic.com",
-            None,
-            None,
+            &context("api.anthropic.com"),
         );
         // Two findings and one decision; MemoryEmitter is behind the fanout so count via JSONL
         // semantics instead — see the e2e test for the full assertion.
@@ -235,7 +280,7 @@ mod tests {
     fn a_clean_request_emits_nothing() {
         let sink = Fanout::new();
         let clean = Inspection::clean();
-        record_request(&sink, &clean, b"payload", "host", None, None);
+        record_request(&sink, &clean, b"payload", &context("host"));
         // Nothing to assert beyond "does not panic and does not fabricate an event": a request
         // with no findings has nothing to report, and a SIEM full of empty events is noise.
         assert!(sink.is_empty());

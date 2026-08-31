@@ -36,9 +36,29 @@ schema, however convenient.
 | `content_sha256` | hex | hash of the inspected payload, never the payload |
 | `model_id` | string | **the IR directory name**, e.g. `seq128`; absent for layer-1-only events |
 | `device` | enum | `NPU`, `GPU`, `CPU`, `AUTO` - the device that *actually* executed |
+| `client_addr` | string | who sent the request, as `ip:port`, taken from the connection and never from a header a caller controls |
+| `upstream_model` | string | the model the caller asked for, e.g. `ovh-llama`, `claude-sonnet-4`, `gemini-2.5-pro` |
+| `provider` | string | the adapter that handled it: `anthropic`, `openai`, `google` |
 
 Every optional field is **omitted** when unset rather than serialised as `null`, so a parser must
 treat absence as normal - a layer-1 finding carries no `model_id` and no `device`.
+
+**`model_id` and `upstream_model` are different models and are the pair most likely to be
+confused.** `model_id` is the NER model doing the *inspecting*, reported as its IR directory name
+(`seq128`); `upstream_model` is the model the data was about to be *sent to*. A dashboard answering
+"which model is our data heading towards" reads `upstream_model`; one answering "which detector
+version produced this finding" reads `model_id`.
+
+**`client_addr` is personal data in most deployments**, in the same way any proxy log is. It is
+recorded because a decision without an owner cannot be acted on - "someone pasted a PESEL" is not
+an incident anyone can close. It is an address, not an identity: the gateway performs no user
+authentication and does not record credentials, not even a hash of one. A deployment that must not
+retain addresses disables the sink rather than filtering the field, because the same value reaches
+every emitter.
+
+`upstream_model` is read from the request body's `model` for OpenAI- and Anthropic-shaped calls, and
+from the path for Google (`/v1beta/models/<name>:generateContent`). Where neither is present the
+field is absent rather than guessed.
 
 `detector` and `data_type` are close to redundant today: a layer-2 `PERSON` finding reports
 `detector: "person"`. They are kept apart because `detector` names the thing an operator configures

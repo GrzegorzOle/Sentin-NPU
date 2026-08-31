@@ -103,6 +103,9 @@ pub fn to_otlp(events: &[Event], version: &str) -> Value {
             add("content_sha256", event.content_sha256.clone());
             add("model_id", event.model_id.clone());
             add("device", event.device.map(|d| format!("{d:?}")));
+            add("client_addr", event.client_addr.clone());
+            add("upstream_model", event.upstream_model.clone());
+            add("provider", event.provider.clone());
             for (key, value) in &event.detail {
                 attributes.push(attribute(key, value));
             }

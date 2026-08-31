@@ -164,6 +164,13 @@ async fn proxy(State(state): State<AppState>, request: Request) -> Response {
     let started = Instant::now();
     let path = request.uri().path().to_string();
     let query = request.uri().query().map(str::to_string);
+    // Read from the extensions rather than as an extractor: `ConnectInfo` is only present when the
+    // server was built with it, and the e2e tests drive the router directly. A missing address is
+    // recorded as missing, never guessed from a header a caller controls.
+    let client_addr = request
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map(|info| info.0.to_string());
 
     let Some((provider_name, provider_config)) = state.config.provider_for(&path) else {
         return error(
@@ -216,9 +223,14 @@ async fn proxy(State(state): State<AppState>, request: Request) -> Response {
                 &state.audit,
                 &verdict,
                 &bytes,
-                &host,
-                model_id(&state.config.inference.model_dir),
-                state.ner.as_ref().map(|n| n.device()),
+                &crate::audit_sink::RequestContext {
+                    target_host: &host,
+                    model_id: model_id(&state.config.inference.model_dir),
+                    device: state.ner.as_ref().map(|n| n.device()),
+                    client_addr: client_addr.as_deref(),
+                    upstream_model: upstream_model(&json, &path).as_deref(),
+                    provider: &provider_name,
+                },
             );
 
             if verdict.decision == Decision::Blocked {
@@ -319,6 +331,27 @@ fn upstream_host(upstream: &str) -> String {
         .to_string()
 }
 
+/// The upstream model the caller asked for, for the audit trail.
+///
+/// Two providers put it in two places. OpenAI and Anthropic carry `"model"` in the body; Google
+/// puts it in the path, as `/v1beta/models/gemini-2.5-pro:generateContent`. Both are read, because
+/// "which model was this data heading for" is the question a SOC asks first and it must not depend
+/// on which vendor the caller happened to use.
+///
+/// Returns `None` rather than a guess when neither shape matches - an absent field is honest, an
+/// invented one is not.
+fn upstream_model(body: &Value, path: &str) -> Option<String> {
+    if let Some(model) = body.get("model").and_then(Value::as_str) {
+        if !model.is_empty() {
+            return Some(model.to_string());
+        }
+    }
+    // Google: .../models/<name>:<method>. Take the segment after `models/`, up to the colon.
+    let after = path.split("/models/").nth(1)?;
+    let name = after.split(':').next().unwrap_or(after).trim_matches('/');
+    (!name.is_empty()).then(|| name.to_string())
+}
+
 /// The `model_id` an audit event carries: the last component of the model directory.
 ///
 /// Split on both separators, not just `/`. On Windows the configured path is
@@ -364,7 +397,14 @@ fn error(status: StatusCode, message: &str) -> Response {
 /// # Errors
 /// Returns an error if the listener cannot bind or the server stops unexpectedly.
 pub async fn serve(listener: tokio::net::TcpListener, state: AppState) -> std::io::Result<()> {
-    axum::serve(listener, router(state).into_make_service()).await
+    // `with_connect_info` rather than `into_make_service`: without it the peer address is not
+    // available to the handler at all, and an audit trail that cannot say which workstation sent
+    // a request answers "what happened" but never "to whom to talk about it".
+    axum::serve(
+        listener,
+        router(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
 }
 
 /// Unused re-export kept so downstream code can build a body without importing axum directly.
@@ -374,6 +414,31 @@ pub type ProxyBody = Body;
 mod tests {
     use super::*;
     use axum::http::HeaderValue;
+
+    #[test]
+    fn the_upstream_model_is_read_from_the_body_or_the_google_path() {
+        let body: Value = serde_json::json!({"model": "ovh-llama", "messages": []});
+        assert_eq!(
+            upstream_model(&body, "/openai/v1/chat/completions").as_deref(),
+            Some("ovh-llama")
+        );
+
+        // Google names the model in the path, not the body.
+        let empty: Value = serde_json::json!({"contents": []});
+        assert_eq!(
+            upstream_model(
+                &empty,
+                "/google/v1beta/models/gemini-2.5-pro:generateContent"
+            )
+            .as_deref(),
+            Some("gemini-2.5-pro")
+        );
+
+        // Nothing to read is recorded as nothing, not as a guess.
+        assert_eq!(upstream_model(&empty, "/openai/v1/embeddings"), None);
+        let blank: Value = serde_json::json!({"model": ""});
+        assert_eq!(upstream_model(&blank, "/openai/v1/chat/completions"), None);
+    }
 
     #[test]
     fn model_id_is_the_last_path_component_on_both_platforms() {
