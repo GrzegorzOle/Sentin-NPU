@@ -54,7 +54,8 @@ jobs:
 
       - name: Checksums
         run: |
-          cd dist && sha256sum *.tar.gz *.zip *.AppImage > SHA256SUMS.txt && cat SHA256SUMS.txt
+          cd dist && sha256sum *.tar.gz *.zip Sentin-NPU-*.AppImage > SHA256SUMS.txt
+          cat dist/SHA256SUMS.txt
 
       # dist/*.tar.gz covers three things: the Linux bundle and the two standalone IR archives
       # that make-release.sh produces alongside it (sentin-npu-model-herbert-int8-seq*.tar.gz).
@@ -76,7 +77,7 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.zip
-            dist/*.AppImage
+            dist/Sentin-NPU-*.AppImage
             dist/SHA256SUMS.txt
           prerelease: false
           generate_release_notes: true
@@ -125,6 +126,9 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           SETUP="packaging/windows/out/sentin-npu-setup-${VERSION}.exe"
           gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS.txt --dir sums
-          ( cd "$(dirname "$SETUP")" && sha256sum "$(basename "$SETUP")" ) >> sums/SHA256SUMS.txt
+          # sha256sum on Windows marks binary mode with a leading '*' on the filename. The Linux
+          # job's lines have no such mark, and a checksum file that is formatted two ways invites
+          # someone to write a parser for it.
+          ( cd "$(dirname "$SETUP")" && sha256sum "$(basename "$SETUP")" )             | sed 's/ \*/  /' >> sums/SHA256SUMS.txt
           gh release upload "$GITHUB_REF_NAME" "$SETUP" --clobber
           gh release upload "$GITHUB_REF_NAME" sums/SHA256SUMS.txt --clobber

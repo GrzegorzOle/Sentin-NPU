@@ -73,7 +73,11 @@ DESKTOP
 cp "$APPDIR/sentin-npu.desktop" "$APPDIR/usr/share/applications/"
 
 echo "== appimagetool"
-TOOL="$OUT/appimagetool-x86_64.AppImage"
+# Cached in a dot directory rather than beside the artefacts. The release workflow globs
+# dist/*.AppImage, and v0.0.0.11 duly published appimagetool as though it were ours.
+TOOLS="$OUT/.tools"
+mkdir -p "$TOOLS"
+TOOL="$TOOLS/appimagetool-x86_64.AppImage"
 if [ ! -x "$TOOL" ]; then
     curl -fsSL -o "$TOOL" \
         "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
