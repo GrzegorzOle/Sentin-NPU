@@ -56,8 +56,13 @@ model toolchain that converts and quantizes the NER model; it is never in the re
    deterministic, unambiguous violations (e.g. a valid credit card number).
 3. **Audit without content** - SIEM events carry metadata (data type, target
    app, decision, hash), never the sensitive text itself.
-4. **NPU-first, CPU-fallback** - inference targets the NPU via OpenVINO;
-   falls back to CPU/GPU transparently when an operation is unsupported.
+4. **The device is measured, not assumed** - `AUTO` compiles and times the model
+   on every device OpenVINO enumerates, rejects any that cannot hold the
+   inference budget, and prefers the cheapest of the rest (NPU, then integrated
+   GPU, then CPU). Enumeration only proves a device exists: a discrete card
+   reached through the OpenCL ICD ran the same model 26x slower than the CPU
+   beside it. Fallback stays transparent, and the device that actually executed
+   is logged and carried in every audit event.
 
 ## Quick start
 

@@ -107,10 +107,16 @@ enabling inspection.
 
 ### M2b - full pipeline with layer 2 (threshold p95 < 150 ms on CPU)
 
-Device **CPU explicitly**, not `AUTO`: on this machine `AUTO` resolves to the NVIDIA dGPU reached
+Device **CPU explicitly**, not `AUTO`: on this machine `AUTO` resolved to the NVIDIA dGPU reached
 through the OpenCL ICD, which runs the same model in ~116 ms against ~12 ms on CPU. The priority
-order (NPU > GPU > CPU) is right for Intel, where `GPU` means the iGPU, but here it would have
-measured the wrong device.
+order (NPU > GPU > CPU) is right for Intel, where `GPU` means the iGPU, but here it measured the
+wrong device.
+
+**This is the measurement that ended the fixed order.** `AUTO` now times every enumerated device on
+the real model and rejects anything over `inference.max_inference_ms`, so the pin below is no
+longer needed to get an honest number - it is kept here because these rows were measured with it.
+The same fault reappeared, larger, on a Windows desktop with an RTX 3060: 224.8 ms against 8.7 ms
+on the CPU.
 
 HerBERT INT8, sequence 128, payload containing a person, a location and an organisation.
 
