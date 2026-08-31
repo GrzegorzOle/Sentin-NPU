@@ -48,8 +48,6 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\sentin-gateway.exe
-; ~280 MB of payload; saying so up front is politer than a progress bar that stalls.
-DiskSpaceCalculation=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -86,7 +84,7 @@ Name: "{group}\Deployment guide"; Filename: "{app}\wazuh\README.md"; Components:
 
 [Run]
 Filename: "{app}\sentin-gateway.exe"; Parameters: "--install-service ""{commonappdata}\{#AppName}\config.yaml"""; StatusMsg: "Registering the Windows service..."; Flags: runhidden; Check: WantsService
-Filename: "{sys}\sc.exe"; Parameters: "start {#ServiceName}"; StatusMsg: "Starting the gateway..."; Flags: runhidden; Check: WantsService and WantsStartNow
+Filename: "{sys}\sc.exe"; Parameters: "start {#ServiceName}"; StatusMsg: "Starting the gateway..."; Flags: runhidden; Check: WantsStartNow
 Filename: "{app}\sentin-doctor.exe"; Description: "Show what this machine can run the model on"; Flags: postinstall skipifsilent nowait; Components: tools
 
 [UninstallRun]
@@ -105,7 +103,9 @@ end;
 
 function WantsStartNow: Boolean;
 begin
-  Result := ServicePage.Values[1];
+  { Both, in one function: a Check parameter takes a single call rather than an expression, and
+    starting a service that was never registered would fail in a way nobody could act on. }
+  Result := ServicePage.Values[0] and ServicePage.Values[1];
 end;
 
 procedure InitializeWizard;
