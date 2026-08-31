@@ -44,6 +44,10 @@ jobs:
 
       - name: Compile the installer script
         shell: bash
+        env:
+          # Git Bash rewrites an argument that starts with a slash into a Windows path, so ISCC
+          # would receive `D:\Version=...` and refuse it as a second script filename.
+          MSYS_NO_PATHCONV: "1"
         run: |
           "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
             "/DVersion=0.0.0-ci" \

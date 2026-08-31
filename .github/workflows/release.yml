@@ -105,6 +105,10 @@ jobs:
 
       - name: Build the installer
         shell: bash
+        env:
+          # Git Bash rewrites an argument that starts with a slash into a Windows path, so ISCC
+          # would receive a mangled /DVersion and refuse it as a second script filename.
+          MSYS_NO_PATHCONV: "1"
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           "/c/Program Files (x86)/Inno Setup 6/ISCC.exe"             "/DVersion=$VERSION"             "/DPayload=$(pwd -W)/dist/sentin-npu-diag-${VERSION}-windows-x64"             packaging/windows/sentin-npu.iss
