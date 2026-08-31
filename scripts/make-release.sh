@@ -109,6 +109,17 @@ no personal data and nothing from any inspected request.
 EOF
 }
 
+stage_wazuh() {
+    local stage="$1"
+    mkdir -p "${stage}/wazuh"
+    cp "${REPO}/packaging/wazuh/sentin_npu_rules.xml" \
+       "${REPO}/packaging/wazuh/agent-localfile.conf" \
+       "${REPO}/packaging/wazuh/sentin-npu-dashboard.ndjson" \
+       "${REPO}/packaging/wazuh/deploy-manager.sh" \
+       "${REPO}/packaging/wazuh/README.md" "${stage}/wazuh/"
+    chmod +x "${stage}/wazuh/deploy-manager.sh"
+}
+
 stage_linux() {
     local stage="${OUT}/sentin-npu-diag-${VERSION}-linux-x64"
     say "linux: staging"
@@ -126,6 +137,10 @@ stage_linux() {
     mkdir -p "${stage}/systemd"
     cp "${REPO}/packaging/systemd/sentin-npu.service" "${stage}/systemd/"
     cp "${REPO}/scripts/install.sh" "${stage}/install.sh"
+    # The SIEM integration travels with the binary. Someone deploying the gateway into a SOC has a
+    # Wazuh administrator to hand the rules to on the same day, and asking them to go and find a
+    # directory in a git repository is how an integration stays unshipped.
+    stage_wazuh "${stage}"
     # The shipped config points layer 2 at the bundled model rather than a path that only exists
     # in the source tree, so the gateway works straight out of the archive.
     sed -e 's|^  model_dir:.*|  model_dir: models/seq128|' \
@@ -170,6 +185,7 @@ stage_windows() {
     sed -e 's|^  model_dir:.*|  model_dir: models/seq128|' \
         "${REPO}/config/default.yaml" > "${stage}/config.yaml"
 
+    stage_wazuh "${stage}"
     copy_models "${stage}/models"
     cp "${REPO}/scripts/run-diagnostics.ps1" "${stage}/run.ps1"
     write_readme "${stage}" "Windows x86-64" \

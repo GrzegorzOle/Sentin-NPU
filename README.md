@@ -97,10 +97,12 @@ sentin-gateway ~/.local/share/sentin-npu/config.yaml
 ```
 
 `packaging/systemd/` holds a **user** unit if you want it running as a service. The Windows zip is
-built by the same CI job and now carries the same three binaries as the Linux bundle, so
-`run.ps1` collects the device report *and* pipeline latency per device. It has still **never been
-executed on Windows** - it compiles and packs, nothing more, so treat it as untested. Energy is
-Linux-only regardless: Windows has no RAPL sysfs.
+built by the same CI job, carries the same three binaries as the Linux bundle, and **was executed
+end to end on Windows 11 on 2026-08-31**: it runs with no toolchain present, collects the device
+report and measures pipeline latency per device. On that machine OpenVINO enumerated a discrete
+NVIDIA card through the OpenCL ICD and ran the model at 224.8 ms against 8.7 ms on the CPU, which
+is the measurement behind device selection being by timing rather than by a fixed order. Energy
+remains Linux-only: Windows has no RAPL sysfs.
 
 ### Just the model
 
@@ -531,7 +533,10 @@ Every detection produces an event - **metadata only, never content**:
   "decision": "masked",
   "content_sha256": "sha256:…",
   "model_id": "seq128",
-  "device": "NPU"
+  "device": "NPU",
+  "client_addr": "10.1.2.3:52318",
+  "upstream_model": "claude-sonnet-4",
+  "provider": "anthropic"
 }
 ```
 
@@ -542,6 +547,18 @@ sensitive value, which is what keeps the audit trail from becoming the leak.
 Formats: CEF over syslog (UDP/TCP), OTLP over HTTP (JSON encoding), and JSONL to a file - all
 three implemented, configured in `config/default.yaml`, and fanned out to independently. Field
 reference: **[docs/events.md](docs/events.md)**, which is authoritative for the schema.
+
+`client_addr` and `upstream_model` are what make the trail supervisable rather than merely
+complete: the first says whose workstation sent the data, the second says which model it was
+heading for. Note that `upstream_model` (the model being queried) and `model_id` (the NER model
+doing the inspecting) are different fields.
+
+### Wazuh
+
+A ready-to-deploy integration ships in **[packaging/wazuh/](packaging/wazuh/)** and in every
+release bundle under `wazuh/`: rules, the agent collection snippet, a dashboard with twelve panels
+and a deployment guide written for a Wazuh administrator who has never seen this project. There is
+no decoder to install - the gateway writes JSON, so Wazuh's own decoder exposes every field.
 
 Two properties the implementation guarantees rather than promises: an emitter that fails - full
 disk, unreachable collector - is logged and skipped, never propagated into the request; and a

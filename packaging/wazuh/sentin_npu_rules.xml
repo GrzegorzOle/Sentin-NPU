@@ -1,0 +1,131 @@
+<!--
+  Sentin-NPU audit events, rules 100500-100531.
+
+  The gateway writes JSON, one object per line, collected by the agent as log_format json, so
+  Wazuh's own decoder produces data.<field> and there is no custom decoder to maintain. Fields are
+  fixed by docs/events.md, which is authoritative: event, detector, data_type, target_host,
+  decision, content_sha256, model_id, device, client_addr, upstream_model, provider.
+
+  Severity follows what the operator can act on rather than what sounds dramatic. A blocked request
+  is the loudest, because a user was refused and will ask why. A masked one still matters: data was
+  about to leave the machine. Advised and observed are layer-2 opinions the user was free to
+  ignore, and a SOC that pages on those learns to ignore the source.
+-->
+<group name="sentin,sentin_npu,dlp,">
+
+  <!-- Level 0: the anchor every child hangs off, never an alert of its own. Matching the event
+       field is what proves the line was decoded as our JSON at all. -->
+  <rule id="100500" level="0">
+    <field name="event">^pii_detected$|^decision_made$|^inspection_timeout$|^device_fallback$|^gateway_start$|^gateway_stop$</field>
+    <description>Sentin-NPU: audit event</description>
+  </rule>
+
+  <rule id="100501" level="12">
+    <if_sid>100500</if_sid>
+    <field name="event">^pii_detected$</field>
+    <field name="decision">^blocked$</field>
+    <description>Sentin-NPU: $(data.data_type) blocked before leaving the machine, from $(data.client_addr) towards $(data.upstream_model)</description>
+    <group>pii_blocked,gdpr_IV_35.7.d,</group>
+  </rule>
+
+  <rule id="100502" level="7">
+    <if_sid>100500</if_sid>
+    <field name="event">^pii_detected$</field>
+    <field name="decision">^masked$</field>
+    <description>Sentin-NPU: $(data.data_type) masked before leaving the machine, from $(data.client_addr) towards $(data.upstream_model)</description>
+    <group>pii_masked,gdpr_IV_35.7.d,</group>
+  </rule>
+
+  <!-- Identifiers whose leak is reportable on its own, not merely untidy. Same event, higher
+       severity, so a dashboard can separate "a name went out" from "a national ID went out". -->
+  <rule id="100503" level="9">
+    <if_sid>100502</if_sid>
+    <field name="data_type">^PESEL$|^PAYMENT_CARD$|^IBAN$</field>
+    <description>Sentin-NPU: high-value identifier $(data.data_type) masked, from $(data.client_addr) towards $(data.upstream_model)</description>
+    <group>pii_masked,pii_high_value,gdpr_IV_35.7.d,</group>
+  </rule>
+
+  <rule id="100504" level="4">
+    <if_sid>100500</if_sid>
+    <field name="event">^pii_detected$</field>
+    <field name="decision">^advised$</field>
+    <description>Sentin-NPU: $(data.data_type) detected and advised, from $(data.client_addr) towards $(data.upstream_model)</description>
+    <group>pii_advised,</group>
+  </rule>
+
+  <rule id="100505" level="3">
+    <if_sid>100500</if_sid>
+    <field name="event">^pii_detected$</field>
+    <field name="decision">^observed$</field>
+    <description>Sentin-NPU: $(data.data_type) observed, from $(data.client_addr) towards $(data.upstream_model)</description>
+    <group>pii_observed,</group>
+  </rule>
+
+  <!-- One per request rather than per finding. A dashboard counting requests uses these; counting
+       findings over-weights the one request that happened to carry six numbers. -->
+  <rule id="100510" level="10">
+    <if_sid>100500</if_sid>
+    <field name="event">^decision_made$</field>
+    <field name="decision">^blocked$</field>
+    <description>Sentin-NPU: request from $(data.client_addr) to $(data.upstream_model) refused by policy</description>
+    <group>request_blocked,</group>
+  </rule>
+
+  <rule id="100511" level="5">
+    <if_sid>100500</if_sid>
+    <field name="event">^decision_made$</field>
+    <field name="decision">^masked$</field>
+    <description>Sentin-NPU: request from $(data.client_addr) to $(data.upstream_model) forwarded with identifiers masked</description>
+    <group>request_masked,</group>
+  </rule>
+
+  <!-- Fail-open means this request went out uninspected. It is the failure mode that looks like
+       success in every other view, which is why it outranks a routine masking. -->
+  <rule id="100520" level="8">
+    <if_sid>100500</if_sid>
+    <field name="event">^inspection_timeout$</field>
+    <description>Sentin-NPU: inspection did not finish; traffic from $(data.client_addr) may have left uninspected</description>
+    <group>inspection_gap,</group>
+  </rule>
+
+  <rule id="100521" level="5">
+    <if_sid>100500</if_sid>
+    <field name="event">^device_fallback$</field>
+    <description>Sentin-NPU: inference fell back to another device, now $(data.device)</description>
+    <group>device_fallback,</group>
+  </rule>
+
+  <rule id="100522" level="3">
+    <if_sid>100500</if_sid>
+    <field name="event">^gateway_start$</field>
+    <description>Sentin-NPU: gateway started</description>
+    <group>service_state,</group>
+  </rule>
+
+  <!-- A stop is worth more than a start: with the gateway down, every client configured to route
+       through it either fails or, worse, has a second uninspected route. -->
+  <rule id="100523" level="7">
+    <if_sid>100500</if_sid>
+    <field name="event">^gateway_stop$</field>
+    <description>Sentin-NPU: gateway stopped; inspection is no longer in the path</description>
+    <group>service_state,</group>
+  </rule>
+
+  <!-- Repetition is what turns a mistake into a pattern. One person pasting a PESEL is an
+       accident; the same workstation doing it eight times in five minutes is a habit, and that is
+       the thing a supervisor needs surfaced rather than counted. -->
+  <rule id="100530" level="12" frequency="8" timeframe="300">
+    <if_matched_sid>100502</if_matched_sid>
+    <same_field>data.client_addr</same_field>
+    <description>Sentin-NPU: $(data.client_addr) had identifiers masked 8 times in 5 minutes, towards $(data.upstream_model)</description>
+    <group>pii_repeat,abuse_pattern,</group>
+  </rule>
+
+  <rule id="100531" level="13" frequency="4" timeframe="600">
+    <if_matched_sid>100501</if_matched_sid>
+    <same_field>data.client_addr</same_field>
+    <description>Sentin-NPU: $(data.client_addr) had 4 requests blocked in 10 minutes; policy is being tested</description>
+    <group>pii_repeat,abuse_pattern,</group>
+  </rule>
+
+</group>
