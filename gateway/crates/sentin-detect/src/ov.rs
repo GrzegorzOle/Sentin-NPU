@@ -315,6 +315,27 @@ fn compile_and_run(
     })
 }
 
+/// Time one device on a real IR: compile, first inference, steady state, all in milliseconds.
+///
+/// This is what [`crate::select`] ranks on. It is the same work `--doctor` reports, exposed so that
+/// choosing a device and reporting on one cannot drift apart.
+///
+/// # Errors
+/// Returns the device's own refusal message when the model will not compile or run there.
+pub fn measure_device(
+    core: &mut Core,
+    device: &str,
+    xml: &Path,
+) -> Result<(f64, f64, f64), String> {
+    let bin = xml.with_extension("bin");
+    let timing = compile_and_run(core, device, xml, &bin)?;
+    Ok((
+        timing.compile.as_secs_f64() * 1000.0,
+        timing.first.as_secs_f64() * 1000.0,
+        timing.steady.as_secs_f64() * 1000.0,
+    ))
+}
+
 /// Run inference on `device` as fast as possible for `duration`, returning how many completed.
 ///
 /// This is the loop behind the per-device power comparison: energy per inference only means

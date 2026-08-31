@@ -45,6 +45,8 @@ pub struct NerService {
     policy: TimeoutPolicy,
     device: String,
     fell_back: bool,
+    selection: Option<String>,
+    over_ceiling: bool,
 }
 
 impl NerService {
@@ -54,9 +56,49 @@ impl NerService {
     /// Fails if the model cannot be loaded; the caller decides whether that is fatal. It is not
     /// fatal for the gateway — layer 1 still works without layer 2.
     pub fn start(config: &Inference) -> Result<Self, NerError> {
-        let engine = NerEngine::load(std::path::Path::new(&config.model_dir), &config.device)?;
+        let objective = sentin_detect::select::Objective::parse(&config.select).unwrap_or_else(|| {
+            tracing::warn!(
+                value = %config.select,
+                "unknown inference.select; falling back to cost"
+            );
+            sentin_detect::select::Objective::Cost
+        });
+        let selection = sentin_detect::select::Selection {
+            measure: true,
+            objective,
+            ceiling_ms: config.max_inference_ms,
+        };
+        let engine = NerEngine::load_with(
+            std::path::Path::new(&config.model_dir),
+            &config.device,
+            &selection,
+        )?;
         let device = engine.device().to_string();
         let fell_back = engine.fell_back();
+
+        // The selection is logged where it happens rather than left implicit: a device chosen by
+        // measurement and a device chosen by luck look identical in a startup line that only names
+        // the winner.
+        let (summary, over_ceiling) = match engine.choice() {
+            Some(choice) => {
+                for rejection in &choice.rejected {
+                    tracing::info!(
+                        device = %rejection.device,
+                        reason = %rejection.reason,
+                        "device not selected"
+                    );
+                }
+                (Some(choice.summary()), choice.over_ceiling)
+            }
+            None => (None, false),
+        };
+        if over_ceiling {
+            tracing::warn!(
+                device = %device,
+                ceiling_ms = config.max_inference_ms,
+                "no device meets the inference ceiling; using the fastest one anyway"
+            );
+        }
 
         let (sender, receiver) = mpsc::channel::<Job>();
         std::thread::Builder::new()
@@ -70,6 +112,8 @@ impl NerService {
             policy: config.timeout_policy,
             device,
             fell_back,
+            selection: summary,
+            over_ceiling,
         })
     }
 
@@ -84,6 +128,18 @@ impl NerService {
     #[must_use]
     pub fn fell_back(&self) -> bool {
         self.fell_back
+    }
+
+    /// How the device was chosen, ready for a log line. `None` when the operator pinned one.
+    #[must_use]
+    pub fn selection(&self) -> Option<&str> {
+        self.selection.as_deref()
+    }
+
+    /// True when no device met the configured ceiling and the fastest was taken regardless.
+    #[must_use]
+    pub fn over_ceiling(&self) -> bool {
+        self.over_ceiling
     }
 
     /// What to do when inspection outruns its timeout — fail open or fail closed.

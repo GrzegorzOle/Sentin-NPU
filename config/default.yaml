@@ -27,9 +27,27 @@ providers:
     upstream: https://generativelanguage.googleapis.com
 
 inference:
-  # NPU | GPU | CPU | AUTO. AUTO tries NPU > GPU > CPU.
-  # The dev machine has no OpenVINO-visible NPU; see docs/npu-compat.md before changing this.
+  # NPU | GPU | CPU | AUTO. Naming a device pins it; AUTO measures.
+  #
+  # AUTO used to walk a fixed NPU > GPU > CPU order, which is right on an Intel laptop and wrong
+  # anywhere else: on a desktop with a discrete NVIDIA card reachable through the OpenCL ICD it
+  # picked that card at 224.8 ms per inference over the CPU beside it at 8.7 ms, and blew the
+  # latency budget doing it. AUTO now compiles and times the model on every enumerated device,
+  # rejects anything slower than max_inference_ms, and prefers among the rest by `select`.
+  # The result is cached (see SENTIN_CACHE_DIR); SENTIN_DEVICE_PROBE=force re-measures.
   device: AUTO
+  # What AUTO optimises for once every device has proven it meets the ceiling:
+  #   cost    - the cheaper accelerator first: NPU, integrated GPU, CPU, discrete GPU last.
+  #             Backed by measurement: on a Core Ultra 7 258V at 10 rps the NPU costs 78.21 mJ
+  #             per inference against the iGPU's 160.08, so at equal latency it is the right
+  #             answer by a factor of two. The default.
+  #   latency - simply the fastest measured device.
+  select: cost
+  # The measured steady-state inference a device must beat to be preferred, in milliseconds.
+  # 80 ms is the NPU budget from M2b: below it a device is behaving like an accelerator.
+  # This rejects relative to a working alternative - if nothing on the machine is under it, the
+  # fastest device is used anyway and the gateway says so. It never switches layer 2 off.
+  max_inference_ms: 80
   # The directory holding the IR and its tokenizer.json, not the models/ root: this is the path
   # the toolchain writes for the shorter shape variant. Pointing it one level too high loads
   # nothing and drops the gateway to layer 1 with only a warning, which is easy to miss.

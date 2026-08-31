@@ -86,6 +86,7 @@ impl AppState {
                         device = %service.device(),
                         fell_back = service.fell_back(),
                         policy = ?service.policy(),
+                        selection = service.selection().unwrap_or("pinned by configuration"),
                         "layer 2 ready"
                     );
                     Some(Arc::new(service))

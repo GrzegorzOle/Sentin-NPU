@@ -83,6 +83,19 @@ pub struct Inference {
     /// What to do when it does not finish in time.
     #[serde(default)]
     pub timeout_policy: TimeoutPolicy,
+    /// What `AUTO` optimises for once every device has been timed: `cost` or `latency`.
+    ///
+    /// Ignored when `device` names a device explicitly - an operator who pins a device gets it.
+    #[serde(default = "default_select")]
+    pub select: String,
+    /// The measured steady-state inference a device must beat to be considered, in milliseconds.
+    ///
+    /// This is what stops `AUTO` selecting a device merely because it exists. Default 80 ms: the
+    /// NPU budget from M2b, so a device that cannot hold the accelerator budget is not treated as
+    /// an accelerator. Raise it on a machine where the CPU is the only option and is slower than
+    /// this - the ceiling rejects, it does not disable layer 2.
+    #[serde(default = "default_max_inference_ms")]
+    pub max_inference_ms: f64,
 }
 
 impl Default for Inference {
@@ -92,6 +105,8 @@ impl Default for Inference {
             model_dir: String::new(),
             timeout_ms: default_timeout_ms(),
             timeout_policy: TimeoutPolicy::default(),
+            select: default_select(),
+            max_inference_ms: default_max_inference_ms(),
         }
     }
 }
@@ -106,6 +121,14 @@ impl Inference {
 
 fn default_device() -> String {
     "AUTO".to_string()
+}
+
+fn default_select() -> String {
+    "cost".to_string()
+}
+
+fn default_max_inference_ms() -> f64 {
+    80.0
 }
 
 fn default_timeout_ms() -> u64 {

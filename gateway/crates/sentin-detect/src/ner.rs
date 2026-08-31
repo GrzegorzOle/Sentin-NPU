@@ -28,6 +28,7 @@ use sentin_core::{DataKind, Finding, Layer, Validation};
 use tokenizers::Tokenizer;
 
 use crate::ov;
+use crate::select::{self, Selection};
 
 /// Why layer 2 could not be loaded, or could not run.
 ///
@@ -76,6 +77,7 @@ pub struct NerEngine {
     sequence_length: usize,
     device: String,
     fell_back: bool,
+    choice: Option<select::Choice>,
 }
 
 impl std::fmt::Debug for NerEngine {
@@ -106,6 +108,21 @@ impl NerEngine {
     /// Fails if the tokenizer, config or IR cannot be loaded, or if no device accepts the model —
     /// in which case the error names every device tried and what each said.
     pub fn load(model_dir: &Path, device_request: &str) -> Result<Self, NerError> {
+        Self::load_with(model_dir, device_request, &Selection::default())
+    }
+
+    /// Load with an explicit device-selection policy.
+    ///
+    /// [`NerEngine::load`] uses the default, which measures. This exists so the gateway can pass
+    /// the operator's configuration through, and so a test can pin behaviour without a machine.
+    ///
+    /// # Errors
+    /// As [`NerEngine::load`].
+    pub fn load_with(
+        model_dir: &Path,
+        device_request: &str,
+        selection: &Selection,
+    ) -> Result<Self, NerError> {
         let tokenizer_path = model_dir.join("tokenizer.json");
         let tokenizer =
             Tokenizer::from_file(&tokenizer_path).map_err(|source| NerError::Tokenizer {
@@ -123,10 +140,45 @@ impl NerEngine {
             .iter()
             .map(ToString::to_string)
             .collect();
-        let (candidates, resolved_elsewhere) = ov::device_candidates(device_request, &available);
+        let xml = model_dir.join("openvino_model.xml");
+
+        // AUTO is measured, not assumed: see `select` for why a fixed NPU>GPU>CPU order picks a
+        // discrete card that is 26x slower than the CPU beside it. An explicit device is honoured
+        // as it always was, with the other devices left as escape routes.
+        let (candidates, resolved_elsewhere, choice) =
+            if device_request.eq_ignore_ascii_case("AUTO") && selection.measure {
+                let runtime = core
+                    .versions(available.first().map_or("CPU", String::as_str))
+                    .ok()
+                    .and_then(|v| v.first().map(|(_, v)| v.build_number.clone()));
+                let key = select::cache_key(&xml, runtime.as_deref(), &available);
+
+                let (trials, from_cache) = match select::cached(&key) {
+                    Some(trials) => (trials, true),
+                    None => {
+                        let measured = select::measure_all(&mut core, &xml, &available)
+                            .map_err(NerError::OpenVino)?;
+                        select::remember(&key, &measured);
+                        (measured, false)
+                    }
+                };
+                let mut choice = select::rank(trials, selection.objective, selection.ceiling_ms);
+                choice.from_cache = from_cache;
+                let candidates = choice.candidates();
+                (candidates, false, Some(choice))
+            } else {
+                let (candidates, fell_back) = ov::device_candidates(device_request, &available);
+                (candidates, fell_back, None)
+            };
+
+        if candidates.is_empty() {
+            return Err(NerError::OpenVino(
+                "no device would run the model - see the selection report for what each said"
+                    .to_string(),
+            ));
+        }
         let first_choice = candidates[0].clone();
 
-        let xml = model_dir.join("openvino_model.xml");
         let bin = model_dir.join("openvino_model.bin");
         let model = core
             .read_model_from_file(&xml.to_string_lossy(), &bin.to_string_lossy())
@@ -185,6 +237,7 @@ impl NerEngine {
             sequence_length,
             device,
             fell_back,
+            choice,
         })
     }
 
@@ -192,6 +245,15 @@ impl NerEngine {
     #[must_use]
     pub fn device(&self) -> &str {
         &self.device
+    }
+
+    /// How the device was chosen, when it was chosen by measurement.
+    ///
+    /// `None` when the operator pinned a device or turned measuring off. The caller logs this: a
+    /// selection nobody can see is indistinguishable from a guess.
+    #[must_use]
+    pub fn choice(&self) -> Option<&select::Choice> {
+        self.choice.as_ref()
     }
 
     /// True when the requested device was unavailable and another was used instead.
