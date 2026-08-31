@@ -27,6 +27,12 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
+# Windows service support, and only on Windows. The gateway is the one binary a site runs
+# unattended, and a privacy gateway that has to be started by hand is a privacy gateway that is
+# sometimes not running.
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.8"
+
 [[bin]]
 name = "sentin-gateway"
 path = "src/bin/gateway.rs"

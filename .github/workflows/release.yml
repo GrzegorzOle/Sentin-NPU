@@ -46,9 +46,15 @@ jobs:
           sudo apt-get update && sudo apt-get install -y --no-install-recommends zip
           ./scripts/make-release.sh "${GITHUB_REF_NAME#v}"
 
+      # One file, no installation, no dependencies. Built from the same staged directory the
+      # tarball comes from, so the AppImage and the bundle cannot drift apart.
+      - name: Build the AppImage
+        run: |
+          ./packaging/linux/build-appimage.sh             "dist/sentin-npu-diag-${GITHUB_REF_NAME#v}-linux-x64" "${GITHUB_REF_NAME#v}"
+
       - name: Checksums
         run: |
-          cd dist && sha256sum *.tar.gz *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+          cd dist && sha256sum *.tar.gz *.zip *.AppImage > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       # dist/*.tar.gz covers three things: the Linux bundle and the two standalone IR archives
       # that make-release.sh produces alongside it (sentin-npu-model-herbert-int8-seq*.tar.gz).
@@ -70,7 +76,51 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.zip
+            dist/*.AppImage
             dist/SHA256SUMS.txt
           prerelease: false
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+  # The installer needs a Windows runner: Inno Setup's compiler does not cross-build. It takes the
+  # bundle the job above already published rather than rebuilding anything, so the installer and
+  # the zip carry byte-identical binaries.
+  installer:
+    needs: bundles
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fetch the Windows bundle from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release download "$GITHUB_REF_NAME" --pattern "*windows-x64.zip" --dir dist
+          cd dist && unzip -q "sentin-npu-diag-${VERSION}-windows-x64.zip"
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build the installer
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe"             "/DVersion=$VERSION"             "/DPayload=$(pwd -W)/dist/sentin-npu-diag-${VERSION}-windows-x64"             packaging/windows/sentin-npu.iss
+          ls -la packaging/windows/out/
+
+      # The checksum file is written by the job above and cannot know about an asset built here,
+      # so it is amended rather than left incomplete: every asset in a release should be verifiable
+      # the same way, and an installer is the one people run without reading.
+      - name: Checksum and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SETUP="packaging/windows/out/sentin-npu-setup-${VERSION}.exe"
+          gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS.txt --dir sums
+          ( cd "$(dirname "$SETUP")" && sha256sum "$(basename "$SETUP")" ) >> sums/SHA256SUMS.txt
+          gh release upload "$GITHUB_REF_NAME" "$SETUP" --clobber
+          gh release upload "$GITHUB_REF_NAME" sums/SHA256SUMS.txt --clobber

@@ -1,0 +1,207 @@
+#!/bin/sh
+# Copyright 2026 Grzegorz Oleksy
+# SPDX-License-Identifier: Apache-2.0
+#
+# AppImage entry point.
+#
+# One file, no installation, no dependencies: the OpenVINO runtime and the quantized model travel
+# inside. What this script exists to do is make the bundled copies findable, which is the whole
+# difference between an AppImage that runs anywhere and one that runs only where OpenVINO happens
+# to be installed already.
+
+set -eu
+
+HERE=$(dirname "$(readlink -f "$0")")
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/sentin-npu"
+CONFIG="$CONFIG_DIR/config.yaml"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/sentin-npu"
+
+# The bundled runtime, ahead of anything the host may have. The crate dlopens *unversioned*
+# sonames, and a wheel ships only versioned ones - hence the symlinks made at build time.
+export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# Device probes are cached against the model and the runtime, so the second start is a second
+# rather than five.
+export SENTIN_CACHE_DIR="${SENTIN_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/sentin-npu}"
+
+MODEL_DIR="$HERE/usr/share/sentin-npu/models/seq128"
+SELF="${APPIMAGE:-$HERE/AppRun}"
+
+usage() {
+    cat <<EOF
+Sentin-NPU - local privacy gateway for LLM traffic
+
+  $(basename "$SELF")                 run the gateway with $CONFIG
+  $(basename "$SELF") --setup         write that configuration, asking what it needs
+  $(basename "$SELF") --install-service  install and start a systemd *user* service
+  $(basename "$SELF") --uninstall-service
+  $(basename "$SELF") --doctor        report what this machine can run the model on
+  $(basename "$SELF") --bench [args]  latency harness
+  $(basename "$SELF") --config PATH   run with a different configuration
+
+Everything needed is inside this file: no Python, no Rust, no OpenVINO installation.
+EOF
+}
+
+ask() {
+    # ask <prompt> <default>; the default is taken on an empty answer, which makes the whole
+    # wizard a sequence of Enters for anyone who wants the defaults.
+    printf '%s [%s]: ' "$1" "$2" >&2
+    read -r reply || reply=""
+    [ -n "$reply" ] && printf '%s' "$reply" || printf '%s' "$2"
+}
+
+do_setup() {
+    mkdir -p "$CONFIG_DIR"
+    if [ -e "$CONFIG" ]; then
+        printf 'A configuration already exists at %s\n' "$CONFIG" >&2
+        answer=$(ask 'Overwrite it?' 'no')
+        case "$answer" in
+            y|Y|yes|YES) : ;;
+            *) echo "kept" >&2; return 0 ;;
+        esac
+    fi
+
+    echo "Sentin-NPU setup. Enter accepts the value in brackets." >&2
+    echo >&2
+    # 4141 rather than 4000: a model router such as LiteLLM commonly holds 4000, and a gateway
+    # that will not bind is a poor first impression.
+    port=$(ask 'Listen port' '4141')
+    # Loopback by default: anything else exposes an inspection point to the network, and that is a
+    # decision to make deliberately.
+    host=$(ask 'Bind address (0.0.0.0 to accept from the network)' '127.0.0.1')
+    anthropic=$(ask 'Upstream for /anthropic' 'https://api.anthropic.com')
+    openai=$(ask 'Upstream for /openai' 'http://localhost:4000')
+    google=$(ask 'Upstream for /google' 'https://generativelanguage.googleapis.com')
+    audit=$(ask 'Audit trail (JSON lines)' "$STATE_DIR/audit.jsonl")
+    device=$(ask 'Inference device (AUTO measures every device and picks the cheapest that fits)' 'AUTO')
+
+    mkdir -p "$(dirname "$audit")"
+    cat > "$CONFIG" <<EOF
+# Sentin-NPU gateway configuration, written by --setup.
+# Edit freely. Field reference: https://github.com/GrzegorzOle/Sentin-NPU
+
+listen:
+  host: $host
+  port: $port
+
+providers:
+  anthropic:
+    prefix: /anthropic
+    upstream: $anthropic
+  openai:
+    prefix: /openai
+    upstream: $openai
+  google:
+    prefix: /google
+    upstream: $google
+
+inference:
+  device: $device
+  select: cost
+  max_inference_ms: 80
+  # Absolute, and inside the AppImage. This path changes when the AppImage is replaced, which is
+  # why --setup rewrites it rather than leaving a stale one behind.
+  model_dir: "$MODEL_DIR"
+  timeout_ms: 250
+  timeout_policy: fail_open
+
+detectors:
+  pesel:        { layer: deterministic, mode: block }
+  nip:          { layer: deterministic, mode: mask }
+  regon:        { layer: deterministic, mode: mask }
+  iban:         { layer: deterministic, mode: block }
+  payment_card: { layer: deterministic, mode: block }
+  email:        { layer: deterministic, mode: advise }
+  phone_pl:     { layer: deterministic, mode: advise }
+  person:       { layer: ner, mode: advise }
+  organization: { layer: ner, mode: advise }
+  location:     { layer: ner, mode: observe }
+
+inspect:
+  request: true
+  response: false
+  stream_strategy: passthrough
+
+audit:
+  jsonl:
+    enabled: true
+    path: "$audit"
+  syslog_cef:
+    enabled: false
+    address: 127.0.0.1:514
+  otlp:
+    enabled: false
+    # OTLP over HTTP with JSON encoding: the collector's HTTP port, not the gRPC one.
+    endpoint: http://localhost:4318
+EOF
+    printf '\nwrote %s\n' "$CONFIG" >&2
+    printf 'run it with: %s\n' "$SELF" >&2
+    printf 'or install it as a service: %s --install-service\n' "$SELF" >&2
+}
+
+do_install_service() {
+    [ -e "$CONFIG" ] || { echo "no configuration yet - run $SELF --setup first" >&2; exit 1; }
+    [ -n "${APPIMAGE:-}" ] || echo "note: not running from an AppImage; the unit will point at $SELF" >&2
+
+    unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+    mkdir -p "$unit_dir"
+    cat > "$unit_dir/sentin-npu.service" <<EOF
+[Unit]
+Description=Sentin-NPU privacy gateway
+Documentation=https://github.com/GrzegorzOle/Sentin-NPU
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$SELF --config $CONFIG
+Restart=on-failure
+RestartSec=5
+# The gateway sits in the path of real work: let requests finish rather than cutting them off.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
+EOF
+    systemctl --user daemon-reload
+    systemctl --user enable --now sentin-npu.service
+    echo "installed and started: systemctl --user status sentin-npu" >&2
+    # Without lingering the service dies at logout, which on a workstation reads as "it stopped
+    # working overnight".
+    echo "to keep it running when you are not logged in: sudo loginctl enable-linger $USER" >&2
+}
+
+do_uninstall_service() {
+    systemctl --user disable --now sentin-npu.service 2>/dev/null || true
+    rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/sentin-npu.service"
+    systemctl --user daemon-reload 2>/dev/null || true
+    echo "removed" >&2
+}
+
+case "${1:-}" in
+    --setup) do_setup ;;
+    --install-service) do_install_service ;;
+    --uninstall-service) do_uninstall_service ;;
+    --help|-h) usage ;;
+    --doctor)
+        shift
+        exec "$HERE/usr/bin/sentin-doctor" --model "$MODEL_DIR/openvino_model.xml" "$@"
+        ;;
+    --bench)
+        shift
+        exec "$HERE/usr/bin/sentin-bench" --model-dir "$MODEL_DIR" "$@"
+        ;;
+    --config)
+        [ $# -ge 2 ] || { echo "--config needs a path" >&2; exit 2; }
+        config="$2"; shift 2
+        exec "$HERE/usr/bin/sentin-gateway" "$config" "$@"
+        ;;
+    *)
+        if [ ! -e "$CONFIG" ]; then
+            echo "No configuration at $CONFIG" >&2
+            echo "Run: $SELF --setup" >&2
+            exit 1
+        fi
+        exec "$HERE/usr/bin/sentin-gateway" "$CONFIG" "$@"
+        ;;
+esac

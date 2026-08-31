@@ -22,6 +22,65 @@ async fn main() -> ExitCode {
 
     let args: Vec<String> = std::env::args().collect();
 
+    // Windows service verbs. All three are no-ops elsewhere, and saying so is better than hiding
+    // the flags: someone reading --help on Linux should see why they are absent.
+    #[cfg(windows)]
+    {
+        let flag = |name: &str| args.windows(2).find(|w| w[0] == name).map(|w| w[1].clone());
+
+        if args.iter().any(|a| a == "--service") {
+            // Started by the service control manager. Nothing is printed: there is no console.
+            if let Err(err) = sentin_proxy::service::run() {
+                eprintln!("sentin-gateway: not started by the service manager: {err}");
+                return ExitCode::FAILURE;
+            }
+            return ExitCode::SUCCESS;
+        }
+
+        if args.iter().any(|a| a == "--install-service") {
+            let config = flag("--install-service")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| {
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|exe| exe.parent().map(|dir| dir.join("config.yaml")))
+                        .unwrap_or_else(|| std::path::PathBuf::from("config.yaml"))
+                });
+            return match sentin_proxy::service::install(&config) {
+                Ok(()) => {
+                    println!(
+                        "installed service {} using {}",
+                        sentin_proxy::service::SERVICE_NAME,
+                        config.display()
+                    );
+                    println!(
+                        "start it with: sc start {}",
+                        sentin_proxy::service::SERVICE_NAME
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(err) => {
+                    eprintln!("sentin-gateway: cannot install the service: {err}");
+                    eprintln!("this needs an elevated prompt");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+
+        if args.iter().any(|a| a == "--uninstall-service") {
+            return match sentin_proxy::service::uninstall() {
+                Ok(()) => {
+                    println!("removed service {}", sentin_proxy::service::SERVICE_NAME);
+                    ExitCode::SUCCESS
+                }
+                Err(err) => {
+                    eprintln!("sentin-gateway: cannot remove the service: {err}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+    }
+
     // --doctor is the diagnostic path: report what this machine can actually do and exit. It is
     // deliberately available in the shipped binary rather than a dev-only tool, because the people
     // with Intel NPUs are the ones who need to run it.

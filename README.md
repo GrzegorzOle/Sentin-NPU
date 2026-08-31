@@ -66,6 +66,28 @@ model toolchain that converts and quantizes the NER model; it is never in the re
 
 ## Quick start
 
+### Installers - one file, everything inside
+
+**Windows.** [`sentin-npu-setup-<version>.exe`](https://github.com/GrzegorzOle/Sentin-NPU/releases/latest)
+carries the gateway, the OpenVINO runtime, the model, the diagnostics and the Wazuh integration.
+The wizard asks for the port, the bind address, the upstreams and the audit path, writes
+`config.yaml` from the answers, and installs a Windows service that starts at boot. Nothing is
+downloaded during installation. Details, silent installation and service commands:
+[`packaging/windows/`](packaging/windows/README.md).
+
+**Linux.** `Sentin-NPU-<version>-x86_64.AppImage` is one executable that runs on any x86-64
+distribution with glibc 2.31 or newer:
+
+```bash
+chmod +x Sentin-NPU-*.AppImage
+./Sentin-NPU-*.AppImage --setup            # asks what it needs, writes the configuration
+./Sentin-NPU-*.AppImage --install-service  # optional: a systemd user unit
+./Sentin-NPU-*.AppImage                    # run it
+```
+
+No Python, no Rust, no OpenVINO installation. Details:
+[`packaging/linux/`](packaging/linux/README.md).
+
 ### From a release bundle - no toolchain needed
 
 The bundle carries the gateway, the diagnostics, the latency harness, the OpenVINO runtime and the

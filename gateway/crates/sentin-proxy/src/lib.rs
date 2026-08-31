@@ -19,6 +19,10 @@ pub mod inspect;
 pub mod mock;
 pub mod ner_service;
 pub mod otlp;
+/// Running as a Windows service. Present only on Windows, where a gateway nobody remembers to
+/// start is a gateway that is sometimes not inspecting.
+#[cfg(windows)]
+pub mod service;
 pub mod stream;
 
 use std::sync::Arc;
@@ -394,6 +398,29 @@ fn error(status: StatusCode, message: &str) -> Response {
         axum::Json(serde_json::json!({"error": {"type": "sentin_gateway", "message": message}})),
     )
         .into_response()
+}
+
+/// Convenience for tests and the binary: bind and serve until the future is dropped.
+///
+/// # Errors
+/// Returns an error if the listener cannot bind or the server stops unexpectedly.
+pub async fn serve_with_shutdown<F>(
+    listener: tokio::net::TcpListener,
+    state: AppState,
+    shutdown: F,
+) -> std::io::Result<()>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    // Graceful: stop accepting, let in-flight requests finish. The traffic passing through is
+    // somebody's real work, and cutting a streamed completion in half to shave a second off a
+    // restart is a poor trade.
+    axum::serve(
+        listener,
+        router(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown)
+    .await
 }
 
 /// Convenience for tests and the binary: bind and serve until the future is dropped.

@@ -1,0 +1,101 @@
+name: packaging
+
+# Checks the installer sources on every push rather than only when a tag is cut.
+#
+# The release workflow builds the real installer from a 280 MB payload and takes twenty minutes.
+# A typo in the Inno Setup script would surface there, during a release, which is the worst moment
+# to find it - this project has already shipped a Windows bundle that nobody had ever executed.
+# So the script is compiled here against a stand-in payload: the files are empty, the compilation
+# is real.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packaging/**"
+      - ".github/workflows/packaging.yml"
+  pull_request:
+    paths:
+      - "packaging/**"
+  workflow_dispatch:
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Stand-in payload
+        shell: bash
+        run: |
+          # Same shape as a staged bundle, with nothing in it. Enough to prove every [Files] entry
+          # resolves and every [Code] procedure compiles.
+          mkdir -p dist/payload/lib dist/payload/models/seq128 dist/payload/wazuh
+          touch dist/payload/sentin-gateway.exe \
+                dist/payload/sentin-doctor.exe \
+                dist/payload/sentin-bench.exe \
+                dist/payload/README.txt \
+                dist/payload/lib/openvino.dll \
+                dist/payload/models/seq128/openvino_model.xml \
+                dist/payload/wazuh/README.md
+
+      - name: Compile the installer script
+        shell: bash
+        run: |
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+            "/DVersion=0.0.0-ci" \
+            "/DPayload=$(pwd -W)/dist/payload" \
+            packaging/windows/sentin-npu.iss
+          test -f packaging/windows/out/sentin-npu-setup-0.0.0-ci.exe
+          echo "installer compiles"
+
+      - name: Upload it for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-syntax-check
+          path: packaging/windows/out/*.exe
+          retention-days: 7
+
+  linux-appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Shell syntax
+        run: |
+          sh -n packaging/linux/AppRun
+          bash -n packaging/linux/build-appimage.sh
+          bash -n packaging/wazuh/deploy-manager.sh
+
+      - name: Shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+          # SC2181 and SC1090 are style preferences rather than defects here; everything else is
+          # worth failing on, because these scripts run on machines we will never see.
+          shellcheck -e SC2181,SC1090 packaging/linux/build-appimage.sh packaging/wazuh/deploy-manager.sh
+          shellcheck -s sh -e SC2181,SC1090 packaging/linux/AppRun
+
+      - name: AppImage packs from a stand-in payload
+        run: |
+          # No binaries, no OpenVINO, no model - the point is that the layout, the metadata and
+          # appimagetool itself all work. The real payload only changes the size.
+          mkdir -p stage/lib stage/models/seq128 stage/wazuh
+          printf '#!/bin/sh\necho stub\n' > stage/sentin-gateway
+          cp stage/sentin-gateway stage/sentin-doctor
+          cp stage/sentin-gateway stage/sentin-bench
+          chmod +x stage/sentin-*
+          touch stage/lib/libopenvino_c.so.2630 stage/models/seq128/openvino_model.xml
+          ./packaging/linux/build-appimage.sh stage 0.0.0-ci dist
+          test -x dist/Sentin-NPU-0.0.0-ci-x86_64.AppImage
+
+      - name: The AppImage answers for itself
+        run: |
+          # --help must work from the packed image: it is the one command a user runs before
+          # trusting anything else, and it exercises AppRun end to end.
+          ./dist/Sentin-NPU-0.0.0-ci-x86_64.AppImage --appimage-extract >/dev/null
+          ./squashfs-root/AppRun --help | grep -q "local privacy gateway"
+          echo "AppRun works from inside the image"
