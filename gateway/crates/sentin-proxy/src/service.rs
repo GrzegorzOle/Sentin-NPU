@@ -233,13 +233,28 @@ fn serve_until_stopped(
     })
 }
 
-/// Register the service with the control manager.
+/// Windows for "no service by that name", which is the one failure to open a service that is not
+/// a failure at all - it is how an installer finds out it is doing a first install.
+const ERROR_SERVICE_DOES_NOT_EXIST: i32 = 1060;
+
+/// Register the service with the control manager, or update the registration already there.
 ///
 /// `config_path` is written into the service's `binPath`, so an operator can see which
 /// configuration a service uses with `sc qc SentinNPU` instead of guessing.
 ///
+/// **Idempotent, because an upgrade is the common case and the first version was not.** Creating a
+/// service that exists fails, and the installer reported that as "the service could not be
+/// registered" and stopped - after it had already stopped the old service to replace its files. So
+/// upgrading left the machine with new binaries, an error box and a gateway that was not running,
+/// which is the worst of the three possible outcomes: traffic passing uninspected, on a machine
+/// whose operator has just been told something went wrong with the service rather than with the
+/// inspection.
+///
+/// Updating rather than recreating also keeps whatever an operator changed about the service - its
+/// start type, its recovery actions - instead of silently resetting them on every upgrade.
+///
 /// # Errors
-/// Fails without administrator rights, or when a service of this name already exists.
+/// Fails without administrator rights.
 pub fn install(config_path: &std::path::Path) -> Result<(), windows_service::Error> {
     let manager = ServiceManager::local_computer(
         None::<&str>,
@@ -268,7 +283,21 @@ pub fn install(config_path: &std::path::Path) -> Result<(), windows_service::Err
         account_password: None,
     };
 
-    let handle = manager.create_service(&service, ServiceAccess::CHANGE_CONFIG)?;
+    let handle = match manager.open_service(SERVICE_NAME, ServiceAccess::CHANGE_CONFIG) {
+        Ok(existing) => {
+            existing.change_config(&service)?;
+            existing
+        }
+        // Only "it is not there" means create. Anything else - a denial, a service marked for
+        // deletion - is reported rather than turned into a second, more confusing error from
+        // create_service.
+        Err(windows_service::Error::Winapi(err))
+            if err.raw_os_error() == Some(ERROR_SERVICE_DOES_NOT_EXIST) =>
+        {
+            manager.create_service(&service, ServiceAccess::CHANGE_CONFIG)?
+        }
+        Err(err) => return Err(err),
+    };
     handle.set_description(DESCRIPTION)?;
     Ok(())
 }

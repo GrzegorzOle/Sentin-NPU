@@ -27,7 +27,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${REPO}/dist"
-VERSION="${1:-0.1.0}"
+VERSION="${1:-0.1.1}"
 
 # INT8 only, both shape variants. FP32 stays out: at 477 MB per variant it is four times the size
 # for something nobody runs — it is an intermediate that `prepare_model.py` regenerates, and the

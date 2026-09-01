@@ -13,7 +13,7 @@
 ; resolves against the service's working directory and drops the gateway to layer 1 without saying
 ; so - the single trap this project has hit most often.
 ;
-; Build:  iscc /DVersion=0.1.0 /DPayload=..\..\dist\sentin-npu-diag-0.1.0-windows-x64 sentin-npu.iss
+; Build:  iscc /DVersion=0.1.1 /DPayload=..\..\dist\sentin-npu-diag-0.1.1-windows-x64 sentin-npu.iss
 
 #ifndef Version
   #define Version "0.0.0"

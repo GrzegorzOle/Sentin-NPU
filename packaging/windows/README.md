@@ -101,10 +101,33 @@ sentin-gateway.exe --install-service "C:\ProgramData\Sentin-NPU\config.yaml"
 sentin-gateway.exe --uninstall-service
 ```
 
+## Upgrading over an existing installation
+
+Run the new installer. It does not need the old one uninstalled, and it takes care of the two
+things that would otherwise go wrong:
+
+1. **The running service is stopped first.** It holds `sentin-gateway.exe` open, and replacing a
+   file in use fails - the difference between an upgrade and a support call. The service is started
+   again at the end, unless you clear "start it when this installer finishes".
+2. **The service registration is updated, not recreated.** Creating a service that already exists
+   fails, and until 0.1.1 the installer reported that as "the service could not be registered" and
+   stopped - *after* it had stopped the old service to replace its files. The result was new
+   binaries, an error box, and a gateway that was not running. Updating also keeps anything you
+   changed about the service, such as its recovery actions, instead of resetting it every upgrade.
+
+**Your settings are kept.** An existing `C:\ProgramData\Sentin-NPU\config.yaml` is never
+overwritten: the wizard's answers are written to `config.yaml.new` beside it and the installer says
+so. The service keeps running the configuration you already had, so a detector policy you tuned
+survives an upgrade untouched - and if you want the new defaults, the file to compare against is
+right there. The audit trail and the log are left alone for the same reason.
+
+What an upgrade *does* replace is everything under `C:\Program Files\Sentin-NPU\`: the binaries, the
+OpenVINO runtime, the model, the Wazuh files and the documentation.
+
 ## Silent installation
 
 ```powershell
-sentin-npu-setup-0.0.0.10.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+sentin-npu-setup-0.1.1.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 Silent mode takes every default, including installing and starting the service. To deploy a
@@ -120,8 +143,8 @@ Needs a Windows machine with [Inno Setup 6](https://jrsoftware.org/isinfo.php) a
 (what `scripts/make-release.sh` produces):
 
 ```powershell
-iscc /DVersion=0.0.0.10 `
-     /DPayload=..\..\dist\sentin-npu-diag-0.0.0.10-windows-x64 `
+iscc /DVersion=0.1.1 `
+     /DPayload=..\..\dist\sentin-npu-diag-0.1.1-windows-x64 `
      sentin-npu.iss
 ```
 
