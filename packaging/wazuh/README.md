@@ -79,6 +79,14 @@ sudo /var/ossec/bin/verify-agent-conf
 sudo /var/ossec/bin/agent_control -R -u <AGENT_ID>      # push now instead of waiting
 ```
 
+That last line is not an optimisation, it is the step. The agent downloads the new shared
+configuration within a minute, and then goes on following the *old* file until it restarts -
+reporting zero events and zero drops, which looks exactly like a quiet system.
+
+**Do not leave a backup beside it in the group directory.** The manager merges every file in
+`/var/ossec/etc/shared/<group>/` into `merged.mg`, so an `agent.conf.bak` is not a backup: it is a
+second live configuration, and the agent will collect both paths. Keep backups outside the group.
+
 A group is worth the extra step even for one agent: it keeps the change in one reviewable place,
 it does not touch the other agents, and removing the group removes the integration.
 
