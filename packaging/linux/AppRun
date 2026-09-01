@@ -106,9 +106,13 @@ inference:
   timeout_ms: 250
   timeout_policy: fail_open
 
+# Keep in step with config/default.yaml and with the Windows installer. A detector present in the
+# code and absent from the configuration defaults to observing, so an omission here does not fail:
+# the identifier is found, reported and forwarded anyway.
 detectors:
   pesel:        { layer: deterministic, mode: block }
   nip:          { layer: deterministic, mode: mask }
+  vat_eu:       { layer: deterministic, mode: mask }
   regon:        { layer: deterministic, mode: mask }
   iban:         { layer: deterministic, mode: block }
   payment_card: { layer: deterministic, mode: block }

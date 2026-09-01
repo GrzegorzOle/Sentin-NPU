@@ -207,64 +207,90 @@ begin
   Result := '"' + Escaped + '"';
 end;
 
+{ Append one line, growing the array as needed.
+
+  This replaced a fixed SetArrayLength and hand-written indices, which is not a matter of taste: a
+  detector added to config/default.yaml and forgotten here produced an installed configuration
+  missing it, and a detector nobody lists only observes - so the gateway found the identifier and
+  forwarded it. That happened with vat_eu in 0.2.0. Renumbering ten lines by hand to insert one is
+  the kind of edit that gets skipped, so the numbering is gone. }
+procedure AddLine(var Lines: TArrayOfString; var Count: Integer; const Value: String);
+begin
+  if Count >= GetArrayLength(Lines) then
+    SetArrayLength(Lines, Count + 16);
+  Lines[Count] := Value;
+  Count := Count + 1;
+end;
+
 procedure WriteConfig;
 var
   Lines: TArrayOfString;
   Path: String;
+  N: Integer;
 begin
   Path := ExpandConstant('{commonappdata}\{#AppName}\config.yaml');
+  N := 0;
 
-  SetArrayLength(Lines, 44);
-  Lines[0]  := '# Sentin-NPU gateway configuration, written by the installer.';
-  Lines[1]  := '# Edit freely; the service reads this file when it starts.';
-  Lines[2]  := '# Field reference: https://github.com/GrzegorzOle/Sentin-NPU';
-  Lines[3]  := '';
-  Lines[4]  := 'listen:';
-  Lines[5]  := '  host: ' + ConfigPage.Values[1];
-  Lines[6]  := '  port: ' + ConfigPage.Values[0];
-  Lines[7]  := '';
-  Lines[8]  := 'providers:';
-  Lines[9]  := '  anthropic:';
-  Lines[10] := '    prefix: /anthropic';
-  Lines[11] := '    upstream: ' + UpstreamPage.Values[0];
-  Lines[12] := '  openai:';
-  Lines[13] := '    prefix: /openai';
-  Lines[14] := '    upstream: ' + UpstreamPage.Values[1];
-  Lines[15] := '  google:';
-  Lines[16] := '    prefix: /google';
-  Lines[17] := '    upstream: ' + UpstreamPage.Values[2];
-  Lines[18] := '';
-  Lines[19] := 'inference:';
-  Lines[20] := '  # AUTO times every device OpenVINO enumerates and prefers the cheapest that';
-  Lines[21] := '  # holds the budget. Pin NPU, GPU or CPU here to skip the probe.';
-  Lines[22] := '  device: AUTO';
-  Lines[23] := '  select: cost';
-  Lines[24] := '  max_inference_ms: 80';
-  Lines[25] := '  # Absolute, and that matters: a relative path resolves against the service''s';
-  Lines[26] := '  # working directory, and layer 2 would go missing with only a warning.';
-  Lines[27] := '  model_dir: ' + YamlQuote(ExpandConstant('{app}\models\seq128'));
-  Lines[28] := '  timeout_ms: 250';
-  Lines[29] := '  timeout_policy: fail_open';
-  Lines[30] := '';
-  Lines[31] := 'detectors:';
-  Lines[32] := '  pesel:        { layer: deterministic, mode: block }';
-  Lines[33] := '  nip:          { layer: deterministic, mode: mask }';
-  Lines[34] := '  regon:        { layer: deterministic, mode: mask }';
-  Lines[35] := '  iban:         { layer: deterministic, mode: block }';
-  Lines[36] := '  payment_card: { layer: deterministic, mode: block }';
-  Lines[37] := '  email:        { layer: deterministic, mode: advise }';
-  Lines[38] := '  phone_pl:     { layer: deterministic, mode: advise }';
-  Lines[39] := '  person:       { layer: ner, mode: advise }';
-  Lines[40] := '  organization: { layer: ner, mode: advise }';
-  Lines[41] := '  location:     { layer: ner, mode: observe }';
-  Lines[42] := '';
-  Lines[43] := 'audit:' + #13#10 + '  jsonl:' + #13#10 + '    enabled: true' + #13#10
+  AddLine(Lines, N, '# Sentin-NPU gateway configuration, written by the installer.');
+  AddLine(Lines, N, '# Edit freely; the service reads this file when it starts.');
+  AddLine(Lines, N, '# Field reference: https://github.com/GrzegorzOle/Sentin-NPU');
+  AddLine(Lines, N, '');
+  AddLine(Lines, N, 'listen:');
+  AddLine(Lines, N, '  host: ' + ConfigPage.Values[1]);
+  AddLine(Lines, N, '  port: ' + ConfigPage.Values[0]);
+  AddLine(Lines, N, '');
+  AddLine(Lines, N, 'providers:');
+  AddLine(Lines, N, '  anthropic:');
+  AddLine(Lines, N, '    prefix: /anthropic');
+  AddLine(Lines, N, '    upstream: ' + UpstreamPage.Values[0]);
+  AddLine(Lines, N, '  openai:');
+  AddLine(Lines, N, '    prefix: /openai');
+  AddLine(Lines, N, '    upstream: ' + UpstreamPage.Values[1]);
+  AddLine(Lines, N, '  google:');
+  AddLine(Lines, N, '    prefix: /google');
+  AddLine(Lines, N, '    upstream: ' + UpstreamPage.Values[2]);
+  AddLine(Lines, N, '');
+  AddLine(Lines, N, 'inference:');
+  AddLine(Lines, N, '  # AUTO times every device OpenVINO enumerates and prefers the cheapest that');
+  AddLine(Lines, N, '  # holds the budget. Pin NPU, GPU or CPU here to skip the probe.');
+  AddLine(Lines, N, '  device: AUTO');
+  AddLine(Lines, N, '  select: cost');
+  AddLine(Lines, N, '  max_inference_ms: 80');
+  AddLine(Lines, N, '  # Absolute, and that matters: a relative path resolves against the service''s');
+  AddLine(Lines, N, '  # working directory, and layer 2 would go missing with only a warning.');
+  AddLine(Lines, N, '  model_dir: ' + YamlQuote(ExpandConstant('{app}\models\seq128')));
+  AddLine(Lines, N, '  timeout_ms: 250');
+  AddLine(Lines, N, '  timeout_policy: fail_open');
+  AddLine(Lines, N, '');
+
+  { Keep this list in step with config/default.yaml. A detector present in the code and absent from
+    the configuration defaults to observing, which is deliberate - code must not start rewriting
+    traffic on its own - and which means an omission here is invisible: the identifier is detected,
+    reported, and forwarded anyway. }
+  AddLine(Lines, N, 'detectors:');
+  AddLine(Lines, N, '  pesel:        { layer: deterministic, mode: block }');
+  AddLine(Lines, N, '  nip:          { layer: deterministic, mode: mask }');
+  AddLine(Lines, N, '  vat_eu:       { layer: deterministic, mode: mask }');
+  AddLine(Lines, N, '  regon:        { layer: deterministic, mode: mask }');
+  AddLine(Lines, N, '  iban:         { layer: deterministic, mode: block }');
+  AddLine(Lines, N, '  payment_card: { layer: deterministic, mode: block }');
+  AddLine(Lines, N, '  email:        { layer: deterministic, mode: advise }');
+  AddLine(Lines, N, '  phone_pl:     { layer: deterministic, mode: advise }');
+  AddLine(Lines, N, '  person:       { layer: ner, mode: advise }');
+  AddLine(Lines, N, '  organization: { layer: ner, mode: advise }');
+  AddLine(Lines, N, '  location:     { layer: ner, mode: observe }');
+  AddLine(Lines, N, '');
+
+  AddLine(Lines, N, 'audit:' + #13#10 + '  jsonl:' + #13#10 + '    enabled: true' + #13#10
              + '    path: ' + YamlQuote(ConfigPage.Values[2]) + #13#10
              + '  syslog_cef:' + #13#10 + '    enabled: false' + #13#10
              + '    address: 127.0.0.1:514' + #13#10
              + '  otlp:' + #13#10 + '    enabled: false' + #13#10
              + '    # OTLP over HTTP with JSON encoding: the collector''s HTTP port, not gRPC.'
-             + #13#10 + '    endpoint: http://localhost:4318';
+             + #13#10 + '    endpoint: http://localhost:4318');
+
+  { Trim the slack the last growth left, or the file ends with a run of blank lines. }
+  SetArrayLength(Lines, N);
 
   { An existing configuration is never overwritten. An upgrade must not silently discard the
     detector policy a site tuned, and a config.yaml is the one file here that is theirs. }
