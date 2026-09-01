@@ -18,6 +18,9 @@ use crate::checksums;
 const MAX_DIGITS: usize = 19;
 /// Longest IBAN, per ISO 13616.
 const MAX_IBAN: usize = 34;
+/// Longest national part of an EU VAT identification number - twelve, for the Netherlands and
+/// Sweden. Bounding the scan keeps a long alphanumeric blob from being re-read at every offset.
+const MAX_VAT_PART: usize = 12;
 
 /// Scan `text` for structured identifiers.
 ///
@@ -52,6 +55,12 @@ pub fn detect(text: &str) -> Vec<Finding> {
             if let Some(span) = scan_iban(bytes, index) {
                 index = span.end;
                 findings.push(finding(span, DataKind::Iban, Validation::Checksum, 1.0));
+                continue;
+            }
+            // After IBAN, which starts the same way and is longer, so it cannot be stolen by this.
+            if let Some((span, kind, validation, confidence)) = scan_vat_eu(bytes, index) {
+                index = span.end;
+                findings.push(finding(span, kind, validation, confidence));
                 continue;
             }
         }
@@ -178,6 +187,111 @@ fn scan_phone_with_prefix(bytes: &[u8], start: usize) -> Option<NumericMatch> {
         return Some((start..end, DataKind::PhonePl, Validation::Pattern, 0.8));
     }
     None
+}
+
+/// A VAT identification number: two letters of country code and the national part behind it.
+///
+/// This exists because of how a tax number is actually written. An invoice says
+/// `Identyfikator VAT: PL6511718003`, and the ten-digit NIP detector never saw it: a digit run with
+/// letters glued to its front is not a token, and the token rule is what stops eleven digits inside
+/// a sixteen-digit card being offered to the PESEL detector. Found on a real invoice that produced
+/// only `organization` findings while its tax number went through untouched.
+///
+/// **A Polish number comes back as a [`DataKind::Nip`], not as a VAT number**, and carries
+/// [`Validation::Checksum`] with it. `PL6511718003` and `6511718003` are the same identifier
+/// written two ways, so they must produce the same finding and be blockable on the same evidence.
+/// Anything else would let a policy be escaped by adding two letters.
+///
+/// Every other member state is shape only. Several validate with checksums this project does not
+/// implement, and claiming arithmetic proof it does not have is exactly the false positive that
+/// gets a DLP tool switched off - so these advise or mask, and the type system will not let them
+/// block.
+fn scan_vat_eu(bytes: &[u8], start: usize) -> Option<NumericMatch> {
+    let country: [u8; 2] = bytes.get(start..start + 2)?.try_into().ok()?;
+    if !country.iter().all(u8::is_ascii_uppercase) {
+        return None;
+    }
+
+    let mut end = start + 2;
+    while end < bytes.len()
+        && bytes[end].is_ascii_alphanumeric()
+        && end - (start + 2) <= MAX_VAT_PART
+    {
+        end += 1;
+    }
+    // A token longer than any member state's number is not one; the scan above stops one character
+    // past the limit precisely so that this catches it.
+    if !ends_token(bytes, end) {
+        return None;
+    }
+    let part = &bytes[start + 2..end];
+
+    if country == *b"PL" {
+        if part.len() == 10 && part.iter().all(u8::is_ascii_digit) {
+            let digits: Vec<u8> = part.iter().map(|byte| byte - b'0').collect();
+            if checksums::nip(&digits) {
+                return Some((start..end, DataKind::Nip, Validation::Checksum, 1.0));
+            }
+        }
+        // Ten digits that fail the checksum are not a NIP, exactly as when they are written bare.
+        return None;
+    }
+
+    if vat_national_part_is_valid(&country, part) {
+        return Some((start..end, DataKind::VatEu, Validation::Pattern, 0.7));
+    }
+    None
+}
+
+/// Does the national part match what this member state prescribes?
+///
+/// Lengths and shapes are per the VIES specification. Two deliberate departures from it, both to
+/// keep a pattern-only detector from firing on ordinary text:
+///
+/// - **Romania is published as two to ten digits; here it is six to ten.** `RO12` is
+///   indistinguishable from a room number or a product code, and a detector that fires on it will
+///   be turned off before it ever catches a tax number.
+/// - **Uppercase only.** VAT numbers are written in capitals on every invoice, and accepting
+///   lowercase would offer every two-letter word followed by digits to this function.
+fn vat_national_part_is_valid(country: &[u8; 2], part: &[u8]) -> bool {
+    let len = part.len();
+    let digits = |slice: &[u8]| !slice.is_empty() && slice.iter().all(u8::is_ascii_digit);
+    let alnum = |slice: &[u8]| {
+        !slice.is_empty()
+            && slice
+                .iter()
+                .all(|byte| byte.is_ascii_digit() || byte.is_ascii_uppercase())
+    };
+
+    match country {
+        b"AT" => len == 9 && part[0] == b'U' && digits(&part[1..]),
+        // A Belgian number is nine digits zero-padded to ten, so it opens with 0 or 1.
+        b"BE" => len == 10 && digits(part) && matches!(part[0], b'0' | b'1'),
+        b"BG" => matches!(len, 9 | 10) && digits(part),
+        b"CY" => len == 9 && digits(&part[..8]) && part[8].is_ascii_uppercase(),
+        b"CZ" => matches!(len, 8..=10) && digits(part),
+        // Greece is EL in VAT numbers and GR in ISO 3166; both are seen in the wild.
+        b"DE" | b"EE" | b"EL" | b"GR" | b"PT" => len == 9 && digits(part),
+        b"DK" | b"FI" | b"HU" | b"LU" | b"MT" | b"SI" => len == 8 && digits(part),
+        // Spain carries a letter at one end or the other, and sometimes at both.
+        b"ES" => {
+            len == 9
+                && alnum(part)
+                && (part[0].is_ascii_uppercase() || part[8].is_ascii_uppercase())
+        }
+        b"FR" => len == 11 && alnum(&part[..2]) && digits(&part[2..]),
+        b"HR" | b"IT" | b"LV" => len == 11 && digits(part),
+        b"IE" => matches!(len, 8 | 9) && part[0].is_ascii_digit() && alnum(part),
+        b"LT" => matches!(len, 9 | 12) && digits(part),
+        // Nine digits, a literal B, then a two-digit branch number.
+        b"NL" => len == 12 && digits(&part[..9]) && part[9] == b'B' && digits(&part[10..]),
+        b"RO" => (6..=10).contains(&len) && digits(part),
+        b"SE" => len == 12 && digits(part),
+        b"SK" => len == 10 && digits(part),
+        // Northern Ireland keeps a VAT prefix of its own under the Windsor Framework.
+        b"XI" => matches!(len, 9 | 12) && digits(part),
+        _ => false,
+    }
 }
 
 /// Issuer prefixes for the major card networks.

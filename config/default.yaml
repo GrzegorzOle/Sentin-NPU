@@ -67,6 +67,9 @@ inference:
 detectors:
   pesel:        { layer: deterministic, mode: block }
   nip:          { layer: deterministic, mode: mask }
+  # A VAT number of another member state. Shape only - each country validates its own differently -
+  # so this masks at most, whatever is written here. A Polish number is a `nip`, prefix or not.
+  vat_eu:       { layer: deterministic, mode: mask }
   regon:        { layer: deterministic, mode: mask }
   iban:         { layer: deterministic, mode: block }
   payment_card: { layer: deterministic, mode: block }

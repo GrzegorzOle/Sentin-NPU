@@ -169,6 +169,89 @@ fn email_boundaries_exclude_surrounding_punctuation() {
     );
 }
 
+#[test]
+fn a_nip_in_its_eu_vat_form_is_still_a_nip() {
+    // How it is written on an invoice, and how it went undetected: the token rule that stops
+    // eleven digits inside a card being read as a PESEL also refuses a digit run with letters
+    // glued to its front.
+    let findings = detect("Identyfikator VAT: PL6511718003");
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(findings[0].kind, DataKind::Nip);
+    assert_eq!(
+        findings[0].validation,
+        Validation::Checksum,
+        "the same identifier written two ways must carry the same evidence, or a policy is \
+         escaped by typing two extra letters"
+    );
+    assert_eq!(
+        findings[0].clamp_decision(Decision::Blocked),
+        Decision::Blocked
+    );
+}
+
+#[test]
+fn both_spellings_of_one_nip_agree() {
+    assert_eq!(kinds("NIP 6511718003"), kinds("NIP PL6511718003"));
+}
+
+#[test]
+fn a_pl_prefix_does_not_excuse_a_broken_checksum() {
+    // Otherwise the prefix would become a way to have any ten digits reported as a tax number.
+    assert!(detect("VAT PL6511718004").is_empty());
+}
+
+#[test]
+fn other_member_states_are_found_but_only_by_shape() {
+    let findings = detect("Dane sprzedawcy, nr VAT sprzedawcy: CZ02176475");
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(findings[0].kind, DataKind::VatEu);
+    assert_eq!(
+        findings[0].clamp_decision(Decision::Blocked),
+        Decision::Masked,
+        "no checksum is verified for these, so shape alone must never refuse a request"
+    );
+}
+
+#[test]
+fn member_state_formats_are_recognised_and_near_misses_are_not() {
+    for value in [
+        "NL123456789B01", // nine digits, a literal B, a branch number
+        "ATU12345678",    // the Austrian U
+        "FRXX123456789",  // two leading characters that may be letters
+        "IE1234567X",
+        "SE123456789012",
+        "DE123456789",
+    ] {
+        assert_eq!(
+            kinds(&format!("VAT {value} koniec")),
+            vec![DataKind::VatEu],
+            "{value}"
+        );
+    }
+
+    for value in [
+        "DE12345678",     // one digit short
+        "NL123456789C01", // the letter is a B or it is not a Dutch number
+        "ATX12345678",    // Austria's national part opens with U
+        "RO12",           // two digits is a room number, whatever the specification permits
+        "pl6511718003",   // VAT numbers are written in capitals
+        "ZZ123456789",    // not a member state
+    ] {
+        assert!(
+            detect(&format!("kod {value} koniec")).is_empty(),
+            "{value} was reported: {:?}",
+            found(&format!("kod {value} koniec"))
+        );
+    }
+}
+
+#[test]
+fn an_iban_is_not_mistaken_for_a_vat_number() {
+    // Both open with two letters, and an IBAN is longer, so the IBAN scan runs first.
+    let iban = "PL61109010140000071219812874";
+    assert_eq!(kinds(&format!("konto {iban}")), vec![DataKind::Iban]);
+}
+
 proptest! {
     /// Any well-formed PESEL is detected, whatever the date or serial.
     #[test]

@@ -74,8 +74,18 @@ pub enum DataKind {
     /// Polish national identification number. Eleven digits carrying a birth date and a check
     /// digit, so a match is arithmetically verifiable.
     Pesel,
-    /// Polish tax identification number (NIP), ten digits with a weighted check digit.
+    /// Polish tax identification number (NIP), ten digits with a weighted check digit. Also
+    /// recognised in its EU VAT form, `PL` followed by the same ten digits, which is how it is
+    /// written on an invoice - the checksum is what makes both forms verifiable.
     Nip,
+    /// A VAT identification number of another EU member state: two letters of country code and a
+    /// national part whose length and shape that country prescribes.
+    ///
+    /// Shape only, so it never blocks. Each member state validates its own number differently -
+    /// several with checksums this project does not implement - and asserting arithmetic proof we
+    /// do not have is the false positive that gets a DLP tool switched off. A Polish number is not
+    /// reported here: it has a checksum, so it is a [`DataKind::Nip`] with the evidence to match.
+    VatEu,
     /// Polish business registry number (REGON), nine or fourteen digits, each length with its own
     /// check digit.
     Regon,
@@ -262,7 +272,7 @@ mod tests {
     fn pattern_only_findings_cannot_block_even_in_layer_one() {
         // An email or phone number has no checksum: shape alone must never justify refusing a
         // request, however confidently the regex matched.
-        for kind in [DataKind::Email, DataKind::PhonePl] {
+        for kind in [DataKind::Email, DataKind::PhonePl, DataKind::VatEu] {
             let f = finding(kind, Layer::Deterministic, Validation::Pattern);
             assert_eq!(
                 f.clamp_decision(Decision::Blocked),

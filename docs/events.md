@@ -29,8 +29,8 @@ schema, however convenient.
 |---|---|---|
 | `ts` | RFC 3339 UTC | event time |
 | `event` | enum | see below |
-| `detector` | string | the **configured detector key**, which is also what the operator writes in `config/default.yaml`: `pesel`, `nip`, `regon`, `iban`, `payment_card`, `email`, `phone_pl`, `person`, `organization`, `location` |
-| `data_type` | enum | `PESEL`, `NIP`, `REGON`, `IBAN`, `PAYMENT_CARD`, `EMAIL`, `PHONE_PL`, `PERSON`, `ORGANIZATION`, `LOCATION` |
+| `detector` | string | the **configured detector key**, which is also what the operator writes in `config/default.yaml`: `pesel`, `nip`, `vat_eu`, `regon`, `iban`, `payment_card`, `email`, `phone_pl`, `person`, `organization`, `location` |
+| `data_type` | enum | `PESEL`, `NIP`, `VAT_EU`, `REGON`, `IBAN`, `PAYMENT_CARD`, `EMAIL`, `PHONE_PL`, `PERSON`, `ORGANIZATION`, `LOCATION` |
 | `target_host` | string | upstream the request was bound for, e.g. `api.anthropic.com` |
 | `decision` | enum | `observed`, `advised`, `masked`, `blocked`, `user_override` |
 | `content_sha256` | hex | hash of the inspected payload, never the payload |

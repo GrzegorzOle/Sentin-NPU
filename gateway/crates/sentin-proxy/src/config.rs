@@ -352,6 +352,7 @@ pub fn detector_key(kind: DataKind) -> &'static str {
     match kind {
         DataKind::Pesel => "pesel",
         DataKind::Nip => "nip",
+        DataKind::VatEu => "vat_eu",
         DataKind::Regon => "regon",
         DataKind::Iban => "iban",
         DataKind::PaymentCard => "payment_card",

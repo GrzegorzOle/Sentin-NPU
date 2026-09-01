@@ -235,8 +235,8 @@ proxy, not a credential broker.
 
 | Layer | What it catches | Method | Verdict allowed |
 |---|---|---|---|
-| 1. Deterministic - checksum | PESEL (with its embedded date), NIP, REGON, IBAN, payment cards | single-pass scan + checksum | advise / mask / **block** |
-| 1. Deterministic - pattern | email, Polish phone numbers | shape only, no checksum | advise / mask - **never block** |
+| 1. Deterministic - checksum | PESEL (with its embedded date), NIP (bare or as `PL...`), REGON, IBAN, payment cards | single-pass scan + checksum | advise / mask / **block** |
+| 1. Deterministic - pattern | email, Polish phone numbers, other EU VAT numbers | shape only, no checksum | advise / mask - **never block** |
 | 2. NER | names, organizations, locations | token classification, OpenVINO IR | advise / mask |
 | 3. Corporate policy | company secrets, project codenames | signed policy artifacts (see Roadmap) | - planned |
 
