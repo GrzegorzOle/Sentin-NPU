@@ -10,6 +10,10 @@ only on unambiguous policy violations.
 
 > ⚠️ **Status: Proof of Concept.** Not production-ready. See [Roadmap](#roadmap).
 >
+> Versions are `0.x`, and that is the honest signal rather than a formality: layer 2 can still fail
+> to load and leave the checksum detectors carrying the load, response-side masking does not exist,
+> and the Windows installer has not yet been walked through by anyone but its author.
+>
 > Working today, end to end: the proxy with adapters for all three provider APIs, both detection
 > layers - deterministic checksums *and* NER inference through OpenVINO - request masking and
 > blocking, SIEM audit events over CEF/OTLP/JSONL, and release bundles that install on a machine
