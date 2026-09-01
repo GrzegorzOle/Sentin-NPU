@@ -226,6 +226,12 @@ async fn proxy(State(state): State<AppState>, request: Request) -> Response {
                 }
             }
 
+            for reason in &verdict.unread_attachments {
+                // Worth a warning rather than a debug line: this is traffic leaving the machine
+                // with a part of it uninspected, and the log is where an operator looks first.
+                tracing::warn!(%reason, "attachment not inspected");
+            }
+
             let host = upstream_host(&upstream_base);
             crate::audit_sink::record_request(
                 &state.audit,

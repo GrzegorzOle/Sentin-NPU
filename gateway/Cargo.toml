@@ -6,6 +6,7 @@ members = [
     "crates/sentin-detect",
     "crates/sentin-proxy",
     "crates/sentin-audit",
+    "crates/sentin-extract",
 ]
 
 [workspace.package]
@@ -22,6 +23,7 @@ sentin-detect = { path = "crates/sentin-detect" }
 sentin-diag = { path = "crates/sentin-diag" }
 sentin-proxy = { path = "crates/sentin-proxy" }
 sentin-audit = { path = "crates/sentin-audit" }
+sentin-extract = { path = "crates/sentin-extract" }
 
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
@@ -44,6 +46,13 @@ serde_yaml_ng = "0.10"
 # runtime-linking: dlopen at startup, so no OpenVINO installation is needed to *build*.
 openvino = { version = "0.11", features = ["runtime-linking"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Attachment text extraction. All pure Rust, verified to cross-compile for
+# x86_64-pc-windows-gnu, which is how the Windows bundle is built.
+base64 = "0.23"
+zip = { version = "8", default-features = false, features = ["deflate"] }
+quick-xml = "0.42"
+pdf-extract = "0.12"
 
 proptest = "1"
 criterion = "0.7"

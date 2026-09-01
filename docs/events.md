@@ -80,7 +80,30 @@ identity.
 | `decision_made` | the policy engine settles on a verdict |
 | `inspection_timeout` | inspection exceeded `inference.timeout_ms`; includes the applied `timeout_policy` |
 | `device_fallback` | requested device unavailable or an operator fell back; includes requested vs actual |
+| `attachment_skipped` | an attachment was present and could not be read: too large, encrypted, or an image. `detail.reason` says which |
 | `gateway_start` / `gateway_stop` | lifecycle, with version and resolved device |
+
+## Attachments
+
+Attachments are decoded and read: PDF, `.docx`/`.xlsx`/`.pptx`, and anything that is plain text.
+Findings from inside a document are ordinary findings and carry no special field - an identifier is
+an identifier wherever it was written.
+
+Two consequences are worth knowing, because they change what a decision means:
+
+**A finding inside an attachment is never `masked`.** Rewriting bytes inside a PDF or a zip would
+corrupt the document, so a detector configured to mask yields `advised` when it fires on an
+attachment. `blocked` still works and needs no rewrite, which makes it the honest response to a
+checksum-valid identifier in a file about to leave the machine.
+
+**An attachment that could not be read produces `attachment_skipped`, even when the request is
+otherwise clean.** An image, an encrypted document or one over `inspect.max_attachment_bytes` is
+not a document known to be harmless. Without this event such a request logged `findings=clean` and
+emitted nothing at all, which reads as "inspected and fine" and meant "not inspected".
+
+**There is no OCR.** A scanned page is an image and its text is not read; it is reported as skipped.
+`detail.reason` never contains a filename - a filename carries content, and content does not belong
+in an audit trail.
 
 ## Example
 

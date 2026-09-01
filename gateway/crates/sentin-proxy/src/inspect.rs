@@ -37,6 +37,13 @@ pub struct Inspection {
     /// Set when layer 2 did not contribute. The caller applies the timeout policy — inspection
     /// reports what happened and does not decide to refuse traffic on its own.
     pub ner_skipped: Option<Skipped>,
+    /// Attachments that were present but could not be read: too large, encrypted, an image.
+    ///
+    /// Reported rather than ignored. An attachment nobody could inspect is precisely the one an
+    /// operator may want to stop, and staying silent about it would claim a coverage the gateway
+    /// does not have. Each entry is a short reason, **never a filename** - a filename carries
+    /// content, and this string reaches the audit trail.
+    pub unread_attachments: Vec<String>,
 }
 
 impl Inspection {
@@ -48,6 +55,7 @@ impl Inspection {
             findings: Vec::new(),
             masked_body: None,
             ner_skipped: None,
+            unread_attachments: Vec::new(),
         }
     }
 
@@ -122,6 +130,69 @@ pub async fn inspect_request(
         }
     }
 
+    // Attachments, after the prose. An identifier inside a document is exactly as much of a leak
+    // as one in the prompt, and until this existed a PDF carrying a checksum-valid PESEL went
+    // through as `findings=clean`.
+    let mut unread_attachments = Vec::new();
+    if config.inspect.attachments {
+        let limits = sentin_extract::Limits {
+            max_input_bytes: config.inspect.max_attachment_bytes,
+            ..sentin_extract::Limits::default()
+        };
+
+        for attachment in provider.attachments(body) {
+            let Some(payload) = adapters::read_text(body, &attachment.pointer) else {
+                continue;
+            };
+
+            let extracted = match sentin_extract::decode(payload)
+                .and_then(|bytes| sentin_extract::extract(&bytes, &limits))
+            {
+                Ok(extracted) => extracted,
+                // The reason, never the filename: a filename carries content and this string
+                // reaches the audit trail.
+                Err(err) => {
+                    unread_attachments.push(err.to_string());
+                    continue;
+                }
+            };
+
+            let mut detected = detect(&extracted.text);
+            if let Some(service) = ner {
+                match service.inspect(&extracted.text).await {
+                    Ok(entities) => detected.extend(entities),
+                    Err(reason) => {
+                        ner_skipped.get_or_insert(reason);
+                    }
+                }
+            }
+
+            for finding in &detected {
+                // The same two ceilings as prose, and then a third: **an attachment cannot be
+                // masked**. Rewriting bytes inside a PDF or a zip would corrupt the document, so a
+                // finding that would be masked in a prompt is only advised here. What survives is
+                // blocking, which needs no rewrite - and which is the honest answer when a
+                // checksum-valid national identifier is inside a file about to leave the machine.
+                let decision = match finding.clamp_decision(config.mode_for(finding.kind)) {
+                    Decision::Masked => Decision::Advised,
+                    other => other,
+                };
+                findings.push(FindingSummary {
+                    kind: finding.kind,
+                    decision,
+                });
+                overall = overall.max(decision);
+            }
+
+            if extracted.truncated {
+                unread_attachments.push(format!(
+                    "{} attachment truncated at the text limit; findings are a lower bound",
+                    extracted.kind.name()
+                ));
+            }
+        }
+    }
+
     // Blocking supersedes masking: the request is refused, so there is nothing to forward.
     let masked_body = if overall == Decision::Masked && !rewrites.is_empty() {
         let mut copy = body.clone();
@@ -138,6 +209,7 @@ pub async fn inspect_request(
         findings,
         masked_body,
         ner_skipped,
+        unread_attachments,
     }
 }
 

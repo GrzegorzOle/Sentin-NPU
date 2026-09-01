@@ -117,7 +117,10 @@ pub fn record_request(
     payload: &[u8],
     context: &RequestContext<'_>,
 ) {
-    if verdict.findings.is_empty() && verdict.ner_skipped.is_none() {
+    if verdict.findings.is_empty()
+        && verdict.ner_skipped.is_none()
+        && verdict.unread_attachments.is_empty()
+    {
         return;
     }
     let ts = now_rfc3339();
@@ -164,6 +167,26 @@ pub fn record_request(
             .content_sha256(&hash)
             .provider(context.provider)
             .detail("findings", verdict.findings.len().to_string());
+        if let Some(addr) = context.client_addr {
+            event = event.client_addr(addr);
+        }
+        if let Some(model) = context.upstream_model {
+            event = event.upstream_model(model);
+        }
+        emitter.emit(&event);
+    }
+
+    // An attachment nobody could read is reported even when the request is otherwise clean. That
+    // case - an image, an encrypted document, something over the size limit - used to produce
+    // `findings=clean` and no event at all, which reads to an operator as "inspected and fine"
+    // when it means "not inspected".
+    for reason in &verdict.unread_attachments {
+        let mut event = Event::new(&ts, EventKind::AttachmentSkipped)
+            .target_host(target_host)
+            .content_sha256(&hash)
+            .provider(context.provider)
+            // The reason, never the filename: a filename carries content.
+            .detail("reason", reason.clone());
         if let Some(addr) = context.client_addr {
             event = event.client_addr(addr);
         }
@@ -231,6 +254,7 @@ mod tests {
             ],
             masked_body: None,
             ner_skipped: None,
+            unread_attachments: Vec::new(),
         }
     }
 

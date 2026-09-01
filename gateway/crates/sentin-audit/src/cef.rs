@@ -29,6 +29,7 @@ pub fn render(event: &Event, product_version: &str) -> String {
         crate::EventKind::DecisionMade => "decision_made",
         crate::EventKind::InspectionTimeout => "inspection_timeout",
         crate::EventKind::DeviceFallback => "device_fallback",
+        crate::EventKind::AttachmentSkipped => "attachment_skipped",
         crate::EventKind::GatewayStart => "gateway_start",
         crate::EventKind::GatewayStop => "gateway_stop",
     };

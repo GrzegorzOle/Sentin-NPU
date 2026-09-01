@@ -117,10 +117,142 @@ fn google(body: &Value) -> Vec<String> {
     pointers
 }
 
+/// One attachment found in a request body: where its bytes are, and what the caller called it.
+///
+/// The declared type is recorded but not trusted. What the bytes are is decided by looking at
+/// them, because the sender is precisely the party whose data the gateway is trying not to leak.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attachment {
+    /// JSON pointer to the string holding base64, possibly wrapped in a `data:` URI.
+    pub pointer: String,
+    /// The media type the caller declared, when it declared one.
+    pub declared_type: Option<String>,
+}
+
+impl Provider {
+    /// Every attachment in `body`, in document order.
+    ///
+    /// The three providers carry a file three ways, and a gateway that understands one of them
+    /// protects one client. Measured on 2026-09-01: a PDF holding a checksum-valid PESEL passed
+    /// through as `findings=clean`, because base64 hides the digits from anything scanning the
+    /// request body.
+    #[must_use]
+    pub fn attachments(self, body: &Value) -> Vec<Attachment> {
+        let mut found = Vec::new();
+        match self {
+            // Anthropic: content blocks of type `document` or `image` with a base64 source.
+            Provider::Anthropic => {
+                walk_message_blocks(
+                    body,
+                    "messages",
+                    &mut |base, block| {
+                        let source = block.get("source")?;
+                        if source.get("type").and_then(Value::as_str) != Some("base64") {
+                            return None;
+                        }
+                        source.get("data").and_then(Value::as_str)?;
+                        Some(Attachment {
+                            pointer: format!("{base}/source/data"),
+                            declared_type: source
+                                .get("media_type")
+                                .and_then(Value::as_str)
+                                .map(ToString::to_string),
+                        })
+                    },
+                    &mut found,
+                );
+            }
+            // OpenAI dialect: `file.file_data` and `image_url.url`, both carrying a data URI.
+            Provider::OpenAi => {
+                walk_message_blocks(
+                    body,
+                    "messages",
+                    &mut |base, block| {
+                        if let Some(file) = block.get("file") {
+                            if file.get("file_data").and_then(Value::as_str).is_some() {
+                                return Some(Attachment {
+                                    pointer: format!("{base}/file/file_data"),
+                                    declared_type: None,
+                                });
+                            }
+                        }
+                        let url = block.get("image_url")?.get("url")?.as_str()?;
+                        // A hosted image is a URL the gateway does not fetch: reaching out to it would
+                        // turn an inspection point into a request forger.
+                        url.starts_with("data:").then(|| Attachment {
+                            pointer: format!("{base}/image_url/url"),
+                            declared_type: None,
+                        })
+                    },
+                    &mut found,
+                );
+            }
+            // Google: `inline_data.data`, beside the text parts.
+            Provider::Google => {
+                if let Some(contents) = body.get("contents").and_then(Value::as_array) {
+                    for (index, content) in contents.iter().enumerate() {
+                        let Some(parts) = content.get("parts").and_then(Value::as_array) else {
+                            continue;
+                        };
+                        for (part, value) in parts.iter().enumerate() {
+                            let Some(inline) =
+                                value.get("inline_data").or_else(|| value.get("inlineData"))
+                            else {
+                                continue;
+                            };
+                            if inline.get("data").and_then(Value::as_str).is_none() {
+                                continue;
+                            }
+                            let key = if value.get("inline_data").is_some() {
+                                "inline_data"
+                            } else {
+                                "inlineData"
+                            };
+                            found.push(Attachment {
+                                pointer: format!("/contents/{index}/parts/{part}/{key}/data"),
+                                declared_type: inline
+                                    .get("mime_type")
+                                    .or_else(|| inline.get("mimeType"))
+                                    .and_then(Value::as_str)
+                                    .map(ToString::to_string),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        found
+    }
+}
+
+/// Walk `messages[].content[]`, offering each block to `pick`.
+fn walk_message_blocks(
+    body: &Value,
+    field: &str,
+    pick: &mut dyn FnMut(&str, &Value) -> Option<Attachment>,
+    found: &mut Vec<Attachment>,
+) {
+    let Some(messages) = body.get(field).and_then(Value::as_array) else {
+        return;
+    };
+    for (index, message) in messages.iter().enumerate() {
+        let Some(blocks) = message.get("content").and_then(Value::as_array) else {
+            continue;
+        };
+        for (block_index, block) in blocks.iter().enumerate() {
+            let base = format!("/{field}/{index}/content/{block_index}");
+            if let Some(attachment) = pick(&base, block) {
+                found.push(attachment);
+            }
+        }
+    }
+}
+
 /// Collect `text` fields from an array of typed content blocks.
 ///
-/// Non-text blocks — images, tool results, documents — are skipped deliberately. Layer 1 reads
-/// text; pretending to inspect a base64 image would be theatre.
+/// Non-text blocks are skipped here and picked up by [`Provider::attachments`] instead, which
+/// decodes them and reads what is inside. Scanning the base64 itself would be theatre: the bytes
+/// `87031406724` are in the document and absent from its encoding.
 fn collect_blocks(value: Option<&Value>, base: &str, pointers: &mut Vec<String>) {
     let Some(blocks) = value.and_then(Value::as_array) else {
         return;
@@ -151,6 +283,63 @@ pub fn write_text(body: &mut Value, pointer: &str, replacement: String) -> bool 
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn anthropic_documents_and_images_are_found_by_their_base64_source() {
+        let body = serde_json::json!({"messages":[{"role":"user","content":[
+            {"type":"text","text":"Streszcz to"},
+            {"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"JVBERi0="}},
+            {"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBOR"}}]}]});
+        let found = Provider::Anthropic.attachments(&body);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!(found[0].pointer, "/messages/0/content/1/source/data");
+        assert_eq!(found[0].declared_type.as_deref(), Some("application/pdf"));
+    }
+
+    #[test]
+    fn a_url_source_is_not_an_attachment_this_gateway_will_fetch() {
+        // Reaching out to a URL a caller supplied would turn an inspection point into a request
+        // forger, and the bytes would never have been on this machine in the first place.
+        let body = serde_json::json!({"messages":[{"role":"user","content":[
+            {"type":"image","source":{"type":"url","url":"https://example.invalid/x.png"}}]}]});
+        assert!(Provider::Anthropic.attachments(&body).is_empty());
+
+        let body = serde_json::json!({"messages":[{"role":"user","content":[
+            {"type":"image_url","image_url":{"url":"https://example.invalid/x.png"}}]}]});
+        assert!(Provider::OpenAi.attachments(&body).is_empty());
+    }
+
+    #[test]
+    fn the_openai_dialect_carries_a_file_two_ways() {
+        let body = serde_json::json!({"messages":[{"role":"user","content":[
+            {"type":"file","file":{"filename":"umowa.pdf","file_data":"data:application/pdf;base64,JVBERi0="}},
+            {"type":"image_url","image_url":{"url":"data:image/png;base64,iVBOR"}}]}]});
+        let found = Provider::OpenAi.attachments(&body);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!(found[0].pointer, "/messages/0/content/0/file/file_data");
+        assert_eq!(found[1].pointer, "/messages/0/content/1/image_url/url");
+    }
+
+    #[test]
+    fn google_inline_data_is_found_under_either_spelling() {
+        // The REST API uses snake_case and the client libraries emit camelCase; a gateway that
+        // understands one of them protects half the callers.
+        for key in ["inline_data", "inlineData"] {
+            let body = serde_json::json!({"contents":[{"parts":[
+                {"text":"Streszcz"},
+                {key:{"mime_type":"application/pdf","data":"JVBERi0="}}]}]});
+            let found = Provider::Google.attachments(&body);
+            assert_eq!(found.len(), 1, "{key}: {found:?}");
+            assert_eq!(found[0].pointer, format!("/contents/0/parts/1/{key}/data"));
+        }
+    }
+
+    #[test]
+    fn a_request_with_no_attachments_finds_none() {
+        let body = serde_json::json!({"messages":[{"role":"user","content":"zwykly tekst"}]});
+        assert!(Provider::OpenAi.attachments(&body).is_empty());
+        assert!(Provider::Anthropic.attachments(&body).is_empty());
+    }
     use super::*;
     use serde_json::json;
 

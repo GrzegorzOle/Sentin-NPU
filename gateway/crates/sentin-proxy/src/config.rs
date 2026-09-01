@@ -119,6 +119,10 @@ impl Inference {
     }
 }
 
+fn default_max_attachment_bytes() -> usize {
+    10 * 1024 * 1024
+}
+
 fn default_device() -> String {
     "AUTO".to_string()
 }
@@ -234,6 +238,20 @@ pub struct Inspect {
     /// How a streamed response is inspected.
     #[serde(default)]
     pub stream_strategy: StreamStrategy,
+    /// Whether to decode attachments and inspect what is inside them.
+    ///
+    /// On by default. A gateway that reads prompts and ignores documents protects the careful
+    /// user and misses the ordinary one: base64 hides an identifier from anything scanning the
+    /// request body, so a PDF is a blind spot rather than a small gap.
+    #[serde(default = "default_true")]
+    pub attachments: bool,
+    /// Largest attachment to decode and read, in bytes. Larger ones are reported, not read.
+    ///
+    /// This bounds work done in the path of a request somebody is waiting for. An attachment over
+    /// the limit is not ignored - it appears in the audit trail as unread, because something too
+    /// big to inspect is not something known to be safe.
+    #[serde(default = "default_max_attachment_bytes")]
+    pub max_attachment_bytes: usize,
 }
 
 impl Default for Inspect {
@@ -242,6 +260,8 @@ impl Default for Inspect {
             request: true,
             response: false,
             stream_strategy: StreamStrategy::default(),
+            attachments: true,
+            max_attachment_bytes: default_max_attachment_bytes(),
         }
     }
 }

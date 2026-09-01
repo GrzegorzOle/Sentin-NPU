@@ -13,6 +13,7 @@ sentin-core = { workspace = true }
 sentin-detect = { workspace = true }
 sentin-diag = { workspace = true }
 sentin-audit = { workspace = true }
+sentin-extract = { workspace = true }
 openvino = { workspace = true }
 
 axum = { workspace = true }

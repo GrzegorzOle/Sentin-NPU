@@ -89,6 +89,14 @@ inspect:
   request: true
   response: false
   stream_strategy: passthrough
+  # Decode attachments and read what is inside them: PDF, docx/xlsx/pptx, and plain text.
+  # A gateway that reads prompts and ignores documents protects the careful user and misses the
+  # ordinary one - base64 hides an identifier from anything scanning the request body, so a PDF is
+  # a blind spot rather than a small gap. There is no OCR: a scanned page is reported as skipped.
+  attachments: true
+  # Largest attachment to decode, in bytes. Bigger ones are not read and are reported in the audit
+  # trail as attachment_skipped, because something too big to inspect is not something safe.
+  max_attachment_bytes: 10485760
 
 audit:
   jsonl:

@@ -567,6 +567,26 @@ Every detection produces an event - **metadata only, never content**:
 }
 ```
 
+### Attachments
+
+Documents are decoded and read, not skipped: **PDF, `.docx`/`.xlsx`/`.pptx`, and plain text**. An
+identifier inside an attachment is exactly as much of a leak as one in the prompt, and base64 hides
+it from anything scanning the request body - the digits are in the file and absent from its
+encoding, so there is nothing for a scanner to match.
+
+Two rules follow from the format rather than from policy:
+
+- **A finding inside an attachment is never masked.** Rewriting bytes inside a PDF or a zip would
+  corrupt the document, so a detector configured to mask yields `advised` there. Blocking still
+  works and needs no rewrite.
+- **An attachment that cannot be read is reported**, as `attachment_skipped`, even when the request
+  is otherwise clean. An image, an encrypted document or one over the size limit is not a document
+  known to be harmless.
+
+**There is no OCR.** A scanned page is an image and its text is not read; it is reported as
+skipped. Work is bounded by `inspect.max_attachment_bytes` and by a text ceiling, because a
+decompression bomb is a denial of service wearing a document's clothes.
+
 `decision` is one of `observed`, `advised`, `masked`, `blocked`, `user_override`. The hash covers
 the whole inspected payload and stands in for it - no field may let an analyst reconstruct the
 sensitive value, which is what keeps the audit trail from becoming the leak.

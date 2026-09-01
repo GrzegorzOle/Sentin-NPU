@@ -40,6 +40,7 @@ RULE_PII_MASKED = 100502
 RULE_PII_HIGH_VALUE = 100503
 RULE_REQUEST_BLOCKED = 100510
 RULE_INSPECTION_GAP = 100520
+RULE_ATTACHMENT_SKIPPED = 100524
 RULE_REPEAT_MASKED = 100530
 RULE_REPEAT_BLOCKED = 100531
 
@@ -376,10 +377,11 @@ def panels() -> list[dict[str, Any]]:
         metric(
             "sentin-npu-metric-gaps",
             "Inspection gaps",
-            "Requests that went out uninspected because inspection did not finish and policy is "
-            "fail-open. Should be zero; a non-zero value invalidates the other panels for that "
-            "period rather than merely being untidy.",
-            f"rule.id:{RULE_INSPECTION_GAP}",
+            "Traffic that left with part of it uninspected: inspection did not finish under a "
+            "fail-open policy, or an attachment could not be read - an image, an encrypted "
+            "document, something over the size limit. Should be zero; a non-zero value "
+            "invalidates the other panels for that period rather than merely being untidy.",
+            f"rule.id:{RULE_INSPECTION_GAP} or rule.id:{RULE_ATTACHMENT_SKIPPED}",
         ),
         metric(
             "sentin-npu-metric-repeat",

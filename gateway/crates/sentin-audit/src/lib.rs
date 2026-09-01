@@ -33,6 +33,12 @@ pub enum EventKind {
     InspectionTimeout,
     /// The requested device was unavailable, or execution fell back to another.
     DeviceFallback,
+    /// An attachment was present and could not be read: too large, encrypted, or an image.
+    ///
+    /// Emitted even when nothing else was found, which is the point of it. A document the gateway
+    /// could not open is not a document known to be harmless, and an operator who sees nothing
+    /// cannot tell the two apart.
+    AttachmentSkipped,
     /// The gateway finished starting and is accepting requests.
     GatewayStart,
     /// The gateway is shutting down. Its absence in a SIEM is itself a signal.
@@ -51,6 +57,9 @@ impl EventKind {
             EventKind::DecisionMade => 4,
             EventKind::InspectionTimeout => 7,
             EventKind::DeviceFallback => 3,
+            // Above a routine detection: something left the machine uninspected, and unlike a
+            // masked finding nobody knows what was in it.
+            EventKind::AttachmentSkipped => 6,
             EventKind::GatewayStart | EventKind::GatewayStop => 1,
         }
     }
