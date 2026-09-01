@@ -54,8 +54,9 @@ jobs:
 
       - name: Checksums
         run: |
-          cd dist && sha256sum *.tar.gz *.zip Sentin-NPU-*.AppImage > SHA256SUMS.txt
-          cat dist/SHA256SUMS.txt
+          cd dist
+          sha256sum *.tar.gz *.zip Sentin-NPU-*.AppImage > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       # dist/*.tar.gz covers three things: the Linux bundle and the two standalone IR archives
       # that make-release.sh produces alongside it (sentin-npu-model-herbert-int8-seq*.tar.gz).
