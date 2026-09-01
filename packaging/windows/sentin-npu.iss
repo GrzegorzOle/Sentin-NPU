@@ -317,34 +317,47 @@ end;
 
   So the last thing the installer does is read the log the gateway has just written and say which
   of the two it got. }
+{ Does the log carry this line yet?
+
+  findstr rather than Inno's own LoadStringFromFile, which opens a file without sharing and so
+  fails for as long as anything holds it open for writing - which, by the time this runs, is the
+  service that has just been started. The first version of this check used it and reported "the
+  gateway did not say" on a machine whose log said "layer 2 ready" in plain text. }
+function LogContains(const Needle: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := Exec(ExpandConstant('{cmd}'),
+                 '/c findstr /c:"' + Needle + '" "' + LogPath() + '"',
+                 '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
 procedure CheckSecondLayer;
 var
-  Raw: AnsiString;
-  Text: String;
   Waited: Integer;
+  Ready, Unavailable: Boolean;
 begin
-  Text := '';
+  Ready := False;
+  Unavailable := False;
   { Up to twenty seconds: on a first start the device probe compiles the model on every device
     OpenVINO enumerates, which on a machine with a discrete GPU is genuinely slow. }
   Waited := 0;
   while Waited < 40 do
   begin
-    if LoadStringFromFile(LogPath(), Raw) then
-    begin
-      Text := Raw;
-      if (Pos('layer 2 ready', Text) > 0) or (Pos('layer 2 unavailable', Text) > 0) then
-        Break;
-    end;
+    Ready := LogContains('layer 2 ready');
+    Unavailable := LogContains('layer 2 unavailable');
+    if Ready or Unavailable then
+      Break;
     Sleep(500);
     Waited := Waited + 1;
   end;
 
-  if Pos('layer 2 unavailable', Text) > 0 then
+  if Unavailable then
     MsgBox('The gateway is running, but only its first layer is.' + #13#10 + #13#10
       + 'Checksum detection - PESEL, NIP, REGON, IBAN, payment cards - works. Named entity '
       + 'detection does not, so people, organisations and places will not be found.' + #13#10 + #13#10
       + 'The reason is in the log:' + #13#10 + LogPath(), mbError, MB_OK)
-  else if Pos('layer 2 ready', Text) = 0 then
+  else if not Ready then
     MsgBox('The gateway is running, but it did not report whether its second layer loaded.'
       + #13#10 + #13#10
       + 'Look for "layer 2 ready" or "layer 2 unavailable" in:' + #13#10 + LogPath(),
@@ -370,6 +383,14 @@ begin
 
   if not WantsStartNow then
     Exit;
+
+  { Move the previous log aside before starting, so that what CheckSecondLayer reads describes this
+    start and no other. The gateway appends across restarts, so an upgrade over a working
+    installation would otherwise find last week's "layer 2 ready" and report success for a start
+    that had just failed - a false pass, which is worse than the false warning it replaces. The
+    service is stopped at this point, so nothing holds the file. }
+  DeleteFile(LogPath() + '.1');
+  RenameFile(LogPath(), LogPath() + '.1');
 
   Exec(ExpandConstant('{sys}\sc.exe'), 'start {#ServiceName}', '', SW_HIDE,
        ewWaitUntilTerminated, ResultCode);
