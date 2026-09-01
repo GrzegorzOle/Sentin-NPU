@@ -134,7 +134,11 @@ pub fn record_request(
             .target_host(target_host)
             .decision(finding.decision)
             .content_sha256(&hash)
-            .provider(context.provider);
+            .provider(context.provider)
+            .source(finding.source);
+        if let Some(info) = &finding.attachment {
+            event = event.attachment(info.kind.clone(), info.bytes);
+        }
         if let Some(model) = context.model_id {
             event = event.model_id(model);
         }
@@ -180,13 +184,17 @@ pub fn record_request(
     // case - an image, an encrypted document, something over the size limit - used to produce
     // `findings=clean` and no event at all, which reads to an operator as "inspected and fine"
     // when it means "not inspected".
-    for reason in &verdict.unread_attachments {
+    for skipped in &verdict.unread_attachments {
         let mut event = Event::new(&ts, EventKind::AttachmentSkipped)
             .target_host(target_host)
             .content_sha256(&hash)
             .provider(context.provider)
+            .source(sentin_audit::Source::Attachment)
             // The reason, never the filename: a filename carries content.
-            .detail("reason", reason.clone());
+            .detail("reason", skipped.reason.clone());
+        if let Some(kind) = &skipped.kind {
+            event = event.attachment(kind.clone(), skipped.bytes);
+        }
         if let Some(addr) = context.client_addr {
             event = event.client_addr(addr);
         }
@@ -246,10 +254,14 @@ mod tests {
                 crate::inspect::FindingSummary {
                     kind: DataKind::Pesel,
                     decision: Decision::Masked,
+                    source: sentin_audit::Source::Prompt,
+                    attachment: None,
                 },
                 crate::inspect::FindingSummary {
                     kind: DataKind::Person,
                     decision: Decision::Advised,
+                    source: sentin_audit::Source::Prompt,
+                    attachment: None,
                 },
             ],
             masked_body: None,

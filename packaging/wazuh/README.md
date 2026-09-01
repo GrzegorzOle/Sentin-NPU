@@ -151,6 +151,9 @@ rather than a broken import.
 | What the gateway did | Blocked / masked / advised / observed. A wall of blocks means the policy is miscalibrated. |
 | Through which provider | The adapter: anthropic, openai, google. |
 | Who sent what, where | The table an analyst copies from. |
+| Typed, or attached | `source`. One person's slip against a file full of other people's data. |
+| What kind of file | PDF, Office, text - or opaque, meaning it could not be read at all. |
+| High-value identifiers inside documents | PESEL, IBAN or a card inside an attachment, which cannot be masked. |
 | Where inspection ran | Which device executed the model, and which model version. |
 
 ## Fields you can query
@@ -174,6 +177,9 @@ the AppImage under `usr/share/sentin-npu/docs/` - extract it with `--docs`.
 | `data.content_sha256` | `sha256:...` | correlates the events of one request |
 | `data.model_id` | `seq128` | the **inspecting** NER model, not the one above |
 | `data.device` | `NPU` | which device executed inspection |
+| `data.source` | `attachment` | `prompt` or `attachment` - what a typed identifier and an attached document are told apart by |
+| `data.attachment_kind` | `pdf` | `pdf`, `ooxml`, `text`, `opaque`; `opaque` means it could not be read |
+| `data.attachment_bytes` | `664` | decoded size |
 
 **`model_id` and `upstream_model` are different models.** It is the pair most likely to be
 confused: group "where is our data going" by `upstream_model`, and "which detector version said

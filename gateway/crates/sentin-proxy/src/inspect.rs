@@ -7,6 +7,7 @@
 //! the action taken, which is what an audit event is allowed to contain; the sensitive string
 //! itself never leaves the buffer it arrived in.
 
+use sentin_audit::Source;
 use sentin_core::{DataKind, Decision};
 use sentin_detect::detect;
 use serde_json::Value;
@@ -22,6 +23,20 @@ pub struct FindingSummary {
     pub kind: DataKind,
     /// The action this finding justified, after clamping by evidence and configuration.
     pub decision: Decision,
+    /// Where it was: the prompt, or a file attached to it. Two different incidents otherwise wear
+    /// the same clothes - a typed identifier is one person's slip, a contract full of them is not.
+    pub source: Source,
+    /// What the attachment was and how big, when the finding came from one.
+    pub attachment: Option<AttachmentInfo>,
+}
+
+/// What an attachment turned out to be, for the audit trail. Metadata only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttachmentInfo {
+    /// `pdf`, `ooxml`, `text` or `opaque`, decided from the bytes rather than the declared type.
+    pub kind: String,
+    /// Decoded size in bytes.
+    pub bytes: u64,
 }
 
 /// The result of inspecting one request: what was found, what to do, and what to forward.
@@ -43,7 +58,18 @@ pub struct Inspection {
     /// operator may want to stop, and staying silent about it would claim a coverage the gateway
     /// does not have. Each entry is a short reason, **never a filename** - a filename carries
     /// content, and this string reaches the audit trail.
-    pub unread_attachments: Vec<String>,
+    pub unread_attachments: Vec<UnreadAttachment>,
+}
+
+/// An attachment that was present and could not be read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnreadAttachment {
+    /// Why, in the operator's words. **Never a filename** - a filename carries content.
+    pub reason: String,
+    /// What it appeared to be, when the bytes could be sniffed at all.
+    pub kind: Option<String>,
+    /// Decoded size in bytes, so an oversized export and an unreadable icon are countable apart.
+    pub bytes: u64,
 }
 
 impl Inspection {
@@ -67,7 +93,14 @@ impl Inspection {
         }
         self.findings
             .iter()
-            .map(|f| format!("{}:{:?}", detector_key(f.kind), f.decision))
+            .map(|f| match (&f.attachment, f.source) {
+                // The suffix is what stops a log line reading as though someone typed a PESEL when
+                // in fact they attached a document containing one.
+                (Some(info), Source::Attachment) => {
+                    format!("{}:{:?}@{}", detector_key(f.kind), f.decision, info.kind)
+                }
+                _ => format!("{}:{:?}", detector_key(f.kind), f.decision),
+            })
             .collect::<Vec<_>>()
             .join(",")
     }
@@ -118,6 +151,8 @@ pub async fn inspect_request(
             findings.push(FindingSummary {
                 kind: finding.kind,
                 decision,
+                source: Source::Prompt,
+                attachment: None,
             });
             overall = overall.max(decision);
             if decision >= Decision::Masked {
@@ -145,14 +180,30 @@ pub async fn inspect_request(
                 continue;
             };
 
-            let extracted = match sentin_extract::decode(payload)
-                .and_then(|bytes| sentin_extract::extract(&bytes, &limits))
-            {
-                Ok(extracted) => extracted,
-                // The reason, never the filename: a filename carries content and this string
-                // reaches the audit trail.
+            // Decoded first, then sniffed, so that even an attachment that cannot be read is
+            // reported with what it was and how big: "an 8 MB PDF we could not open" and "a 2 KB
+            // icon" are different events, and a dashboard cannot separate them from prose alone.
+            let bytes = match sentin_extract::decode(payload) {
+                Ok(bytes) => bytes,
                 Err(err) => {
-                    unread_attachments.push(err.to_string());
+                    unread_attachments.push(UnreadAttachment {
+                        reason: err.to_string(),
+                        kind: None,
+                        bytes: 0,
+                    });
+                    continue;
+                }
+            };
+            let sniffed = sentin_extract::sniff(&bytes).name().to_string();
+
+            let extracted = match sentin_extract::extract(&bytes, &limits) {
+                Ok(extracted) => extracted,
+                Err(err) => {
+                    unread_attachments.push(UnreadAttachment {
+                        reason: err.to_string(),
+                        kind: Some(sniffed),
+                        bytes: bytes.len() as u64,
+                    });
                     continue;
                 }
             };
@@ -180,15 +231,22 @@ pub async fn inspect_request(
                 findings.push(FindingSummary {
                     kind: finding.kind,
                     decision,
+                    source: Source::Attachment,
+                    attachment: Some(AttachmentInfo {
+                        kind: extracted.kind.name().to_string(),
+                        bytes: extracted.input_bytes as u64,
+                    }),
                 });
                 overall = overall.max(decision);
             }
 
             if extracted.truncated {
-                unread_attachments.push(format!(
-                    "{} attachment truncated at the text limit; findings are a lower bound",
-                    extracted.kind.name()
-                ));
+                unread_attachments.push(UnreadAttachment {
+                    reason: "attachment truncated at the text limit; findings are a lower bound"
+                        .to_string(),
+                    kind: Some(extracted.kind.name().to_string()),
+                    bytes: extracted.input_bytes as u64,
+                });
             }
         }
     }

@@ -41,6 +41,7 @@ RULE_PII_HIGH_VALUE = 100503
 RULE_REQUEST_BLOCKED = 100510
 RULE_INSPECTION_GAP = 100520
 RULE_ATTACHMENT_SKIPPED = 100524
+RULE_ATTACHMENT_HIGH_VALUE = 100507
 RULE_REPEAT_MASKED = 100530
 RULE_REPEAT_BLOCKED = 100531
 
@@ -384,6 +385,15 @@ def panels() -> list[dict[str, Any]]:
             f"rule.id:{RULE_INSPECTION_GAP} or rule.id:{RULE_ATTACHMENT_SKIPPED}",
         ),
         metric(
+            "sentin-npu-metric-in-documents",
+            "High-value identifiers inside documents",
+            "PESEL, IBAN or a payment card found inside an attachment rather than typed into the "
+            "prompt. A document may hold one row of many people's data, so this is a different "
+            "incident from someone pasting their own number, and it cannot be masked - a PDF "
+            "cannot be rewritten without corrupting it.",
+            f"rule.id:{RULE_ATTACHMENT_HIGH_VALUE}",
+        ),
+        metric(
             "sentin-npu-metric-repeat",
             "Repeat offenders",
             "Workstations that tripped the repetition rules. One paste is an accident; eight in "
@@ -418,6 +428,24 @@ def panels() -> list[dict[str, Any]]:
             "data.upstream_model",
         ),
         pie(
+            "sentin-npu-source",
+            "Typed, or attached",
+            "Where the identifier was. Someone typing a PESEL is one person's slip; someone "
+            "attaching a contract containing one may be sending a file full of other people's "
+            "data. Without this field the two are the same row.",
+            "data.source",
+            size=4,
+        ),
+        pie(
+            "sentin-npu-attachment-kind",
+            "What kind of file",
+            "PDF, Office document, plain text - or opaque, which means it could not be read at "
+            "all: an image, an archive, something encrypted. An opaque slice that keeps growing "
+            "is a coverage gap, not a quiet period.",
+            "data.attachment_kind",
+            size=6,
+        ),
+        pie(
             "sentin-npu-decisions",
             "What the gateway did",
             "Blocked, masked, advised or observed. The advisory-first design means most traffic "
@@ -439,7 +467,7 @@ def panels() -> list[dict[str, Any]]:
             "The table an analyst copies from, and the accessible twin of the charts above. Read "
             "it top down: workstation, identifier type, verdict, destination model.",
             [("data.client_addr", 10), ("data.data_type", 10), ("data.decision", 5),
-             ("data.upstream_model", 10)],
+             ("data.source", 3), ("data.upstream_model", 10)],
         ),
         table(
             "sentin-npu-device",
@@ -455,11 +483,13 @@ def panels() -> list[dict[str, Any]]:
 def dashboard(panel_ids: list[str]) -> dict[str, Any]:
     """Lay the panels out on a 48-column grid: four metrics, then the charts, then the tables."""
     layout = [
-        (0, 0, 12, 8), (12, 0, 12, 8), (24, 0, 12, 8), (36, 0, 12, 8),   # metrics
+        # Five metrics across the top, then the timeline, then the breakdowns, then the tables.
+        (0, 0, 10, 8), (10, 0, 10, 8), (19, 0, 10, 8), (29, 0, 10, 8), (39, 0, 9, 8),
         (0, 8, 48, 12),                                                   # timeline
         (0, 20, 16, 14), (16, 20, 16, 14), (32, 20, 16, 14),              # types, clients, models
-        (0, 34, 24, 12), (24, 34, 24, 12),                                # decisions, providers
-        (0, 46, 32, 16), (32, 46, 16, 16),                                # tables
+        (0, 34, 16, 12), (16, 34, 16, 12),                                # source, attachment kind
+        (32, 34, 16, 12), (0, 46, 24, 12),                                # decisions, providers
+        (24, 46, 24, 16), (0, 58, 24, 16),                                # tables
     ]
     panels_json = []
     references = []

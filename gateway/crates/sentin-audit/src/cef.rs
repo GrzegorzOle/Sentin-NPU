@@ -77,6 +77,17 @@ pub fn render(event: &Event, product_version: &str) -> String {
         push("cs6Label", "provider");
         push("cs6", provider);
     }
+    // CEF has its own keys for these, so they do not consume another custom-string slot and a
+    // SIEM that knows CEF already understands them.
+    if let Some(source) = event.source {
+        push("cat", &format!("{source:?}").to_lowercase());
+    }
+    if let Some(kind) = &event.attachment_kind {
+        push("fileType", kind);
+    }
+    if let Some(bytes) = event.attachment_bytes {
+        push("fsize", &bytes.to_string());
+    }
     for (key, value) in &event.detail {
         push(key, value);
     }

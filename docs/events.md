@@ -39,6 +39,9 @@ schema, however convenient.
 | `client_addr` | string | who sent the request: the caller's IP, taken from the connection and never from a header a caller controls. **No port** - it is ephemeral, so an event carrying it cannot be grouped by caller |
 | `upstream_model` | string | the model the caller asked for, e.g. `ovh-llama`, `claude-sonnet-4`, `gemini-2.5-pro` |
 | `provider` | string | the adapter that handled it: `anthropic`, `openai`, `google` |
+| `source` | enum | `prompt` or `attachment` - where the finding was |
+| `attachment_kind` | string | `pdf`, `ooxml`, `text` or `opaque`, from the bytes rather than the declared type |
+| `attachment_bytes` | number | decoded size of the attachment |
 
 Every optional field is **omitted** when unset rather than serialised as `null`, so a parser must
 treat absence as normal - a layer-1 finding carries no `model_id` and no `device`.
@@ -91,6 +94,11 @@ findings and carry no special field - an identifier is an identifier wherever it
 
 Two consequences are worth knowing, because they change what a decision means:
 
+**Every finding says where it was**, in `source`. Two different incidents wear the same clothes
+otherwise: somebody typing their own PESEL into a chat is one person's slip, and somebody attaching
+a contract that contains one may be sending a file holding many people's data. A rule or a panel
+that cannot separate them gives both the same response.
+
 **A finding inside an attachment is never `masked`.** Rewriting bytes inside a PDF or a zip would
 corrupt the document, so a detector configured to mask yields `advised` when it fires on an
 attachment. `blocked` still works and needs no rewrite, which makes it the honest response to a
@@ -100,6 +108,9 @@ checksum-valid identifier in a file about to leave the machine.
 otherwise clean.** An image, an encrypted document or one over `inspect.max_attachment_bytes` is
 not a document known to be harmless. Without this event such a request logged `findings=clean` and
 emitted nothing at all, which reads as "inspected and fine" and meant "not inspected".
+
+Read `advised` on an attachment accordingly: it means "could not be masked", not "the policy is
+lenient". A dashboard counting verdicts without `source` would conclude the second.
 
 **There is no OCR.** A scanned page is an image and its text is not read; it is reported as skipped.
 `detail.reason` never contains a filename - a filename carries content, and content does not belong

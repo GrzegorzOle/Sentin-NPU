@@ -226,10 +226,15 @@ async fn proxy(State(state): State<AppState>, request: Request) -> Response {
                 }
             }
 
-            for reason in &verdict.unread_attachments {
+            for skipped in &verdict.unread_attachments {
                 // Worth a warning rather than a debug line: this is traffic leaving the machine
                 // with a part of it uninspected, and the log is where an operator looks first.
-                tracing::warn!(%reason, "attachment not inspected");
+                tracing::warn!(
+                    reason = %skipped.reason,
+                    kind = skipped.kind.as_deref().unwrap_or("unknown"),
+                    bytes = skipped.bytes,
+                    "attachment not inspected"
+                );
             }
 
             let host = upstream_host(&upstream_base);

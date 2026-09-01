@@ -14,9 +14,13 @@
 <group name="sentin,sentin_npu,dlp,">
 
   <!-- Level 0: the anchor every child hangs off, never an alert of its own. Matching the event
-       field is what proves the line was decoded as our JSON at all. -->
+       field is what proves the line was decoded as our JSON at all.
+
+       Every event kind must be listed here. Rule 100524 was dead from the day it was written
+       because `attachment_skipped` was added to the gateway and not to this line, and a child
+       whose parent never matches never fires - silently, which is the whole problem with it. -->
   <rule id="100500" level="0">
-    <field name="event">^pii_detected$|^decision_made$|^inspection_timeout$|^device_fallback$|^gateway_start$|^gateway_stop$</field>
+    <field name="event">^pii_detected$|^decision_made$|^inspection_timeout$|^device_fallback$|^attachment_skipped$|^gateway_start$|^gateway_stop$</field>
     <description>Sentin-NPU: audit event</description>
   </rule>
 
@@ -51,6 +55,25 @@
     <field name="decision">^advised$</field>
     <description>Sentin-NPU: $(data_type) detected and advised, from $(client_addr) towards $(upstream_model)</description>
     <group>pii_advised,</group>
+  </rule>
+
+  <!-- A document is not a sentence. An identifier someone typed is that person's slip; an
+       identifier inside an attachment may be one row of a file holding many people's data, and the
+       response to the two is not the same. Chained rather than written as siblings so the match is
+       deterministic: an attachment finding that would have been masked arrives as `advised`,
+       because a PDF cannot be rewritten. -->
+  <rule id="100506" level="6">
+    <if_sid>100504</if_sid>
+    <field name="source">^attachment$</field>
+    <description>Sentin-NPU: $(data_type) inside a $(attachment_kind) attachment from $(client_addr) towards $(upstream_model)</description>
+    <group>pii_advised,attachment,</group>
+  </rule>
+
+  <rule id="100507" level="10">
+    <if_sid>100506</if_sid>
+    <field name="data_type">^PESEL$|^PAYMENT_CARD$|^IBAN$</field>
+    <description>Sentin-NPU: high-value identifier $(data_type) inside a $(attachment_kind) document leaving $(client_addr) towards $(upstream_model)</description>
+    <group>pii_advised,pii_high_value,attachment,</group>
   </rule>
 
   <rule id="100505" level="3">

@@ -65,6 +65,22 @@ impl EventKind {
     }
 }
 
+/// Where a finding was found.
+///
+/// A finding inside an attachment also carries a consequence worth knowing when reading a
+/// verdict: **it can never be `masked`**, because rewriting bytes inside a PDF or a zip would
+/// corrupt the document. A detector configured to mask yields `advised` there, so a dashboard
+/// counting verdicts should read `advised` on an attachment as "could not be masked" rather than
+/// as "the policy is lenient".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Source {
+    /// The text of the request itself.
+    Prompt,
+    /// A file carried inside the request.
+    Attachment,
+}
+
 /// One audit event. Every field here is metadata; none can carry detected text.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Event {
@@ -117,6 +133,23 @@ pub struct Event {
     /// router moves.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+    /// Where the finding was: in the prompt, or inside a file attached to it.
+    ///
+    /// Two different incidents wear the same clothes without this. Someone typing a PESEL into a
+    /// chat is one person's slip; someone attaching a contract that contains one may be sending a
+    /// document full of other people's data. They need different responses, and a SOC that cannot
+    /// tell them apart gives the same one to both.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
+    /// What the attachment turned out to be: `pdf`, `ooxml`, `text`, `opaque`.
+    ///
+    /// From the bytes, never from the media type the caller declared.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment_kind: Option<String>,
+    /// Decoded size of the attachment in bytes. Metadata: a 40 MB export and a two-line note are
+    /// different events, and neither number says anything about what is inside.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment_bytes: Option<u64>,
     /// Free-form context that is safe to record: policy names, versions, requested-vs-actual
     /// device. Never text taken from a request — see [`Event::detail`].
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
@@ -140,6 +173,9 @@ impl Event {
             client_addr: None,
             upstream_model: None,
             provider: None,
+            source: None,
+            attachment_kind: None,
+            attachment_bytes: None,
             detail: std::collections::BTreeMap::new(),
         }
     }
@@ -211,6 +247,21 @@ impl Event {
     #[must_use]
     pub fn provider(mut self, provider: impl Into<String>) -> Self {
         self.provider = Some(provider.into());
+        self
+    }
+
+    /// Record where the finding was: the prompt, or an attachment.
+    #[must_use]
+    pub fn source(mut self, source: Source) -> Self {
+        self.source = Some(source);
+        self
+    }
+
+    /// Record what an attachment turned out to be, and how large it was.
+    #[must_use]
+    pub fn attachment(mut self, kind: impl Into<String>, bytes: u64) -> Self {
+        self.attachment_kind = Some(kind.into());
+        self.attachment_bytes = Some(bytes);
         self
     }
 
