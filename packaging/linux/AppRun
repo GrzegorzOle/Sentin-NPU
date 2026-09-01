@@ -184,7 +184,10 @@ do_docs() {
     chmod -R u+w "$target"
     echo "copied to $target" >&2
     echo >&2
-    ls "$target" | sed 's/^/  /' >&2
+    # A loop rather than `ls`, so a filename with a space or a newline in it lists as one entry.
+    for entry in "$target"/*; do
+        [ -e "$entry" ] && printf '  %s\n' "${entry##*/}" >&2
+    done
     echo >&2
     echo "Start with install-linux.md; hand wazuh/ to whoever runs your SIEM." >&2
 }
