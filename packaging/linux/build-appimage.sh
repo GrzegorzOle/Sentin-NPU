@@ -89,10 +89,19 @@ if [ ! -x "$TOOL" ]; then
     chmod +x "$TOOL"
 fi
 
+# The type2 runtime, fetched here rather than by appimagetool. Left to itself the tool follows no
+# redirect and dies on "server returned status code 302" - intermittently, which is worse than
+# always: a build that works in the morning and not in the afternoon teaches nobody anything.
+RUNTIME="$TOOLS/runtime-x86_64"
+if [ ! -s "$RUNTIME" ]; then
+    curl -fsSL -o "$RUNTIME" \
+        "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64"
+fi
+
 echo "== packing"
 TARGET="$OUT/Sentin-NPU-${VERSION}-x86_64.AppImage"
 rm -f "$TARGET"
-ARCH=x86_64 "$TOOL" --appimage-extract-and-run "$APPDIR" "$TARGET" >/dev/null
+ARCH=x86_64 "$TOOL" --appimage-extract-and-run --runtime-file "$RUNTIME" "$APPDIR" "$TARGET" >/dev/null
 chmod +x "$TARGET"
 rm -rf "$APPDIR"
 
