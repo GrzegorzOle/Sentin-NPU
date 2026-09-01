@@ -87,9 +87,10 @@ Name: "{group}\Installation and configuration"; Filename: "{app}\docs\install-wi
 Name: "{group}\Audit event schema"; Filename: "{app}\docs\events.md"; Components: docs
 Name: "{group}\Documentation"; Filename: "{app}\docs"; Components: docs
 
+; Registering and starting the service happens in [Code] rather than here. A [Run] entry cannot
+; check what it did, and an installer that reports success while the service it just registered
+; failed to start is the exact failure this project exists to complain about.
 [Run]
-Filename: "{app}\sentin-gateway.exe"; Parameters: "--install-service ""{commonappdata}\{#AppName}\config.yaml"""; StatusMsg: "Registering the Windows service..."; Flags: runhidden; Check: WantsService
-Filename: "{sys}\sc.exe"; Parameters: "start {#ServiceName}"; StatusMsg: "Starting the gateway..."; Flags: runhidden; Check: WantsStartNow
 Filename: "{app}\sentin-doctor.exe"; Description: "Show what this machine can run the model on"; Flags: postinstall skipifsilent nowait; Components: tools
 
 [UninstallRun]
@@ -269,10 +270,77 @@ begin
     SaveStringsToFile(Path, Lines, False);
 end;
 
+{ Is anything already listening on that port? findstr exits 0 when it matches, which is the only
+  answer needed. This exists because the port is the one thing an installer cannot fix for you:
+  the gateway may already be running from a source build or an unpacked bundle, and a service that
+  cannot bind fails in a way nobody sees. }
+function PortIsBusy(const Port: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := Exec(ExpandConstant('{cmd}'),
+                 '/c netstat -ano -p tcp | findstr LISTENING | findstr /R /C:":' + Port + ' "',
+                 '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+function ServiceIsRunning: Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := Exec(ExpandConstant('{cmd}'),
+                 '/c sc query {#ServiceName} | findstr RUNNING',
+                 '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+procedure SetUpService;
+var
+  ResultCode, Waited: Integer;
+begin
+  if not Exec(ExpandConstant('{app}\sentin-gateway.exe'),
+              '--install-service "' + ExpandConstant('{commonappdata}\{#AppName}\config.yaml') + '"',
+              '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+  begin
+    MsgBox('The Windows service could not be registered.' + #13#10 + #13#10
+      + 'Everything else is installed. You can register it later from an elevated prompt:'
+      + #13#10 + #13#10
+      + '  "' + ExpandConstant('{app}\sentin-gateway.exe') + '" --install-service '
+      + '"' + ExpandConstant('{commonappdata}\{#AppName}\config.yaml') + '"',
+      mbError, MB_OK);
+    Exit;
+  end;
+
+  if not WantsStartNow then
+    Exit;
+
+  Exec(ExpandConstant('{sys}\sc.exe'), 'start {#ServiceName}', '', SW_HIDE,
+       ewWaitUntilTerminated, ResultCode);
+
+  { A service that fails to bind exits almost at once, so a short wait tells the truth. }
+  Waited := 0;
+  while (Waited < 10) and (not ServiceIsRunning) do
+  begin
+    Sleep(700);
+    Waited := Waited + 1;
+  end;
+
+  if not ServiceIsRunning then
+    MsgBox('The service was registered but is not running.' + #13#10 + #13#10
+      + 'The usual cause is that something else already holds port '
+      + ConfigPage.Values[0] + ' - often the gateway itself, started by hand or from an '
+      + 'unpacked bundle. Stop it and then:' + #13#10 + #13#10
+      + '  sc start {#ServiceName}' + #13#10 + #13#10
+      + 'The configuration it uses is ' + ExpandConstant('{commonappdata}\{#AppName}\config.yaml'),
+      mbError, MB_OK);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
+  begin
     WriteConfig;
+    if WantsService then
+      SetUpService;
+  end;
 end;
 
 { The service holds the executable open, so an upgrade over a running service fails on a file in
@@ -285,4 +353,18 @@ begin
   Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#ServiceName}', '', SW_HIDE,
        ewWaitUntilTerminated, ResultCode);
   Sleep(1500);
+
+  { That stops the service. It does nothing about a gateway someone started by hand from a source
+    build or an unpacked bundle, which is a perfectly normal thing to have running while installing
+    - and the new service would then be unable to bind. Killing a process this installer did not
+    start would be presumptuous, so it says so and lets the operator decide. }
+  if WantsService and PortIsBusy(ConfigPage.Values[0]) then
+  begin
+    if MsgBox('Something is already listening on port ' + ConfigPage.Values[0] + '.'
+      + #13#10 + #13#10
+      + 'If that is the gateway running from a source build or an unpacked bundle, stop it first '
+      + 'or the service will not be able to start.' + #13#10 + #13#10
+      + 'Continue anyway?', mbConfirmation, MB_YESNO) = IDNO then
+      Result := 'Installation cancelled: port ' + ConfigPage.Values[0] + ' is in use.';
+  end;
 end;
