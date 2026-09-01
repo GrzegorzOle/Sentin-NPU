@@ -41,6 +41,10 @@ const STREAM_SAMPLES: usize = 25;
 
 #[tokio::main]
 async fn main() {
+    // The harness measures layer 2, so it needs the same bundled runtime the gateway uses - and
+    // for the same reason it has to happen before the inspection thread starts.
+    sentin_detect::ov::use_bundled_runtime();
+
     let args: Vec<String> = std::env::args().collect();
     let json_out = args
         .windows(2)

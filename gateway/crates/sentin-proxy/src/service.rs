@@ -23,8 +23,9 @@
 #![allow(unsafe_code)]
 
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use windows_service::service::{
@@ -80,10 +81,81 @@ fn config_path_from_command_line() -> String {
         })
 }
 
+/// Where the service writes its log, given the configuration it was installed with.
+///
+/// Beside the configuration rather than in the installation directory, because that is the
+/// directory an operator can already write to and the one that survives an upgrade - the same
+/// reasoning that puts the audit trail there.
+///
+/// It takes the path rather than reading the command line, so `--install-service` can print the
+/// right answer: at install time the config path is an argument, and the service's own `--service`
+/// flag is not there to be found.
+#[must_use]
+pub fn log_path(config: &Path) -> PathBuf {
+    config
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .map_or_else(
+            || PathBuf::from("sentin-gateway.log"),
+            |dir| dir.join("sentin-gateway.log"),
+        )
+}
+
+/// One rotation, checked at start, at 8 MB.
+///
+/// The gateway logs a line per inspected request, and a service nobody watches would otherwise
+/// grow a file until a disk fills. Rotating only at start keeps this to a rename with no
+/// background thread and no second dependency; a service that runs for months without a restart
+/// and logs enough to matter wants a real log manager, and this file is not pretending to be one.
+const MAX_LOG_BYTES: u64 = 8 * 1024 * 1024;
+
+fn rotate_if_large(path: &Path) {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return;
+    };
+    if metadata.len() >= MAX_LOG_BYTES {
+        let _ = std::fs::rename(path, path.with_extension("log.1"));
+    }
+}
+
+/// Send the log to a file, because a service has no console.
+///
+/// This is not cosmetic. Everything worth knowing about a start - which device layer 2 chose,
+/// whether it loaded at all, why a device was rejected - is emitted at startup, and under the
+/// control manager it went to a stdout that does not exist. The consequence was the failure this
+/// project keeps meeting: an installed gateway serving layer 1 only, indistinguishable from a
+/// working one, found eventually by noticing a field missing from an audit event.
+///
+/// A file rather than the Windows event log: the event log wants a registered source and a message
+/// resource to render anything but "the description cannot be found", which is two more things for
+/// an installer to get right and to undo. A path an operator can open in Notepad is worth more here
+/// than a channel with better plumbing.
+///
+/// Failing to open the file is not fatal and not reported - there is, by construction, nowhere to
+/// report it to. The gateway still runs.
+pub fn init_logging(filter: tracing_subscriber::EnvFilter) {
+    let path = log_path(Path::new(&config_path_from_command_line()));
+    rotate_if_large(&path);
+
+    if let Ok(file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            // No terminal on the other end, and escape codes in a file an operator opens in
+            // Notepad are noise.
+            .with_ansi(false)
+            .with_writer(Arc::new(file))
+            .init();
+    }
+}
+
 fn service_main(_arguments: Vec<OsString>) {
     if let Err(err) = run_service() {
-        // Nothing to print to: a service has no console. The event log would need another
-        // dependency, so the failure is reported through the exit code the control manager shows.
+        // This now reaches the log file set up in `init_logging`, and the control manager still
+        // shows the exit code. Before that it went to a console the service does not have.
         tracing::error!(error = %err, "service failed");
     }
 }

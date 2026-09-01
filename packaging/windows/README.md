@@ -41,8 +41,14 @@ C:\Program Files\Sentin-NPU\        sentin-gateway.exe, sentin-doctor.exe, senti
                             models\ the quantized IR and its tokenizer
                             wazuh\  rules, dashboard, deployment guide
                             docs\   installation, the audit schema, benchmarks, licences
-C:\ProgramData\Sentin-NPU\  config.yaml, audit.jsonl
+C:\ProgramData\Sentin-NPU\  config.yaml, audit.jsonl, sentin-gateway.log
 ```
+
+The OpenVINO runtime sits in `lib\` and nothing is added to the machine's `PATH`. The binaries put
+that directory on their own search path at startup, which is what makes the installation work
+without changing anything outside itself. It is worth knowing because the first release of this
+installer did *not* do it: Windows searches the executable's own directory and `PATH`, neither of
+which is `lib\`, so the service ran with layer 2 missing and nothing said so.
 
 The Start Menu group links the installation guide, the audit event schema and the Wazuh deployment
 guide, so nobody has to know they are on disk. The same material is published on its own as
@@ -60,6 +66,29 @@ sc qc      SentinNPU     # which configuration it uses - it is in the binPath
 It runs as LocalSystem, starts automatically at boot, and **stops gracefully**: on stop it
 stops accepting connections and lets in-flight requests finish, because the traffic passing through
 is somebody's real work.
+
+### Checking that it inspects, not merely that it runs
+
+A service has no console, so the gateway writes to
+`C:\ProgramData\Sentin-NPU\sentin-gateway.log` (Start Menu: *Service log*). One line there decides
+whether the installation is doing its job:
+
+```
+layer 2 ready device=CPU ... selection="device=CPU objective=Cost ceiling=80ms [CPU=8.9ms]"
+layer 2 unavailable; continuing with layer 1
+```
+
+The second is not an error and does not stop anything - the gateway is in front of somebody's real
+work, so it degrades rather than refuses. Checksum detection (PESEL, NIP, REGON, IBAN, payment
+cards) keeps working; named entity detection does not, so people, organisations and places go
+unnoticed. **A gateway inspecting less than it claims looks exactly like a working gateway**, which
+is why the installer reads this file itself after starting the service and says which of the two it
+found.
+
+The log is rotated once at start when it passes 8 MB, to `sentin-gateway.log.1`.
+
+The other end of the same check is the audit trail: an event carrying `device` and a `person` or
+`location` detector could only have come from layer 2.
 
 The service is implemented against the Windows service API inside `sentin-gateway.exe` rather than
 by wrapping it in NSSM or WinSW. A wrapper reports its own health rather than the gateway's - the

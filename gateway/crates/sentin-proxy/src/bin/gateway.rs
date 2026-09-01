@@ -10,17 +10,33 @@ use sentin_proxy::{serve, AppState};
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                // Both targets: the library emits per-request lines as `sentin_proxy`, while this
-                // binary's own startup message is `sentin_gateway`. Filtering on the library alone
-                // meant the gateway came up completely silently, which reads as a failure to start.
-                .unwrap_or_else(|_| "sentin_proxy=info,sentin_gateway=info".into()),
-        )
-        .init();
+    // First, and before any inspection thread exists: a runtime shipped beside this executable has
+    // to be on the library search path before OpenVINO is first asked for anything, and writing to
+    // the environment is only defensible while nothing else is reading it.
+    sentin_detect::ov::use_bundled_runtime();
 
     let args: Vec<String> = std::env::args().collect();
+
+    // Under the service control manager there is no console, so the log goes to a file. The choice
+    // has to be made here because a subscriber can be installed only once, and installing the
+    // stdout one first is what made every service start silent.
+    #[cfg(windows)]
+    let started_by_scm = args.iter().any(|a| a == "--service");
+    #[cfg(not(windows))]
+    let started_by_scm = false;
+
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        // Both targets: the library emits per-request lines as `sentin_proxy`, while this binary's
+        // own startup message is `sentin_gateway`. Filtering on the library alone meant the gateway
+        // came up completely silently, which reads as a failure to start.
+        .unwrap_or_else(|_| "sentin_proxy=info,sentin_gateway=info".into());
+
+    if started_by_scm {
+        #[cfg(windows)]
+        sentin_proxy::service::init_logging(filter);
+    } else {
+        tracing_subscriber::fmt().with_env_filter(filter).init();
+    }
 
     // Windows service verbs. All three are no-ops elsewhere, and saying so is better than hiding
     // the flags: someone reading --help on Linux should see why they are absent.
@@ -56,6 +72,13 @@ async fn main() -> ExitCode {
                     println!(
                         "start it with: sc start {}",
                         sentin_proxy::service::SERVICE_NAME
+                    );
+                    // Said here because it is the one thing an operator cannot guess, and the
+                    // line to look for in it - "layer 2 ready" against "layer 2 unavailable" - is
+                    // the difference between a gateway inspecting and a gateway pretending to.
+                    println!(
+                        "it logs to: {}",
+                        sentin_proxy::service::log_path(&config).display()
                     );
                     ExitCode::SUCCESS
                 }

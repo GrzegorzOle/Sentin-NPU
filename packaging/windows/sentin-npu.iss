@@ -66,6 +66,12 @@ Name: "docs"; Description: "Documentation: installation, configuration, the audi
 
 [Files]
 Source: "{#Payload}\sentin-gateway.exe"; DestDir: "{app}"; Components: gateway; Flags: ignoreversion
+; The OpenVINO runtime goes in lib\, and nothing here puts it on any search path: the binaries add
+; their own lib\ directory themselves at startup. That is deliberate. Windows searches the
+; executable's directory and PATH, neither of which is lib\, so the first release of this installer
+; produced a service that ran with layer 2 silently missing - and the alternative fix, editing the
+; machine's PATH, changes the whole system to solve one program's problem and has to be undone on
+; uninstall to avoid leaving a dangling entry.
 Source: "{#Payload}\lib\*"; DestDir: "{app}\lib"; Components: gateway; Flags: ignoreversion recursesubdirs
 Source: "{#Payload}\models\*"; DestDir: "{app}\models"; Components: gateway; Flags: ignoreversion recursesubdirs
 Source: "{#Payload}\sentin-doctor.exe"; DestDir: "{app}"; Components: tools; Flags: ignoreversion
@@ -81,6 +87,9 @@ Name: "{commonappdata}\{#AppName}"; Permissions: users-modify
 
 [Icons]
 Name: "{group}\Sentin-NPU configuration"; Filename: "notepad.exe"; Parameters: """{commonappdata}\{#AppName}\config.yaml"""
+; The service has no console, so this file is the only place its startup is visible - and the one
+; line worth finding in it is whether layer 2 loaded.
+Name: "{group}\Service log"; Filename: "notepad.exe"; Parameters: """{commonappdata}\{#AppName}\sentin-gateway.log"""
 Name: "{group}\Device report (sentin-doctor)"; Filename: "{app}\sentin-doctor.exe"; Components: tools
 Name: "{group}\Deployment guide"; Filename: "{app}\wazuh\README.md"; Components: wazuh
 Name: "{group}\Installation and configuration"; Filename: "{app}\docs\install-windows.md"; Components: docs
@@ -292,6 +301,56 @@ begin
                  '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
+function LogPath: String;
+begin
+  Result := ExpandConstant('{commonappdata}\{#AppName}\sentin-gateway.log');
+end;
+
+{ A service that is running is not the same thing as a gateway that is inspecting.
+
+  Layer 2 needs the OpenVINO runtime and the NER model, and when it cannot have them the gateway
+  keeps serving layer 1 and records that in its log - a design decision, because a gateway in front
+  of somebody's real work should degrade rather than refuse. The cost is that the failure is
+  invisible: the service is RUNNING, the port answers, requests succeed, and only the entity
+  detection is missing. This installer's first release shipped exactly that, and it was found days
+  later by noticing a field absent from an audit event.
+
+  So the last thing the installer does is read the log the gateway has just written and say which
+  of the two it got. }
+procedure CheckSecondLayer;
+var
+  Raw: AnsiString;
+  Text: String;
+  Waited: Integer;
+begin
+  Text := '';
+  { Up to twenty seconds: on a first start the device probe compiles the model on every device
+    OpenVINO enumerates, which on a machine with a discrete GPU is genuinely slow. }
+  Waited := 0;
+  while Waited < 40 do
+  begin
+    if LoadStringFromFile(LogPath(), Raw) then
+    begin
+      Text := Raw;
+      if (Pos('layer 2 ready', Text) > 0) or (Pos('layer 2 unavailable', Text) > 0) then
+        Break;
+    end;
+    Sleep(500);
+    Waited := Waited + 1;
+  end;
+
+  if Pos('layer 2 unavailable', Text) > 0 then
+    MsgBox('The gateway is running, but only its first layer is.' + #13#10 + #13#10
+      + 'Checksum detection - PESEL, NIP, REGON, IBAN, payment cards - works. Named entity '
+      + 'detection does not, so people, organisations and places will not be found.' + #13#10 + #13#10
+      + 'The reason is in the log:' + #13#10 + LogPath(), mbError, MB_OK)
+  else if Pos('layer 2 ready', Text) = 0 then
+    MsgBox('The gateway is running, but it did not report whether its second layer loaded.'
+      + #13#10 + #13#10
+      + 'Look for "layer 2 ready" or "layer 2 unavailable" in:' + #13#10 + LogPath(),
+      mbInformation, MB_OK);
+end;
+
 procedure SetUpService;
 var
   ResultCode, Waited: Integer;
@@ -324,13 +383,19 @@ begin
   end;
 
   if not ServiceIsRunning then
+  begin
     MsgBox('The service was registered but is not running.' + #13#10 + #13#10
       + 'The usual cause is that something else already holds port '
       + ConfigPage.Values[0] + ' - often the gateway itself, started by hand or from an '
       + 'unpacked bundle. Stop it and then:' + #13#10 + #13#10
       + '  sc start {#ServiceName}' + #13#10 + #13#10
-      + 'The configuration it uses is ' + ExpandConstant('{commonappdata}\{#AppName}\config.yaml'),
+      + 'The configuration it uses is ' + ExpandConstant('{commonappdata}\{#AppName}\config.yaml')
+      + #13#10 + 'and it logs to ' + LogPath(),
       mbError, MB_OK);
+    Exit;
+  end;
+
+  CheckSecondLayer;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

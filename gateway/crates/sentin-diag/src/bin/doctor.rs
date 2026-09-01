@@ -11,6 +11,11 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    // The diagnostic is the one binary people run before anything else works, so it has to find a
+    // runtime shipped beside it without being told where - otherwise its first answer on a
+    // perfectly good installation is "OpenVINO UNAVAILABLE", which reads as a broken machine.
+    sentin_detect::ov::use_bundled_runtime();
+
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         print_help();

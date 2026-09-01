@@ -133,6 +133,7 @@ impl NerEngine {
         let config_path = model_dir.join("config.json");
         let id2label = read_labels(&config_path)?;
 
+        crate::ov::use_bundled_runtime();
         let mut core = Core::new().map_err(|err| NerError::OpenVino(err.to_string()))?;
         let available: Vec<String> = core
             .available_devices()

@@ -15,7 +15,9 @@
 //! it execute"; the per-operator breakdown belongs to the Python toolchain, whose OpenVINO
 //! bindings do expose it.
 
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+use std::sync::Once;
 use std::time::{Duration, Instant};
 
 use openvino::{CompiledModel, Core, DeviceType, ElementType, PropertyKey, Tensor};
@@ -23,6 +25,84 @@ use serde::{Deserialize, Serialize};
 
 /// Device preference order for `AUTO`: the whole point of the project is to prefer the NPU.
 pub const AUTO_ORDER: [&str; 3] = ["NPU", "GPU", "CPU"];
+
+/// The environment variable the OpenVINO loader reads when looking for its shared libraries.
+///
+/// The `openvino` crate links at run time and resolves the library *file* from this variable
+/// itself before handing a full path to the loader, so changing it from inside the process takes
+/// effect - including on Linux, where a late change to `LD_LIBRARY_PATH` would be ignored if the
+/// dynamic loader were the one doing the search.
+pub const LIBRARY_PATH_VAR: &str = if cfg!(windows) {
+    "PATH"
+} else if cfg!(target_os = "macos") {
+    "DYLD_LIBRARY_PATH"
+} else {
+    "LD_LIBRARY_PATH"
+};
+
+/// The value `LIBRARY_PATH_VAR` should take so that `candidates` are searched first.
+///
+/// Pure, and separate from the environment on purpose: what belongs on the search path is the part
+/// worth testing, and it cannot be tested through a process-wide variable other tests also read.
+/// Returns `None` when every candidate is already there, so the caller can leave the environment
+/// untouched in the common case.
+fn library_path_with(existing: Option<&OsStr>, candidates: &[PathBuf]) -> Option<OsString> {
+    let current: Vec<PathBuf> = existing
+        .map(|value| std::env::split_paths(value).collect())
+        .unwrap_or_default();
+
+    let missing: Vec<PathBuf> = candidates
+        .iter()
+        .filter(|dir| !current.iter().any(|entry| entry == *dir))
+        .cloned()
+        .collect();
+
+    if missing.is_empty() {
+        return None;
+    }
+    // Prepended, not appended: a bundle carries the runtime it was tested against, and a different
+    // OpenVINO already on the path is exactly what it exists to avoid depending on.
+    std::env::join_paths(missing.into_iter().chain(current)).ok()
+}
+
+/// Put the OpenVINO runtime shipped beside this executable on the library search path.
+///
+/// Why this exists: the Windows installer puts the runtime in `lib\` next to `sentin-gateway.exe`,
+/// and Windows searches the executable's own directory and `PATH` - neither of which is `lib\`.
+/// The service therefore started, served layer 1 only and said nothing about it, which is this
+/// project's most persistent failure shape: a gateway inspecting less than it claims looks exactly
+/// like a working gateway. Doing it here rather than in an installer or a launcher script means
+/// every entry point gets it, including a binary somebody copies out of a bundle by hand.
+///
+/// Idempotent, and a no-op when no bundled runtime is present, so a machine with OpenVINO
+/// installed system-wide keeps using its own.
+///
+/// Call it from `main`, before any thread is spawned: writing to the environment while other
+/// threads read it is unsound, and [`Once`] only guarantees this runs once, not that it runs early.
+pub fn use_bundled_runtime() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        let Some(dir) = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(Path::to_path_buf))
+        else {
+            return;
+        };
+
+        // `lib/` is what the release bundle and the Windows installer both use; beside the
+        // executable is what a directory somebody assembled by hand tends to look like.
+        let candidates: Vec<PathBuf> = [dir.join("lib"), dir]
+            .into_iter()
+            .filter(|path| path.is_dir())
+            .collect();
+
+        if let Some(updated) =
+            library_path_with(std::env::var_os(LIBRARY_PATH_VAR).as_deref(), &candidates)
+        {
+            std::env::set_var(LIBRARY_PATH_VAR, updated);
+        }
+    });
+}
 
 /// Why the OpenVINO layer could not be used at all.
 #[derive(Debug, thiserror::Error)]
@@ -95,6 +175,7 @@ pub struct Report {
 /// # Errors
 /// [`OvError::Runtime`] when the OpenVINO shared libraries cannot be loaded at all.
 pub fn probe(model_xml: Option<&Path>) -> Result<Report, OvError> {
+    use_bundled_runtime();
     let mut core = Core::new().map_err(|err| OvError::Runtime(err.to_string()))?;
 
     let available: Vec<String> = core
@@ -367,6 +448,7 @@ pub fn run_at_rate(
     duration: Duration,
     target_rps: Option<f64>,
 ) -> Result<(u64, Duration), String> {
+    use_bundled_runtime();
     let mut core = Core::new().map_err(|err| err.to_string())?;
     let bin = xml.with_extension("bin");
     let model = core
@@ -495,6 +577,55 @@ mod tests {
 
     fn devices(names: &[&str]) -> Vec<String> {
         names.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    fn joined(paths: &[&str]) -> OsString {
+        std::env::join_paths(paths.iter().map(PathBuf::from)).expect("test paths join")
+    }
+
+    #[test]
+    fn the_bundled_runtime_goes_in_front_of_whatever_is_installed() {
+        let existing = joined(&["/usr/lib", "/opt/intel/openvino/lib"]);
+        let updated = library_path_with(Some(&existing), &[PathBuf::from("/app/lib")])
+            .expect("a missing directory has to be added");
+
+        let entries: Vec<PathBuf> = std::env::split_paths(&updated).collect();
+        assert_eq!(
+            entries.first(),
+            Some(&PathBuf::from("/app/lib")),
+            "a bundle carries the runtime it was tested against, so it must win over a system one"
+        );
+        assert_eq!(entries.len(), 3, "nothing that was on the path may be lost");
+    }
+
+    #[test]
+    fn a_path_that_already_has_it_is_left_alone() {
+        let existing = joined(&["/app/lib", "/usr/lib"]);
+        assert!(
+            library_path_with(Some(&existing), &[PathBuf::from("/app/lib")]).is_none(),
+            "re-running must not grow the variable on every start"
+        );
+    }
+
+    #[test]
+    fn an_empty_environment_still_gets_the_bundle() {
+        let updated = library_path_with(None, &[PathBuf::from("/app/lib")])
+            .expect("no existing value is not a reason to skip");
+        assert_eq!(
+            std::env::split_paths(&updated).collect::<Vec<_>>(),
+            vec![PathBuf::from("/app/lib")]
+        );
+    }
+
+    #[test]
+    fn candidates_keep_their_order() {
+        let updated = library_path_with(None, &[PathBuf::from("/app/lib"), PathBuf::from("/app")])
+            .expect("both are missing");
+        assert_eq!(
+            std::env::split_paths(&updated).collect::<Vec<_>>(),
+            vec![PathBuf::from("/app/lib"), PathBuf::from("/app")],
+            "lib/ is the packaged layout and is searched before the executable's own directory"
+        );
     }
 
     #[test]
