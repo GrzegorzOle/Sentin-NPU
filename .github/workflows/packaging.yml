@@ -87,12 +87,14 @@ jobs:
         run: |
           # No binaries, no OpenVINO, no model - the point is that the layout, the metadata and
           # appimagetool itself all work. The real payload only changes the size.
-          mkdir -p stage/lib stage/models/seq128 stage/wazuh
+          mkdir -p stage/lib stage/models/seq128 stage/wazuh stage/docs
           printf '#!/bin/sh\necho stub\n' > stage/sentin-gateway
           cp stage/sentin-gateway stage/sentin-doctor
           cp stage/sentin-gateway stage/sentin-bench
           chmod +x stage/sentin-*
           touch stage/lib/libopenvino_c.so.2630 stage/models/seq128/openvino_model.xml
+          echo 'schema' > stage/docs/events.md
+          echo 'rules' > stage/wazuh/sentin_npu_rules.xml
           ./packaging/linux/build-appimage.sh stage 0.0.0-ci dist
           test -x dist/Sentin-NPU-0.0.0-ci-x86_64.AppImage
 
@@ -102,4 +104,9 @@ jobs:
           # trusting anything else, and it exercises AppRun end to end.
           ./dist/Sentin-NPU-0.0.0-ci-x86_64.AppImage --appimage-extract >/dev/null
           ./squashfs-root/AppRun --help | grep -q "local privacy gateway"
-          echo "AppRun works from inside the image"
+          # --docs is the only way the documentation inside the image reaches anybody, so it is
+          # worth a test rather than a promise.
+          ./squashfs-root/AppRun --docs /tmp/extracted-docs
+          test -f /tmp/extracted-docs/events.md
+          test -f /tmp/extracted-docs/wazuh/sentin_npu_rules.xml
+          echo "AppRun works from inside the image, and hands over its documentation"

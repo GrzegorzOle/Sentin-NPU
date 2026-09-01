@@ -155,8 +155,11 @@ rather than a broken import.
 
 ## Fields you can query
 
-All under `data.`, straight from the JSON. The schema is authoritative in
-[`docs/events.md`](../../docs/events.md) and any change to it updates that file in the same commit.
+All under `data.`, straight from the JSON. The schema is authoritative in **`docs/events.md`** and
+any change to it updates that file in the same commit. That file sits next to this one in a release
+bundle (`../docs/events.md`), in the repository at
+[`docs/events.md`](https://github.com/GrzegorzOle/Sentin-NPU/blob/main/docs/events.md), and inside
+the AppImage under `usr/share/sentin-npu/docs/` - extract it with `--docs`.
 
 | Field | Example | Note |
 |---|---|---|

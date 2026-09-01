@@ -60,6 +60,7 @@ That writes a **user** unit, so no root is involved. Two consequences worth know
 ## The rest of the commands
 
 ```bash
+./Sentin-NPU-*.AppImage --docs            # copy the documentation and the Wazuh files out
 ./Sentin-NPU-*.AppImage --doctor          # what this machine can run the model on, per device
 ./Sentin-NPU-*.AppImage --bench --m2b-only --device CPU
 ./Sentin-NPU-*.AppImage --config /etc/sentin-npu/config.yaml
@@ -68,6 +69,11 @@ That writes a **user** unit, so no root is involved. Two consequences worth know
 
 `--doctor` is what to attach to an `npu-report` issue if you have Intel hardware: it compiles and
 runs the real model on every device and reports what each one said.
+
+`--docs` exists because documentation inside a squashfs is documentation nobody reads. It copies
+the installation guide, the audit event schema, the benchmarks and the whole `wazuh/` directory
+into a plain folder you can hand to somebody - and the person who needs the Wazuh rules is usually
+not the person holding this file.
 
 ## What is inside
 

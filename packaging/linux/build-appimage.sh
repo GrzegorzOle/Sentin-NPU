@@ -40,6 +40,11 @@ done
 cp -a "$STAGE/lib/." "$APPDIR/usr/lib/"
 cp -a "$STAGE/models" "$APPDIR/usr/share/sentin-npu/"
 [ -d "$STAGE/wazuh" ] && cp -a "$STAGE/wazuh" "$APPDIR/usr/share/sentin-npu/"
+# Documentation travels inside the image and `--docs` is what gets it out again. Without that,
+# shipping it here would be the same as not shipping it: nobody unpacks a squashfs to read a
+# README.
+[ -d "$STAGE/docs" ] && cp -a "$STAGE/docs" "$APPDIR/usr/share/sentin-npu/"
+[ -f "$STAGE/README.txt" ] && cp "$STAGE/README.txt" "$APPDIR/usr/share/sentin-npu/docs/README.txt"
 
 # dlopen looks for unversioned sonames and the OpenVINO wheel ships only versioned ones. The
 # staged bundle already has these links, but cp -a through a filesystem that drops them (or a

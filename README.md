@@ -88,6 +88,11 @@ chmod +x Sentin-NPU-*.AppImage
 No Python, no Rust, no OpenVINO installation. Details:
 [`packaging/linux/`](packaging/linux/README.md).
 
+**The documentation travels with the software.** Every archive carries `docs/` and `wazuh/`; the
+AppImage hands them over with `--docs`; the Windows installer puts them under the program directory
+with Start Menu entries. `sentin-npu-docs-<version>.zip` on the releases page is the same material
+on its own, 160 KB, for reading before a 280 MB download and for handing to whoever runs your SIEM.
+
 ### From a release bundle - no toolchain needed
 
 The bundle carries the gateway, the diagnostics, the latency harness, the OpenVINO runtime and the

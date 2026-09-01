@@ -89,24 +89,104 @@ copy_models() {
 
 write_readme() {
     local dir="$1" platform="$2" cmd="$3" dbg="$4"
+    # The platform string is prose ("Linux x86-64 (glibc 2.30+)"); the docs filename is not.
+    local platform_slug=linux
+    case "${platform}" in Windows*) platform_slug=windows ;; esac
     cat > "${dir}/README.txt" <<EOF
-Sentin-NPU diagnostic bundle ${VERSION} (test build) — ${platform}
-=================================================================
+Sentin-NPU ${VERSION} (test build) - ${platform}
+================================================
 
 Self-contained. Nothing needs installing: no Rust, no Python, no OpenVINO, no network.
+The gateway, the diagnostics, the OpenVINO runtime, the quantized model and the Wazuh
+integration are all in this directory.
+
+
+WHAT IS IN HERE
+---------------
+
+  docs/            everything below is documented there, in full
+  wazuh/           rules, dashboard and the guide for a Wazuh administrator
+  config.yaml      the gateway's configuration, pointing at the bundled model
+  models/          the quantized IR and its tokenizer
+  lib/             the OpenVINO runtime
+
+
+FIRST: WHAT CAN THIS MACHINE DO
+-------------------------------
 
     ${cmd}
 
 Results are written to results/ and collected into a single archive to send back.
+It contains hardware, driver and timing information; no personal data and nothing
+from any inspected request.
 
 The diagnostic ships twice. Measurements use the optimised build; ${dbg} runs a debug
 build with full backtraces, for when something crashes and a number matters less than
 knowing why.
 
-If the NPU does not appear, the report says so and why. That outcome is a result, not a
-failure — please send it either way. It contains hardware, driver and timing information;
-no personal data and nothing from any inspected request.
+If the NPU does not appear, the report says so and why. That outcome is a result, not
+a failure - please send it either way.
+
+
+THEN: RUNNING THE GATEWAY
+-------------------------
+
+Edit config.yaml, then start it. Point your client at http://<host>:<port>/openai,
+/anthropic or /google instead of the provider's own address.
+
+The one setting whose wrong value is silent is inference.model_dir. It ships relative
+to this directory, so the gateway must be started from here; make it an absolute path
+before running it from anywhere else, or layer 2 goes missing with only a warning.
+A healthy start logs "layer 2 ready device=..."; anything else means the checksum
+detectors are working and the NER model is not.
+
+An installer that does all of this for you, and registers a service, is published
+alongside this archive on the releases page. See docs/install-${platform_slug}.md.
+
+
+AND: THE AUDIT TRAIL
+--------------------
+
+Every detection produces a metadata-only event - the data type, the verdict, the
+caller, the model the data was heading for, never the text itself. docs/events.md is
+the authoritative field reference.
+
+To get those events into Wazuh, hand wazuh/ to whoever runs it: rules, the agent
+collection snippet, a twelve-panel dashboard and a deployment guide written for
+someone who has never seen this project. No decoder to write.
+
+
+DOCUMENTATION
+-------------
+
+  docs/install-${platform_slug}.md   installing, configuring, running as a service
+  docs/events.md                     the audit event schema, binding
+  docs/overview.md                   what this is and why it is built this way
+  docs/benchmarks.md                 every measurement, with the hardware it came from
+  docs/npu-compat.md                 per-device compatibility reports
+  wazuh/README.md                    the SIEM integration, end to end
+  docs/LICENSE, docs/NOTICE.md       Apache 2.0, and the model's own licence
+
+https://github.com/GrzegorzOle/Sentin-NPU
 EOF
+}
+
+# The documentation travels with the software. Someone who downloads a 280 MB archive should not
+# have to go and find a git repository to learn how to configure it, and the Wazuh administrator
+# they hand the rules to should get the event schema in the same directory as the rules.
+stage_docs() {
+    local stage="$1" platform="$2"
+    mkdir -p "${stage}/docs"
+    cp "${REPO}/README.md"        "${stage}/docs/overview.md"
+    cp "${REPO}/docs/events.md"   "${stage}/docs/events.md"
+    cp "${REPO}/docs/benchmarks.md" "${stage}/docs/benchmarks.md"
+    cp "${REPO}/docs/npu-compat.md" "${stage}/docs/npu-compat.md"
+    cp "${REPO}/LICENSE"          "${stage}/docs/LICENSE"
+    cp "${REPO}/NOTICE.md"        "${stage}/docs/NOTICE.md"
+    case "${platform}" in
+        windows) cp "${REPO}/packaging/windows/README.md" "${stage}/docs/install-windows.md" ;;
+        linux)   cp "${REPO}/packaging/linux/README.md"   "${stage}/docs/install-linux.md" ;;
+    esac
 }
 
 stage_wazuh() {
@@ -141,6 +221,7 @@ stage_linux() {
     # Wazuh administrator to hand the rules to on the same day, and asking them to go and find a
     # directory in a git repository is how an integration stays unshipped.
     stage_wazuh "${stage}"
+    stage_docs "${stage}" linux
     # The shipped config points layer 2 at the bundled model rather than a path that only exists
     # in the source tree, so the gateway works straight out of the archive.
     sed -e 's|^  model_dir:.*|  model_dir: models/seq128|' \
@@ -186,6 +267,7 @@ stage_windows() {
         "${REPO}/config/default.yaml" > "${stage}/config.yaml"
 
     stage_wazuh "${stage}"
+    stage_docs "${stage}" windows
     copy_models "${stage}/models"
     cp "${REPO}/scripts/run-diagnostics.ps1" "${stage}/run.ps1"
     write_readme "${stage}" "Windows x86-64" \
@@ -197,6 +279,22 @@ stage_windows() {
         "$(basename "${stage}")" )
 }
 
+# The documentation on its own, for anyone who wants to read before downloading 280 MB, and for
+# the Wazuh administrator who is not the person deploying the gateway and has no use for the
+# binaries at all.
+stage_docs_archive() {
+    local dir="${OUT}/sentin-npu-docs-${VERSION}"
+    say "docs: staging"
+    rm -rf "${dir}"; mkdir -p "${dir}"
+    stage_docs "${dir}" all
+    cp "${REPO}/packaging/windows/README.md" "${dir}/docs/install-windows.md"
+    cp "${REPO}/packaging/linux/README.md"   "${dir}/docs/install-linux.md"
+    stage_wazuh "${dir}"
+    mv "${dir}/docs"/* "${dir}/" && rmdir "${dir}/docs"
+    ( cd "${OUT}" && zip -qr "sentin-npu-docs-${VERSION}.zip" "$(basename "${dir}")" )
+    rm -rf "${dir}"
+}
+
 mkdir -p "${OUT}"
 build_linux
 build_windows
@@ -205,6 +303,8 @@ stage_windows
 # The IR also ships on its own, for people who want the model without a bundle around it. The
 # bundles keep their embedded copy regardless — they have to work with no network.
 "${REPO}/scripts/make-model-assets.sh" "${VERSION}"
+
+stage_docs_archive
 
 say "artefacts:"
 ls -lh "${OUT}"/*.tar.gz "${OUT}"/*.zip 2>/dev/null | awk '{printf "  %-10s %s\n", $5, $NF}'

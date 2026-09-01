@@ -40,8 +40,13 @@ C:\Program Files\Sentin-NPU\        sentin-gateway.exe, sentin-doctor.exe, senti
                             lib\    OpenVINO runtime
                             models\ the quantized IR and its tokenizer
                             wazuh\  rules, dashboard, deployment guide
+                            docs\   installation, the audit schema, benchmarks, licences
 C:\ProgramData\Sentin-NPU\  config.yaml, audit.jsonl
 ```
+
+The Start Menu group links the installation guide, the audit event schema and the Wazuh deployment
+guide, so nobody has to know they are on disk. The same material is published on its own as
+`sentin-npu-docs-<version>.zip`, which is what to send to whoever runs your SIEM.
 
 ## The service
 

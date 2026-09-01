@@ -34,6 +34,7 @@ Sentin-NPU - local privacy gateway for LLM traffic
   $(basename "$SELF") --setup         write that configuration, asking what it needs
   $(basename "$SELF") --install-service  install and start a systemd *user* service
   $(basename "$SELF") --uninstall-service
+  $(basename "$SELF") --docs [DIR]    copy the documentation and the Wazuh integration out
   $(basename "$SELF") --doctor        report what this machine can run the model on
   $(basename "$SELF") --bench [args]  latency harness
   $(basename "$SELF") --config PATH   run with a different configuration
@@ -171,6 +172,23 @@ EOF
     echo "to keep it running when you are not logged in: sudo loginctl enable-linger $USER" >&2
 }
 
+do_docs() {
+    # The documentation is inside the image, which is the same as nowhere until it can be taken
+    # out: nobody unpacks a squashfs to read a README, and the Wazuh administrator who needs the
+    # rules does not have this file at all.
+    target=${1:-./sentin-npu-docs}
+    src="$HERE/usr/share/sentin-npu"
+    mkdir -p "$target"
+    [ -d "$src/docs" ] && cp -a "$src/docs/." "$target/"
+    [ -d "$src/wazuh" ] && cp -a "$src/wazuh" "$target/"
+    chmod -R u+w "$target"
+    echo "copied to $target" >&2
+    echo >&2
+    ls "$target" | sed 's/^/  /' >&2
+    echo >&2
+    echo "Start with install-linux.md; hand wazuh/ to whoever runs your SIEM." >&2
+}
+
 do_uninstall_service() {
     systemctl --user disable --now sentin-npu.service 2>/dev/null || true
     rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/sentin-npu.service"
@@ -180,6 +198,7 @@ do_uninstall_service() {
 
 case "${1:-}" in
     --setup) do_setup ;;
+    --docs) shift; do_docs "${1:-}" ;;
     --install-service) do_install_service ;;
     --uninstall-service) do_uninstall_service ;;
     --help|-h) usage ;;

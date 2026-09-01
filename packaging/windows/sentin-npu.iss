@@ -62,6 +62,7 @@ Name: "custom"; Description: "Custom"; Flags: iscustom
 Name: "gateway"; Description: "Gateway, OpenVINO runtime and the NER model"; Types: full gateway custom; Flags: fixed
 Name: "tools"; Description: "Diagnostics (sentin-doctor) and latency harness (sentin-bench)"; Types: full
 Name: "wazuh"; Description: "Wazuh rules, dashboard and deployment guide"; Types: full
+Name: "docs"; Description: "Documentation: installation, configuration, the audit event schema"; Types: full gateway custom; Flags: fixed
 
 [Files]
 Source: "{#Payload}\sentin-gateway.exe"; DestDir: "{app}"; Components: gateway; Flags: ignoreversion
@@ -70,6 +71,7 @@ Source: "{#Payload}\models\*"; DestDir: "{app}\models"; Components: gateway; Fla
 Source: "{#Payload}\sentin-doctor.exe"; DestDir: "{app}"; Components: tools; Flags: ignoreversion
 Source: "{#Payload}\sentin-bench.exe"; DestDir: "{app}"; Components: tools; Flags: ignoreversion
 Source: "{#Payload}\wazuh\*"; DestDir: "{app}\wazuh"; Components: wazuh; Flags: ignoreversion recursesubdirs
+Source: "{#Payload}\docs\*"; DestDir: "{app}\docs"; Components: docs; Flags: ignoreversion recursesubdirs
 Source: "{#Payload}\README.txt"; DestDir: "{app}"; Flags: ignoreversion isreadme
 
 [Dirs]
@@ -81,6 +83,9 @@ Name: "{commonappdata}\{#AppName}"; Permissions: users-modify
 Name: "{group}\Sentin-NPU configuration"; Filename: "notepad.exe"; Parameters: """{commonappdata}\{#AppName}\config.yaml"""
 Name: "{group}\Device report (sentin-doctor)"; Filename: "{app}\sentin-doctor.exe"; Components: tools
 Name: "{group}\Deployment guide"; Filename: "{app}\wazuh\README.md"; Components: wazuh
+Name: "{group}\Installation and configuration"; Filename: "{app}\docs\install-windows.md"; Components: docs
+Name: "{group}\Audit event schema"; Filename: "{app}\docs\events.md"; Components: docs
+Name: "{group}\Documentation"; Filename: "{app}\docs"; Components: docs
 
 [Run]
 Filename: "{app}\sentin-gateway.exe"; Parameters: "--install-service ""{commonappdata}\{#AppName}\config.yaml"""; StatusMsg: "Registering the Windows service..."; Flags: runhidden; Check: WantsService
