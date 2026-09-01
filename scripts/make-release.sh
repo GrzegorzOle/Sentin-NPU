@@ -16,7 +16,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${REPO}/dist"
-VERSION="${1:-0.1.2}"
+VERSION="${1:-0.2.0}"
 OV_LINUX="${REPO}/tools/.venv/lib/python3.11/site-packages/openvino/libs"
 OV_WINDOWS="${OV_WINDOWS_LIBS:-}"
 

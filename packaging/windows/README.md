@@ -127,7 +127,7 @@ OpenVINO runtime, the model, the Wazuh files and the documentation.
 ## Silent installation
 
 ```powershell
-sentin-npu-setup-0.1.2.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+sentin-npu-setup-0.2.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 Silent mode takes every default, including installing and starting the service. To deploy a
@@ -143,8 +143,8 @@ Needs a Windows machine with [Inno Setup 6](https://jrsoftware.org/isinfo.php) a
 (what `scripts/make-release.sh` produces):
 
 ```powershell
-iscc /DVersion=0.1.2 `
-     /DPayload=..\..\dist\sentin-npu-diag-0.1.2-windows-x64 `
+iscc /DVersion=0.2.0 `
+     /DPayload=..\..\dist\sentin-npu-diag-0.2.0-windows-x64 `
      sentin-npu.iss
 ```
 
