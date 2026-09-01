@@ -567,7 +567,8 @@ Every detection produces an event - **metadata only, never content**:
   "device": "NPU",
   "client_addr": "10.1.2.3",
   "upstream_model": "claude-sonnet-4",
-  "provider": "anthropic"
+  "provider": "anthropic",
+  "source": "prompt"
 }
 ```
 
@@ -606,6 +607,13 @@ Two rules follow from the format rather than from policy:
   is otherwise clean. An image, an encrypted document or one over the size limit is not a document
   known to be harmless.
 
+Every event says **where** the identifier was, in `source` (`prompt` or `attachment`), along with
+`attachment_kind` and `attachment_bytes`. Without that, a PESEL somebody typed and a contract
+somebody attached are the same row on a dashboard, and they are not the same incident: the first is
+one person's slip, the second may be a file holding many other people's data. It also explains a
+verdict that would otherwise look like a lenient policy - `advised` on an attachment means "could
+not be masked", not "the rule is soft".
+
 **There is no OCR.** A scanned page is an image and its text is not read; it is reported as
 skipped. Work is bounded by `inspect.max_attachment_bytes` and by a text ceiling, because a
 decompression bomb is a denial of service wearing a document's clothes.
@@ -626,7 +634,7 @@ doing the inspecting) are different fields.
 ### Wazuh
 
 A ready-to-deploy integration ships in **[packaging/wazuh/](packaging/wazuh/)** and in every
-release bundle under `wazuh/`: rules, the agent collection snippet, a dashboard with twelve panels
+release bundle under `wazuh/`: rules, the agent collection snippet, a dashboard with fifteen panels
 and a deployment guide written for a Wazuh administrator who has never seen this project. There is
 no decoder to install - the gateway writes JSON, so Wazuh's own decoder exposes every field.
 

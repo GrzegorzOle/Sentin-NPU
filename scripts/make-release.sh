@@ -148,11 +148,17 @@ AND: THE AUDIT TRAIL
 --------------------
 
 Every detection produces a metadata-only event - the data type, the verdict, the
-caller, the model the data was heading for, never the text itself. docs/events.md is
-the authoritative field reference.
+caller, the model the data was heading for, and whether the identifier was typed
+into the prompt or found inside an attached file. Never the text itself.
+docs/events.md is the authoritative field reference.
+
+Attachments are decoded and read: PDF, Office and OpenDocument files, and plain
+text in UTF-8, UTF-16 or a single-byte code page. One that cannot be read - an
+image, an archive, something encrypted - is reported rather than passed over in
+silence. There is no OCR.
 
 To get those events into Wazuh, hand wazuh/ to whoever runs it: rules, the agent
-collection snippet, a twelve-panel dashboard and a deployment guide written for
+collection snippet, a fifteen-panel dashboard and a deployment guide written for
 someone who has never seen this project. No decoder to write.
 
 
@@ -258,7 +264,7 @@ stage_windows() {
     if [ -n "${OV_WINDOWS}" ] && [ -d "${OV_WINDOWS}" ]; then
         cp -a "${OV_WINDOWS}"/*.dll "${stage}/lib/"
     else
-        echo "WARNING: OV_WINDOWS_LIBS not set — Windows bundle has no OpenVINO runtime" >&2
+        echo "WARNING: OV_WINDOWS_LIBS not set - Windows bundle has no OpenVINO runtime" >&2
     fi
 
     # Same rewrite as Linux: a config pointing into the source tree silently drops the bundle to

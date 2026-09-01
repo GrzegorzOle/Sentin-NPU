@@ -15,9 +15,9 @@ Dashboards has kept stable since 2.x.
 
 | File | What it is |
 |---|---|
-| `sentin_npu_rules.xml` | Rules 100500-100531. Install on the **manager**. |
+| `sentin_npu_rules.xml` | 18 rules, ids 100500-100531. Install on the **manager**. |
 | `agent-localfile.conf` | The `<localfile>` block that ships events. Install on the **agent**, or push it to a group. |
-| `sentin-npu-dashboard.ndjson` | 12 panels plus the dashboard. Import in **Dashboards**. |
+| `sentin-npu-dashboard.ndjson` | 15 panels plus the dashboard. Import in **Dashboards**. |
 | `build_dashboard.py` | Regenerates the ndjson. Only needed if you change panels or index pattern. |
 
 **There is no decoder in this directory, and that is deliberate.** The gateway writes one JSON
@@ -105,9 +105,14 @@ sudo systemctl restart wazuh-manager
 manager, run it and read it: a syntax error found here costs a second, and found after a restart
 costs however long it takes someone to notice alerts stopped.
 
-**If ids 100500-100531 are taken on your manager**, renumber this file and change the seven
-constants at the top of `build_dashboard.py`, then regenerate the ndjson. Four panels filter by
+**If ids 100500-100531 are taken on your manager**, renumber this file and change the rule-id
+constants at the top of `build_dashboard.py`, then regenerate the ndjson. Five panels filter by
 rule id and will be empty otherwise.
+
+**Every event kind must appear in rule 100500's `event` field.** It is the parent the others hang
+off, and a child whose parent never matches never fires - silently. That is not hypothetical:
+`attachment_skipped` was added to the gateway and not to that line, and rule 100524 was dead until
+somebody counted the alerts and found none.
 
 Validate against a real line, which is the step that catches a schema drift:
 
@@ -124,7 +129,7 @@ Dashboards -> **Stack Management** -> **Saved Objects** -> **Import** ->
 `sentin-npu-dashboard.ndjson` -> *Automatically overwrite conflicts*.
 
 The panels reference the alerts index pattern by the id `wazuh-alerts-*`, which is what a stock
-Wazuh install uses. If yours differs, regenerate rather than fixing twelve panels by hand:
+Wazuh install uses. If yours differs, regenerate rather than fixing fifteen panels by hand:
 
 ```bash
 python3 build_dashboard.py --index-pattern 'your-pattern-id'
@@ -166,7 +171,7 @@ the AppImage under `usr/share/sentin-npu/docs/` - extract it with `--docs`.
 
 | Field | Example | Note |
 |---|---|---|
-| `data.event` | `pii_detected` | also `decision_made`, `inspection_timeout`, `device_fallback`, `gateway_start`, `gateway_stop` |
+| `data.event` | `pii_detected` | also `decision_made`, `inspection_timeout`, `attachment_skipped`, `device_fallback`, `gateway_start`, `gateway_stop` |
 | `data.detector` | `pesel` | the configured detector key |
 | `data.data_type` | `PESEL` | `NIP`, `REGON`, `IBAN`, `PAYMENT_CARD`, `EMAIL`, `PHONE_PL`, `PERSON`, `ORGANIZATION`, `LOCATION` |
 | `data.decision` | `masked` | `observed`, `advised`, `masked`, `blocked`, `user_override` |

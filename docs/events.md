@@ -120,7 +120,7 @@ in an audit trail.
 
 ```json
 {
-  "ts": "2026-08-08T12:00:00Z",
+  "ts": "2026-09-01T12:00:00Z",
   "event": "pii_detected",
   "detector": "person",
   "data_type": "PERSON",
@@ -128,6 +128,33 @@ in an audit trail.
   "decision": "masked",
   "content_sha256": "sha256:…",
   "model_id": "seq128",
-  "device": "NPU"
+  "device": "NPU",
+  "client_addr": "10.1.2.3",
+  "upstream_model": "claude-sonnet-4",
+  "provider": "anthropic",
+  "source": "prompt"
+}
+```
+
+The same identifier found inside an attached document. Note `advised` rather than `masked`: a PDF
+cannot be rewritten, so the verdict a mask-configured detector reaches there is one step lower.
+
+```json
+{
+  "ts": "2026-09-01T12:00:01Z",
+  "event": "pii_detected",
+  "detector": "pesel",
+  "data_type": "PESEL",
+  "target_host": "api.anthropic.com",
+  "decision": "advised",
+  "content_sha256": "sha256:…",
+  "model_id": "seq128",
+  "device": "NPU",
+  "client_addr": "10.1.2.3",
+  "upstream_model": "claude-sonnet-4",
+  "provider": "anthropic",
+  "source": "attachment",
+  "attachment_kind": "pdf",
+  "attachment_bytes": 182344
 }
 ```
