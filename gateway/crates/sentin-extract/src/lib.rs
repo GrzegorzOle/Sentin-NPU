@@ -168,11 +168,77 @@ pub fn sniff(bytes: &[u8]) -> Kind {
     if BINARY_MAGIC.iter().any(|magic| bytes.starts_with(magic)) {
         return Kind::Opaque;
     }
-    if std::str::from_utf8(bytes).is_ok() {
+    if looks_textual(bytes) {
         Kind::Text
     } else {
         Kind::Opaque
     }
+}
+
+/// Is this text, in some encoding, rather than a binary?
+///
+/// Valid UTF-8 is the easy case. The two that matter beyond it were both found by testing rather
+/// than by reasoning, and both are ordinary office output:
+///
+/// - **UTF-16 with a byte order mark.** PowerShell's own editor saves `.ps1` this way, and a
+///   UTF-16 file is not valid UTF-8, so it was being skipped as though it were an image.
+/// - **A single-byte code page.** A CSV exported from a Polish Excel is Windows-1250, and one
+///   accented letter is enough to fail UTF-8 validation and lose the whole file.
+///
+/// The heuristic for the second case is deliberately coarse: no NUL bytes, and almost everything
+/// printable. Identifiers are ASCII in every one of these encodings, so a PESEL survives a wrong
+/// guess about which code page it was; a name with diacritics may not, which costs layer 2 and not
+/// layer 1. That trade is stated in the documentation rather than left to be discovered.
+fn looks_textual(bytes: &[u8]) -> bool {
+    // UTF-16 first: it is the one text encoding that legitimately contains NUL bytes, and the NUL
+    // test below would otherwise reject every second character of it.
+    if utf16_bom(bytes).is_some() {
+        return true;
+    }
+    if bytes.is_empty() || bytes.contains(&0) {
+        // A NUL rules it out even when the bytes happen to be valid UTF-8, which a binary made of
+        // low bytes usually is. Text files do not contain NUL; object files are full of it.
+        return false;
+    }
+    if std::str::from_utf8(bytes).is_ok() {
+        return true;
+    }
+    let printable = bytes
+        .iter()
+        .filter(|b| matches!(b, 0x09 | 0x0a | 0x0d | 0x20..=0x7e | 0xa0..=0xff))
+        .count();
+    printable * 10 >= bytes.len() * 9
+}
+
+/// The byte order mark, when the bytes carry one: `true` for little-endian.
+fn utf16_bom(bytes: &[u8]) -> Option<bool> {
+    match bytes {
+        [0xff, 0xfe, ..] => Some(true),
+        [0xfe, 0xff, ..] => Some(false),
+        _ => None,
+    }
+}
+
+/// Decode text that may not be UTF-8, keeping ASCII intact whatever it is.
+fn decode_text(bytes: &[u8]) -> String {
+    if let Some(little_endian) = utf16_bom(bytes) {
+        let units: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|pair| {
+                if little_endian {
+                    u16::from_le_bytes([pair[0], pair[1]])
+                } else {
+                    u16::from_be_bytes([pair[0], pair[1]])
+                }
+            })
+            .collect();
+        return String::from_utf16_lossy(&units);
+    }
+    // A UTF-8 byte order mark is legal and would otherwise arrive as a stray character at the
+    // start of the first field, which is the sort of thing that breaks a detector on the first
+    // line of a CSV and nowhere else.
+    let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes);
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
 /// Read whatever text an attachment holds.
@@ -192,7 +258,7 @@ pub fn extract(bytes: &[u8], limits: &Limits) -> Result<Extracted, ExtractError>
     let text = match kind {
         Kind::Pdf => pdf::text(bytes, limits)?,
         Kind::Ooxml => ooxml::text(bytes, limits)?,
-        Kind::Text => String::from_utf8_lossy(bytes).into_owned(),
+        Kind::Text => decode_text(bytes),
         Kind::Opaque => return Err(ExtractError::Unreadable("binary")),
     };
 
@@ -239,7 +305,10 @@ mod tests {
         assert_eq!(sniff(b"%PDF-1.4\n..."), Kind::Pdf);
         assert_eq!(sniff(b"\x89PNG\r\n"), Kind::Opaque);
         assert_eq!(sniff("PESEL 87031406724".as_bytes()), Kind::Text);
-        assert_eq!(sniff(&[0xff, 0xfe, 0x00, 0x01]), Kind::Opaque);
+        // FF FE is a UTF-16 byte order mark, so those bytes are text now. A compiled object is
+        // not: it is full of NUL, whatever else it contains.
+        assert_eq!(sniff(&[0xff, 0xfe, 0x00, 0x41]), Kind::Text);
+        assert_eq!(sniff(&[0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]), Kind::Opaque);
     }
 
     #[test]
@@ -276,6 +345,53 @@ mod tests {
         let result = extract("zażółć gęślą jaźń".as_bytes(), &limits).unwrap();
         assert!(result.truncated);
         assert!(result.text.len() <= 5);
+    }
+
+    #[test]
+    fn a_powershell_script_saved_as_utf16_is_read() {
+        // PowerShell's own editor saves .ps1 as UTF-16 with a BOM, which is not valid UTF-8 - so
+        // this file was being skipped as though it were an image.
+        let mut bytes = vec![0xff, 0xfe];
+        for unit in "$pesel = \"87031406724\"".encode_utf16() {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        let result = extract(&bytes, &Limits::default()).unwrap();
+        assert_eq!(result.kind, Kind::Text);
+        assert!(result.text.contains("87031406724"), "{:?}", result.text);
+    }
+
+    #[test]
+    fn a_csv_in_a_single_byte_code_page_still_yields_its_identifiers() {
+        // A CSV exported from a Polish Excel is Windows-1250. One accented letter fails UTF-8
+        // validation, and the whole file used to be dropped for it. Identifiers are ASCII in
+        // every one of these encodings, so they survive a wrong guess about which one it was.
+        let mut bytes = b"imi".to_vec();
+        bytes.push(0xea); // 'e with ogonek' in Windows-1250
+        bytes.extend_from_slice(
+            b";pesel
+Marek;87031406724
+",
+        );
+        let result = extract(&bytes, &Limits::default()).unwrap();
+        assert_eq!(result.kind, Kind::Text);
+        assert!(result.text.contains("87031406724"), "{:?}", result.text);
+    }
+
+    #[test]
+    fn a_utf8_byte_order_mark_does_not_reach_the_detectors() {
+        let mut bytes = vec![0xef, 0xbb, 0xbf];
+        bytes.extend_from_slice(b"pesel;87031406724");
+        let result = extract(&bytes, &Limits::default()).unwrap();
+        assert!(result.text.starts_with("pesel"), "{:?}", result.text);
+    }
+
+    #[test]
+    fn a_binary_is_still_a_binary() {
+        // The textual heuristic must not swallow files it cannot read: a NUL byte and a run of
+        // unprintable bytes are what separates a code page from a compiled object.
+        let mut bytes = vec![0u8; 64];
+        bytes[0] = 0x7f;
+        assert_eq!(sniff(&bytes), Kind::Opaque);
     }
 
     #[test]

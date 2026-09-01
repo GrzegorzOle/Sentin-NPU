@@ -85,9 +85,9 @@ identity.
 
 ## Attachments
 
-Attachments are decoded and read: PDF, `.docx`/`.xlsx`/`.pptx`, and anything that is plain text.
-Findings from inside a document are ordinary findings and carry no special field - an identifier is
-an identifier wherever it was written.
+Attachments are decoded and read: PDF, `.docx`/`.xlsx`/`.pptx`, OpenDocument, and anything that is
+plain text in UTF-8, UTF-16 or a single-byte code page. Findings from inside a document are ordinary
+findings and carry no special field - an identifier is an identifier wherever it was written.
 
 Two consequences are worth knowing, because they change what a decision means:
 

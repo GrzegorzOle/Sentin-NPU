@@ -569,10 +569,29 @@ Every detection produces an event - **metadata only, never content**:
 
 ### Attachments
 
-Documents are decoded and read, not skipped: **PDF, `.docx`/`.xlsx`/`.pptx`, and plain text**. An
-identifier inside an attachment is exactly as much of a leak as one in the prompt, and base64 hides
-it from anything scanning the request body - the digits are in the file and absent from its
-encoding, so there is nothing for a scanner to match.
+Documents are decoded and read, not skipped. An identifier inside an attachment is exactly as much
+of a leak as one in the prompt, and base64 hides it from anything scanning the request body - the
+digits are in the file and absent from its encoding, so there is nothing for a scanner to match.
+
+| Format | Read |
+|---|---|
+| PDF | text layers, through `pdf-extract` |
+| `.docx`, `.xlsx`, `.pptx` | body, headers, footers, comments, slides, shared strings **and worksheet cells** |
+| `.odt`, `.ods`, `.odp` | OpenDocument content |
+| `.csv`, `.txt`, `.md`, `.json`, `.log`, `.ps1`, `.cs`, `.py`, `.sql` and any other plain text | as themselves |
+| images, archives, legacy `.doc`/`.xls`, anything encrypted | **not read**, and reported as `attachment_skipped` |
+
+Two details that were found by testing rather than by reasoning, and that decide whether ordinary
+office output is covered at all:
+
+- **A number typed into a spreadsheet cell** lives in the worksheet, not in `sharedStrings.xml`.
+  Type a PESEL into Excel and it is a number, so reading only the shared strings would miss exactly
+  the case that matters.
+- **Encodings.** A `.ps1` saved by PowerShell's editor is UTF-16, and a CSV exported from a Polish
+  Excel is Windows-1250; neither is valid UTF-8, and both were being skipped as though they were
+  images. Both are read now. Where the code page has to be guessed, identifiers survive because
+  they are ASCII in all of them, while accented letters may not - that costs layer 2 accuracy on
+  names, never layer 1 on numbers.
 
 Two rules follow from the format rather than from policy:
 

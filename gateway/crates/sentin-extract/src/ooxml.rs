@@ -24,13 +24,19 @@ use quick_xml::events::Event;
 use crate::{ExtractError, Limits};
 
 /// Entries whose text is worth reading, matched as prefixes.
-const WANTED: [&str; 6] = [
+const WANTED: [&str; 8] = [
     "word/document.xml",
     "word/header",
     "word/footer",
     "word/comments.xml",
     "xl/sharedStrings.xml",
+    // Where a spreadsheet keeps its *numbers*. sharedStrings holds only the strings, so a PESEL
+    // typed into a cell as a number - which is what happens when you type one into Excel - lived
+    // here and nowhere else, and was invisible until this line existed.
+    "xl/worksheets/sheet",
     "ppt/slides/slide",
+    // OpenDocument, which is the same idea in a different package.
+    "content.xml",
 ];
 
 /// Does this zip look like an Office document rather than any other archive?
@@ -38,10 +44,10 @@ pub fn looks_like_ooxml(bytes: &[u8]) -> bool {
     let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(bytes)) else {
         return false;
     };
-    // `[Content_Types].xml` is mandatory in an OOXML package and absent from an ordinary zip.
-    // Bound to a name rather than returned directly: the entry borrows the archive, and returning
-    // the expression would outlive it.
-    let found = archive.by_name("[Content_Types].xml").is_ok();
+    // `[Content_Types].xml` is mandatory in an OOXML package; OpenDocument uses a `mimetype`
+    // entry instead. Bound to a name rather than returned directly: the entry borrows the archive.
+    let found =
+        archive.by_name("[Content_Types].xml").is_ok() || archive.by_name("mimetype").is_ok();
     found
 }
 
@@ -122,7 +128,11 @@ fn push_text(xml: &str, out: &mut String) {
             Ok(Event::End(tag)) => {
                 let name = tag.name();
                 let local = name.local_name();
-                if matches!(local.as_ref(), "p" | "tc" | "tr" | "br" | "si" | "t") {
+                // `v` is a spreadsheet cell value and `text-p` an OpenDocument paragraph.
+                if matches!(
+                    local.as_ref(),
+                    "p" | "tc" | "tr" | "br" | "si" | "t" | "v" | "c" | "text-p"
+                ) {
                     out.push(' ');
                 }
             }
@@ -210,6 +220,31 @@ mod tests {
             "the budget must bound the work: {}",
             text.len()
         );
+    }
+
+    #[test]
+    fn a_number_typed_into_a_spreadsheet_cell_is_found() {
+        // sharedStrings holds only strings. Type a PESEL into Excel and it is a number, living in
+        // the worksheet and nowhere else - which is exactly where identifiers end up in practice.
+        let mut buffer = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut buffer));
+            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            zip.start_file("[Content_Types].xml", options).unwrap();
+            zip.write_all(b"<Types/>").unwrap();
+            zip.start_file("xl/sharedStrings.xml", options).unwrap();
+            zip.write_all(b"<sst><si><t>Marek Nowak</t></si></sst>")
+                .unwrap();
+            zip.start_file("xl/worksheets/sheet1.xml", options).unwrap();
+            zip.write_all(
+                b"<worksheet><sheetData><row><c t=\"s\"><v>0</v></c>                  <c><v>87031406724</v></c></row></sheetData></worksheet>",
+            )
+            .unwrap();
+            zip.finish().unwrap();
+        }
+        let text = text(&buffer, &Limits::default()).unwrap();
+        assert!(text.contains("87031406724"), "{text:?}");
+        assert!(text.contains("Marek Nowak"), "{text:?}");
     }
 
     #[test]

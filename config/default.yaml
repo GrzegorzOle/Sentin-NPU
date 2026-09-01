@@ -89,7 +89,9 @@ inspect:
   request: true
   response: false
   stream_strategy: passthrough
-  # Decode attachments and read what is inside them: PDF, docx/xlsx/pptx, and plain text.
+  # Decode attachments and read what is inside them: PDF, docx/xlsx/pptx, OpenDocument, and any
+  # plain text - including UTF-16 (PowerShell's editor) and single-byte code pages (a CSV out of a
+  # Polish Excel), neither of which is valid UTF-8 and both of which were being skipped.
   # A gateway that reads prompts and ignores documents protects the careful user and misses the
   # ordinary one - base64 hides an identifier from anything scanning the request body, so a PDF is
   # a blind spot rather than a small gap. There is no OCR: a scanned page is reported as skipped.
