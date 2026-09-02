@@ -137,7 +137,7 @@ pub fn record_request(
             .provider(context.provider)
             .source(finding.source);
         if let Some(info) = &finding.attachment {
-            event = event.attachment(info.kind.clone(), info.bytes);
+            event = event.attachment(info.kind.clone(), info.bytes, info.sha256.clone());
         }
         if let Some(model) = context.model_id {
             event = event.model_id(model);
@@ -192,8 +192,10 @@ pub fn record_request(
             .source(sentin_audit::Source::Attachment)
             // The reason, never the filename: a filename carries content.
             .detail("reason", skipped.reason.clone());
-        if let Some(kind) = &skipped.kind {
-            event = event.attachment(kind.clone(), skipped.bytes);
+        // Both or neither: the digest is only absent when nothing decoded, and that is the same
+        // case in which there is no kind to report either.
+        if let (Some(kind), Some(sha256)) = (&skipped.kind, &skipped.sha256) {
+            event = event.attachment(kind.clone(), skipped.bytes, sha256.clone());
         }
         if let Some(addr) = context.client_addr {
             event = event.client_addr(addr);

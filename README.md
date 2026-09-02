@@ -634,7 +634,7 @@ doing the inspecting) are different fields.
 ### Wazuh
 
 A ready-to-deploy integration ships in **[packaging/wazuh/](packaging/wazuh/)** and in every
-release bundle under `wazuh/`: rules, the agent collection snippet, a dashboard with fifteen panels
+release bundle under `wazuh/`: rules, the agent collection snippet, a dashboard with sixteen panels
 and a deployment guide written for a Wazuh administrator who has never seen this project. There is
 no decoder to install - the gateway writes JSON, so Wazuh's own decoder exposes every field.
 

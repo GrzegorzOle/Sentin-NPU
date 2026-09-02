@@ -17,7 +17,7 @@ Dashboards has kept stable since 2.x.
 |---|---|
 | `sentin_npu_rules.xml` | 18 rules, ids 100500-100531. Install on the **manager**. |
 | `agent-localfile.conf` | The `<localfile>` block that ships events. Install on the **agent**, or push it to a group. |
-| `sentin-npu-dashboard.ndjson` | 15 panels plus the dashboard. Import in **Dashboards**. |
+| `sentin-npu-dashboard.ndjson` | 16 panels plus the dashboard. Import in **Dashboards**. |
 | `build_dashboard.py` | Regenerates the ndjson. Only needed if you change panels or index pattern. |
 
 **There is no decoder in this directory, and that is deliberate.** The gateway writes one JSON
@@ -137,7 +137,7 @@ Dashboards -> **Stack Management** -> **Saved Objects** -> **Import** ->
 `sentin-npu-dashboard.ndjson` -> *Automatically overwrite conflicts*.
 
 The panels reference the alerts index pattern by the id `wazuh-alerts-*`, which is what a stock
-Wazuh install uses. If yours differs, regenerate rather than fixing fifteen panels by hand:
+Wazuh install uses. If yours differs, regenerate rather than fixing sixteen panels by hand:
 
 ```bash
 python3 build_dashboard.py --index-pattern 'your-pattern-id'
@@ -164,6 +164,7 @@ rather than a broken import.
 | What the gateway did | Blocked / masked / advised / observed. A wall of blocks means the policy is miscalibrated. |
 | Through which provider | The adapter: anthropic, openai, google. |
 | Who sent what, where | The table an analyst copies from. |
+| Which files keep coming back | One row per document, keyed by the digest of its bytes. The same value under two workstations, or again after a block, is an abuse path rather than an accident. |
 | Typed, or attached | `source`. One person's slip against a file full of other people's data. |
 | What kind of file | PDF, Office, text - or opaque, meaning it could not be read at all. |
 | High-value identifiers inside documents | PESEL, IBAN or a card inside an attachment, which cannot be masked. |

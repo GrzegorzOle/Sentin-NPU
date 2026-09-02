@@ -85,6 +85,11 @@ pub fn render(event: &Event, product_version: &str) -> String {
     if let Some(kind) = &event.attachment_kind {
         push("fileType", kind);
     }
+    if let Some(digest) = &event.attachment_sha256 {
+        // CEF has a key for exactly this, so it costs no custom-string slot and every SIEM that
+        // knows CEF already indexes it.
+        push("fileHash", digest);
+    }
     if let Some(bytes) = event.attachment_bytes {
         push("fsize", &bytes.to_string());
     }
@@ -269,6 +274,21 @@ mod tests {
             fields[4], "pii_detected",
             "signature stays in its own field"
         );
+    }
+
+    #[test]
+    fn an_attachment_is_rendered_with_the_cef_keys_that_already_mean_this() {
+        let line = render(
+            &crate::Event::new("2026-09-02T08:00:00Z", crate::EventKind::AttachmentSkipped)
+                .attachment("pdf", 182_344, "sha256:abc123"),
+            "0.2.1",
+        );
+
+        // CEF has its own names for all three, so none of them costs a custom-string slot and any
+        // SIEM that understands CEF indexes them without being taught.
+        assert!(line.contains("fileType=pdf"), "{line}");
+        assert!(line.contains("fsize=182344"), "{line}");
+        assert!(line.contains("fileHash=sha256:abc123"), "{line}");
     }
 
     #[test]

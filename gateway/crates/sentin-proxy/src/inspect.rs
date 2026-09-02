@@ -37,6 +37,11 @@ pub struct AttachmentInfo {
     pub kind: String,
     /// Decoded size in bytes.
     pub bytes: u64,
+    /// Digest of the decoded bytes, as `sha256:<hex>`. **This is how a file is named here**, since
+    /// a filename would carry content into the audit trail. It equals `sha256sum` of the file on
+    /// disk, and it survives a rename - which is the first thing somebody retrying a refused upload
+    /// changes.
+    pub sha256: String,
 }
 
 /// The result of inspecting one request: what was found, what to do, and what to forward.
@@ -70,6 +75,10 @@ pub struct UnreadAttachment {
     pub kind: Option<String>,
     /// Decoded size in bytes, so an oversized export and an unreadable icon are countable apart.
     pub bytes: u64,
+    /// Digest of the decoded bytes. `None` only when nothing decoded, which is the one case where
+    /// there is no file to identify. An unreadable attachment is the one an operator most wants to
+    /// follow, so it carries the same identifier as a readable one.
+    pub sha256: Option<String>,
 }
 
 impl Inspection {
@@ -190,10 +199,16 @@ pub async fn inspect_request(
                         reason: err.to_string(),
                         kind: None,
                         bytes: 0,
+                        // Nothing decoded, so there is nothing whose digest would mean anything.
+                        sha256: None,
                     });
                     continue;
                 }
             };
+            // Over the decoded bytes, so it equals `sha256sum` of the file the sender holds. This
+            // is what identifies a document in the audit trail; a filename cannot, because a
+            // filename carries content.
+            let sha256 = sentin_audit::digest(&bytes);
             let sniffed = sentin_extract::sniff(&bytes).name().to_string();
 
             let extracted = match sentin_extract::extract(&bytes, &limits) {
@@ -203,6 +218,9 @@ pub async fn inspect_request(
                         reason: err.to_string(),
                         kind: Some(sniffed),
                         bytes: bytes.len() as u64,
+                        // The one an operator most wants to follow: an attachment nobody could
+                        // read, arriving again from somewhere else.
+                        sha256: Some(sha256),
                     });
                     continue;
                 }
@@ -235,6 +253,7 @@ pub async fn inspect_request(
                     attachment: Some(AttachmentInfo {
                         kind: extracted.kind.name().to_string(),
                         bytes: extracted.input_bytes as u64,
+                        sha256: sha256.clone(),
                     }),
                 });
                 overall = overall.max(decision);
@@ -246,6 +265,7 @@ pub async fn inspect_request(
                         .to_string(),
                     kind: Some(extracted.kind.name().to_string()),
                     bytes: extracted.input_bytes as u64,
+                    sha256: Some(sha256),
                 });
             }
         }
@@ -309,6 +329,103 @@ mod tests {
             "detectors:\n  pesel: {{ mode: {mode} }}\n  email: {{ mode: {mode} }}\n"
         ))
         .expect("valid config")
+    }
+
+    /// A tiny text attachment, and the two digests that could be confused for each other.
+    ///
+    /// `ATTACHMENT_SHA` is `sha256sum` of the decoded bytes, which is the property that makes the
+    /// field usable: an analyst holding a suspect file can compute it and search the SIEM.
+    /// `BASE64_SHA` is the digest of the transported form, and is here only so a test fails if the
+    /// two are ever swapped - it would look right in every log and match nothing anybody could
+    /// reproduce.
+    const ATTACHMENT_B64: &str =
+        "S2xpZW50IFBFU0VMIDAyMjUwNTE0NDY1LCBrb250YWt0IGFubmEuemFyZW1ic2thQGV4YW1wbGUuY29tCg==";
+    const ATTACHMENT_SHA: &str =
+        "sha256:a0615e966838ad1da97490392f873cea9c1fca0e90e0a7fb34e07fe046eccdba";
+    const BASE64_SHA: &str =
+        "sha256:390e10df766972d5a06d299383352df11c4db2ebe9a1333919b252360b602b1a";
+
+    fn body_with_attachment(b64: &str) -> serde_json::Value {
+        json!({"messages": [{"role": "user", "content": [
+            {"type": "file", "file": {"filename": "umowa.pdf",
+             "file_data": format!("data:text/plain;base64,{b64}")}}
+        ]}]})
+    }
+
+    #[tokio::test]
+    async fn an_attachment_is_identified_by_the_digest_of_its_decoded_bytes() {
+        let result = inspect_request(
+            &body_with_attachment(ATTACHMENT_B64),
+            Provider::OpenAi,
+            &config_with("block"),
+            None,
+        )
+        .await;
+
+        let finding = result
+            .findings
+            .iter()
+            .find(|f| f.kind == sentin_core::DataKind::Pesel)
+            .expect("the PESEL inside the file was found");
+        let info = finding.attachment.as_ref().expect("it came from a file");
+
+        assert_eq!(
+            info.sha256, ATTACHMENT_SHA,
+            "the digest must equal sha256sum of the file the sender holds"
+        );
+        assert_ne!(
+            info.sha256, BASE64_SHA,
+            "hashing the transported form would match nothing an analyst can compute"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_same_file_keeps_its_digest_across_requests() {
+        // The whole point of the field: following one document across callers, channels and days.
+        // The payload digest cannot do this - it changes with every surrounding word.
+        let mut digests = Vec::new();
+        for prompt in ["pierwsza próba", "druga próba, inny tekst"] {
+            let mut body = body_with_attachment(ATTACHMENT_B64);
+            body["messages"][0]["content"]
+                .as_array_mut()
+                .expect("content is a block array")
+                .push(json!({"type": "text", "text": prompt}));
+            let result =
+                inspect_request(&body, Provider::OpenAi, &config_with("block"), None).await;
+            let info = result
+                .findings
+                .iter()
+                .find_map(|f| f.attachment.clone())
+                .expect("the attachment was inspected");
+            digests.push(info.sha256);
+        }
+        assert_eq!(digests[0], digests[1]);
+    }
+
+    #[tokio::test]
+    async fn an_attachment_nobody_could_read_still_carries_its_digest() {
+        // A NUL byte makes it a binary this gateway will not read. It is also the attachment an
+        // operator most wants to follow, so it must be identifiable all the same.
+        let opaque = "AAECA/8AAAA=";
+        let result = inspect_request(
+            &body_with_attachment(opaque),
+            Provider::OpenAi,
+            &config_with("block"),
+            None,
+        )
+        .await;
+
+        let skipped = result
+            .unread_attachments
+            .first()
+            .expect("an unreadable attachment is reported, not ignored");
+        assert!(
+            skipped
+                .sha256
+                .as_deref()
+                .is_some_and(|d| d.starts_with("sha256:")),
+            "{skipped:?}"
+        );
     }
 
     #[tokio::test]

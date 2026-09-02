@@ -42,9 +42,26 @@ schema, however convenient.
 | `source` | enum | `prompt` or `attachment` - where the finding was |
 | `attachment_kind` | string | `pdf`, `ooxml`, `text` or `opaque`, from the bytes rather than the declared type |
 | `attachment_bytes` | number | decoded size of the attachment |
+| `attachment_sha256` | string | `sha256:<hex>` of the attachment's **decoded** bytes - which file it was |
 
 Every optional field is **omitted** when unset rather than serialised as `null`, so a parser must
 treat absence as normal - a layer-1 finding carries no `model_id` and no `device`.
+
+**A file is identified here by its digest, never by its name.** Filenames carry content -
+`Umowa_Kowalski_PESEL.pdf` is a personal data breach written into a SIEM - and this schema exists
+to keep content out. A digest carries none, and it does the job a name is usually wanted for
+better: it survives a rename, which is the first thing somebody retrying a refused upload changes.
+
+`attachment_sha256` is taken over the **decoded** bytes, so it equals `sha256sum thefile.pdf` on
+disk. An analyst holding a suspect document can compute it and search for it. A digest of the
+transported base64 would look equally plausible in a log and match nothing anybody could reproduce,
+because the encoding differs by chunking, padding and the `data:` prefix; a test pins the
+difference.
+
+**It is not the same field as `content_sha256`**, and the two answer different questions.
+`content_sha256` covers the whole request payload, so it ties together the events of one request.
+`attachment_sha256` covers one file, so it ties that file across requests, callers and days - which
+is what an abuse path looks like when you plot it.
 
 **`model_id` and `upstream_model` are different models and are the pair most likely to be
 confused.** `model_id` is the NER model doing the *inspecting*, reported as its IR directory name
@@ -155,6 +172,7 @@ cannot be rewritten, so the verdict a mask-configured detector reaches there is 
   "provider": "anthropic",
   "source": "attachment",
   "attachment_kind": "pdf",
-  "attachment_bytes": 182344
+  "attachment_bytes": 182344,
+  "attachment_sha256": "sha256:…"
 }
 ```

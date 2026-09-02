@@ -470,6 +470,17 @@ def panels() -> list[dict[str, Any]]:
              ("data.source", 3), ("data.upstream_model", 10)],
         ),
         table(
+            "sentin-npu-attachment-files",
+            "Which files keep coming back",
+            "One row per document, identified by the digest of its bytes rather than by a name - a "
+            "filename would carry the very data this trail exists to keep out, and it changes the "
+            "moment somebody retries a refused upload. A digest does not. The same value appearing "
+            "under two workstations, or after a block, is an abuse path rather than an accident. "
+            "It equals sha256sum of the file, so a document you already hold can be looked up here.",
+            [("data.attachment_sha256", 20), ("data.attachment_kind", 5),
+             ("data.client_addr", 10), ("data.decision", 5)],
+        ),
+        table(
             "sentin-npu-device",
             "Where inspection ran",
             "The device that actually executed the NER model. Present because a gateway quietly "
@@ -489,7 +500,8 @@ def dashboard(panel_ids: list[str]) -> dict[str, Any]:
         (0, 20, 16, 14), (16, 20, 16, 14), (32, 20, 16, 14),              # types, clients, models
         (0, 34, 16, 12), (16, 34, 16, 12),                                # source, attachment kind
         (32, 34, 16, 12), (0, 46, 24, 12),                                # decisions, providers
-        (24, 46, 24, 16), (0, 58, 24, 16),                                # tables
+        (24, 46, 24, 16), (0, 58, 48, 16),                                # detail table, files
+        (0, 74, 24, 16),                                                  # device
     ]
     panels_json = []
     references = []

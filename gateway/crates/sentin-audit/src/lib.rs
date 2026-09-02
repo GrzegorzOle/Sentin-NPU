@@ -150,6 +150,24 @@ pub struct Event {
     /// different events, and neither number says anything about what is inside.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachment_bytes: Option<u64>,
+    /// Digest of the attachment's **decoded** bytes, so one document can be followed across
+    /// events.
+    ///
+    /// This is what identifies a file here, because a filename cannot be: filenames carry content
+    /// (`Umowa_Kowalski_PESEL.pdf`) and this schema exists to keep content out. A digest carries
+    /// none, survives a rename - which is what somebody retrying a blocked upload does first - and
+    /// is not enumerable the way an eleven-digit identifier is, because a document has far too much
+    /// entropy for that.
+    ///
+    /// Over the decoded bytes and not the base64 deliberately: it therefore equals
+    /// `sha256sum thefile.pdf` on disk, so an analyst holding a suspect document can search the
+    /// SIEM for it. Re-encoding differs by chunking, padding and the `data:` prefix, so a digest of
+    /// the transported form would match nothing anybody could compute.
+    ///
+    /// Distinct from [`Event::content_sha256`], which covers the whole request payload: that ties
+    /// the events of one request together, this ties one file across requests, callers and days.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment_sha256: Option<String>,
     /// Free-form context that is safe to record: policy names, versions, requested-vs-actual
     /// device. Never text taken from a request — see [`Event::detail`].
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
@@ -175,6 +193,7 @@ impl Event {
             provider: None,
             source: None,
             attachment_kind: None,
+            attachment_sha256: None,
             attachment_bytes: None,
             detail: std::collections::BTreeMap::new(),
         }
@@ -257,11 +276,21 @@ impl Event {
         self
     }
 
-    /// Record what an attachment turned out to be, and how large it was.
+    /// Record what an attachment turned out to be, how large it was, and which file it is.
+    ///
+    /// The digest is not optional at this call site on purpose: an attachment event without one
+    /// cannot be followed anywhere, and the caller always has the decoded bytes by the time it
+    /// knows the kind.
     #[must_use]
-    pub fn attachment(mut self, kind: impl Into<String>, bytes: u64) -> Self {
+    pub fn attachment(
+        mut self,
+        kind: impl Into<String>,
+        bytes: u64,
+        sha256: impl Into<String>,
+    ) -> Self {
         self.attachment_kind = Some(kind.into());
         self.attachment_bytes = Some(bytes);
+        self.attachment_sha256 = Some(sha256.into());
         self
     }
 
