@@ -81,22 +81,13 @@ fn every_shipped_configuration_lists_the_same_detectors() {
 fn the_detectors_named_in_the_configuration_are_ones_the_gateway_knows() {
     // The other direction: a key nobody's `detector_key` produces is a line that will never match a
     // finding, and it would sit in the file looking like protection.
-    let known: BTreeSet<String> = [
-        sentin_core::DataKind::Pesel,
-        sentin_core::DataKind::Nip,
-        sentin_core::DataKind::VatEu,
-        sentin_core::DataKind::Regon,
-        sentin_core::DataKind::Iban,
-        sentin_core::DataKind::PaymentCard,
-        sentin_core::DataKind::Email,
-        sentin_core::DataKind::PhonePl,
-        sentin_core::DataKind::Person,
-        sentin_core::DataKind::Organization,
-        sentin_core::DataKind::Location,
-    ]
-    .into_iter()
-    .map(|kind| sentin_proxy::config::detector_key(kind).to_string())
-    .collect();
+    // `DataKind::ALL`, not a list repeated here: this test exists because a detector list was
+    // written by hand in several places and drifted, and a copy of it inside the test that guards
+    // against that would drift the same way - silently passing while the real files fell behind.
+    let known: BTreeSet<String> = sentin_core::DataKind::ALL
+        .into_iter()
+        .map(|kind| sentin_proxy::config::detector_key(kind).to_string())
+        .collect();
 
     let configured = detector_keys(DEFAULT_YAML);
     let unknown: Vec<_> = configured.difference(&known).collect();

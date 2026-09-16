@@ -109,6 +109,86 @@ pub enum DataKind {
     Location,
 }
 
+impl DataKind {
+    /// Every kind this build knows about.
+    ///
+    /// This exists so that a list of detectors is never written by hand a second time. It has been
+    /// written by hand a second time before: `vat_eu` reached `config/default.yaml` and neither
+    /// installer, and the result was a gateway that detected a Czech VAT number, recorded it, and
+    /// forwarded it - while masking the Polish one beside it and reporting success at every step.
+    /// Anything that needs to enumerate detectors - a configuration writer, a user interface, a
+    /// completeness test - reads this and cannot fall behind the code.
+    pub const ALL: [DataKind; 11] = [
+        DataKind::Pesel,
+        DataKind::Nip,
+        DataKind::VatEu,
+        DataKind::Regon,
+        DataKind::Iban,
+        DataKind::PaymentCard,
+        DataKind::Email,
+        DataKind::PhonePl,
+        DataKind::Person,
+        DataKind::Organization,
+        DataKind::Location,
+    ];
+
+    /// Which layer finds this kind.
+    ///
+    /// Exhaustive on purpose: a new variant stops the build here, which is the prompt to add it to
+    /// [`DataKind::ALL`] as well.
+    #[must_use]
+    pub fn layer(self) -> Layer {
+        match self {
+            DataKind::Pesel
+            | DataKind::Nip
+            | DataKind::VatEu
+            | DataKind::Regon
+            | DataKind::Iban
+            | DataKind::PaymentCard
+            | DataKind::Email
+            | DataKind::PhonePl => Layer::Deterministic,
+            DataKind::Person | DataKind::Organization | DataKind::Location => Layer::Ner,
+        }
+    }
+
+    /// The strongest evidence a finding of this kind can ever carry.
+    ///
+    /// A property of the identifier, not of a particular match: an IBAN either satisfies mod-97 or
+    /// is not reported, while an email address has no arithmetic to satisfy at all. `vat_eu` is
+    /// deliberately [`Validation::Pattern`] even though several member states do define a
+    /// checksum - this project does not implement them, and claiming proof it does not have is the
+    /// false positive that gets a DLP tool switched off.
+    #[must_use]
+    pub fn evidence(self) -> Validation {
+        match self {
+            DataKind::Pesel
+            | DataKind::Nip
+            | DataKind::Regon
+            | DataKind::Iban
+            | DataKind::PaymentCard => Validation::Checksum,
+            DataKind::VatEu
+            | DataKind::Email
+            | DataKind::PhonePl
+            | DataKind::Person
+            | DataKind::Organization
+            | DataKind::Location => Validation::Pattern,
+        }
+    }
+
+    /// The strongest decision configuring this detector can actually reach.
+    ///
+    /// Both ceilings at once, which is what makes it useful to anything offering the operator a
+    /// choice: writing `mode: block` against `email` is accepted by the parser and then clamped to
+    /// masking at every request. An interface that offers "block" there is not offering a setting,
+    /// it is offering a misunderstanding.
+    #[must_use]
+    pub fn max_decision(self) -> Decision {
+        self.layer()
+            .max_decision()
+            .min(self.evidence().max_decision())
+    }
+}
+
 /// How strongly a finding is evidenced.
 ///
 /// The project's invariant is "only L1, **on a checksum-valid match**, may block". `Layer` alone
@@ -278,6 +358,47 @@ mod tests {
                 f.clamp_decision(Decision::Blocked),
                 Decision::Masked,
                 "{kind:?} must not be blockable"
+            );
+        }
+    }
+
+    #[test]
+    fn all_holds_every_kind_exactly_once() {
+        // The length is asserted separately from the contents on purpose: a variant added to the
+        // enum and forgotten here leaves `ALL` one short, and every consumer that enumerates
+        // detectors then quietly stops offering one.
+        assert_eq!(DataKind::ALL.len(), 11);
+        let mut seen = DataKind::ALL.to_vec();
+        seen.sort_by_key(|kind| format!("{kind:?}"));
+        seen.dedup();
+        assert_eq!(seen.len(), DataKind::ALL.len(), "a kind is listed twice");
+    }
+
+    #[test]
+    fn the_declared_ceiling_matches_what_a_real_finding_gets_clamped_to() {
+        // `max_decision` is a shortcut for callers that have a kind but no finding - an interface
+        // drawing a list of options, for instance. If it ever disagreed with the clamp applied on
+        // the request path, the interface would be describing a policy the gateway does not run.
+        for kind in DataKind::ALL {
+            let f = finding(kind, kind.layer(), kind.evidence());
+            assert_eq!(
+                kind.max_decision(),
+                f.clamp_decision(Decision::Blocked),
+                "{kind:?} advertises a ceiling the pipeline would not honour"
+            );
+        }
+    }
+
+    #[test]
+    fn only_checksum_backed_kinds_can_be_blocked() {
+        // Restating the invariant over the whole list rather than over a hand-picked three, so a
+        // new detector joins this assertion by existing.
+        for kind in DataKind::ALL {
+            let blockable = kind.max_decision() == Decision::Blocked;
+            assert_eq!(
+                blockable,
+                kind.evidence() == Validation::Checksum && kind.layer() == Layer::Deterministic,
+                "{kind:?} is blockable on the wrong grounds"
             );
         }
     }
