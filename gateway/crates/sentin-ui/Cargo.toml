@@ -12,6 +12,11 @@ description = "Desktop console for the Sentin-NPU gateway: policy editing and of
 name = "sentin-ui"
 path = "src/main.rs"
 
+[build-dependencies]
+# Not under [target.'cfg(windows)'.build-dependencies]: Cargo matches those against the host, and
+# the host that builds the shipped Windows binaries is Linux. build.rs checks the target instead.
+winresource = "0.1"
+
 [lib]
 name = "sentin_ui"
 path = "src/lib.rs"

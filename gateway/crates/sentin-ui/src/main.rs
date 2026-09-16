@@ -87,7 +87,8 @@ fn main() -> ExitCode {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([860.0, 720.0])
-            .with_min_inner_size([680.0, 520.0]),
+            .with_min_inner_size([680.0, 520.0])
+            .with_icon(window_icon()),
         ..Default::default()
     };
 
@@ -101,6 +102,27 @@ fn main() -> ExitCode {
             eprintln!("{e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// The icon the window, the taskbar and the alt-tab list show.
+///
+/// The pixels are stored as raw RGBA rather than as a PNG, so that nothing has to decode them. A
+/// decoder would be a new dependency on the one build path that must not acquire them: the Windows
+/// binaries are cross-compiled with mingw, and the toolkit was chosen in the first place because it
+/// needs no Windows SDK. `tools/make_icon.py` writes this file and the installer's `.ico` from the
+/// same drawing, so the two cannot drift apart.
+///
+/// The icon resource linked into the executable is a separate thing, built by `build.rs`: this one
+/// is what a running window shows, that one is what Explorer shows a file that is not running.
+fn window_icon() -> eframe::egui::IconData {
+    const SIDE: u32 = 64;
+    let rgba = include_bytes!("../assets/icon-64.rgba").to_vec();
+    debug_assert_eq!(rgba.len(), (SIDE * SIDE * 4) as usize);
+    eframe::egui::IconData {
+        rgba,
+        width: SIDE,
+        height: SIDE,
     }
 }
 

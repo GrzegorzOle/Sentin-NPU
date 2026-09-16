@@ -81,10 +81,14 @@ guide, so nobody has to know they are on disk. The same material is published on
 
 ## The console
 
-**Start Menu: *Sentin-NPU*.** A window for the person who has to decide what is protected and
-should not have to learn a configuration format to do it. It installs with the gateway rather than
-as an optional component, on the grounds that whoever needs it is the least likely to go looking for
-an extra tick box.
+**Start Menu: *Sentin-NPU*, and a desktop shortcut if the wizard's tick box is left on.** A window
+for the person who has to decide what is protected and should not have to learn a configuration
+format to do it. It installs with the gateway rather than as an optional component, on the grounds
+that whoever needs it is the least likely to go looking for an extra tick box.
+
+Both shortcuts point at the console and hand it `C:\ProgramData\Sentin-NPU\config.yaml`, so they
+open the configuration the installed service is actually reading rather than whatever the console
+would guess from an empty command line.
 
 It does three things and nothing else:
 
