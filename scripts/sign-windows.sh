@@ -66,35 +66,62 @@ done
 WORK="${HERE}/dist/signed-${VERSION}"
 BUNDLE="sentin-npu-diag-${VERSION}-windows-x64"
 SETUP="sentin-npu-setup-${VERSION}.exe"
+# The payload is unpacked into dist/ and nowhere else, because the installer script reaches the
+# licence through it: `LicenseFile={#Payload}\..\..\LICENSE` resolves to the repository root only
+# when the payload sits exactly two levels below it, which is where the release workflow puts it.
+# Staging it anywhere tidier fails the compile with "Could not read ... LICENSE", which names the
+# file and not the reason. Mirroring the workflow also means the installer is built the way the
+# workflow builds it, rather than in a way that merely produces an installer.
+PAYLOAD="${HERE}/dist/${BUNDLE}"
 
-rm -rf "${WORK}"
+# Re-running with --upload after looking at the result should not mean signing everything a second
+# time. The card asks for the PIN once per signtool invocation, and a second round of prompts is how
+# a checked artefact gets replaced by a hastier one. If the work directory already holds a signed
+# installer for this version, that is what gets published.
+if [ "${UPLOAD}" = "--upload" ] && [ -f "${WORK}/${SETUP}" ]; then
+    cd "${WORK}"
+    "${SIGNTOOL}" verify /pa /q "${SETUP}" || die "${WORK}/${SETUP} is not signed - delete it and start again"
+    say "publishing what is already signed in ${WORK}"
+    gh release upload "${TAG}" "${BUNDLE}.zip" "${SETUP}" SHA256SUMS.txt --clobber
+    say "done - the Windows assets of ${TAG} are signed"
+    exit 0
+fi
+
+rm -rf "${WORK}" "${PAYLOAD}"
 mkdir -p "${WORK}"
 cd "${WORK}"
 
 say "fetching the unsigned assets of ${TAG}"
 gh release download "${TAG}" --pattern "${BUNDLE}.zip" --pattern "SHA256SUMS.txt" --dir .
 cp "${BUNDLE}.zip" "${BUNDLE}-unsigned.zip"
-unzip -q "${BUNDLE}.zip"
+unzip -q "${BUNDLE}.zip" -d "${HERE}/dist"
+
+# signtool and ISCC are Windows programs and MSYS_NO_PATHCONV stops the shell translating for
+# them, so anything they receive has to be a Windows path already. A POSIX one starting with a
+# slash reaches signtool as an option: "SignTool Error: Invalid option: /d/git_v2/...".
+PAYLOAD_WIN="$(cd "${PAYLOAD}" && pwd -W)"
+DIST_WIN="$(cd "${HERE}/dist" && pwd -W)"
 
 say "signing the binaries"
 # All four in one invocation, because the card asks for the PIN per invocation and four prompts
 # invite the one that gets cancelled halfway.
 "${SIGNTOOL}" sign /n "${SUBJECT}" /a /fd sha256 /tr "${TIMESTAMP}" /td sha256 \
     /d "Sentin-NPU" /du "https://github.com/GrzegorzOle/Sentin-NPU" \
-    "${BUNDLE}/sentin-gateway.exe" \
-    "${BUNDLE}/sentin-ui.exe" \
-    "${BUNDLE}/sentin-doctor.exe" \
-    "${BUNDLE}/sentin-bench.exe"
+    "${PAYLOAD_WIN}/sentin-gateway.exe" \
+    "${PAYLOAD_WIN}/sentin-ui.exe" \
+    "${PAYLOAD_WIN}/sentin-doctor.exe" \
+    "${PAYLOAD_WIN}/sentin-bench.exe"
 
 say "rebuilding the bundle around the signed binaries"
 # Rewritten from the original archive rather than zipped up from the directory: every entry keeps
 # the metadata and the order the release workflow gave it, and the only difference between the two
 # archives is the four files that were signed. A fresh `zip` of the same tree would differ in ways
 # nobody could tell apart from tampering.
-python - "${BUNDLE}-unsigned.zip" "${BUNDLE}.zip" "${BUNDLE}" <<'PY'
-import pathlib, shutil, sys, zipfile
+python - "${BUNDLE}-unsigned.zip" "${BUNDLE}.zip" "${BUNDLE}" "${DIST_WIN}" <<'PY'
+import pathlib, sys, zipfile
 
 source, target, prefix = sys.argv[1], sys.argv[2], sys.argv[3]
+root = pathlib.Path(sys.argv[4])
 signed = {
     f"{prefix}/{name}"
     for name in ("sentin-gateway.exe", "sentin-ui.exe", "sentin-doctor.exe", "sentin-bench.exe")
@@ -104,7 +131,7 @@ replaced = set()
 with zipfile.ZipFile(source) as old, zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as new:
     for item in old.infolist():
         if item.filename in signed:
-            data = pathlib.Path(item.filename).read_bytes()
+            data = (root / item.filename).read_bytes()
             replaced.add(item.filename)
         else:
             data = old.read(item)
@@ -119,7 +146,7 @@ print(f"  replaced {len(replaced)} entries")
 PY
 
 say "building the installer from the signed payload"
-"${ISCC}" "/DVersion=${VERSION}" "/DPayload=$(cd "${BUNDLE}" && pwd -W)" \
+"${ISCC}" "/DVersion=${VERSION}" "/DPayload=${PAYLOAD_WIN}" \
     "$(cd "${HERE}/packaging/windows" && pwd -W)/sentin-npu.iss" >/dev/null
 cp "${HERE}/packaging/windows/out/${SETUP}" .
 
@@ -130,8 +157,8 @@ say "signing the installer"
 say "verifying every signature"
 # Verified rather than assumed: signtool reports success on signing a file it could not timestamp
 # in some configurations, and an untimestamped signature is the failure that only shows up in 2027.
-for file in "${SETUP}" "${BUNDLE}/sentin-gateway.exe" "${BUNDLE}/sentin-ui.exe" \
-            "${BUNDLE}/sentin-doctor.exe" "${BUNDLE}/sentin-bench.exe"; do
+for file in "${SETUP}" "${PAYLOAD_WIN}/sentin-gateway.exe" "${PAYLOAD_WIN}/sentin-ui.exe" \
+            "${PAYLOAD_WIN}/sentin-doctor.exe" "${PAYLOAD_WIN}/sentin-bench.exe"; do
     "${SIGNTOOL}" verify /pa /q "${file}" || die "verification failed for ${file}"
     "${SIGNTOOL}" verify /pa /v "${file}" 2>/dev/null | grep -q "signature is timestamped" \
         || die "no timestamp on ${file}"

@@ -38,7 +38,12 @@ AppSupportURL={#AppUrl}/issues
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
-LicenseFile={#Payload}\..\..\LICENSE
+; Relative to this script, not to the payload. Reaching the licence through {#Payload}\..\.. made
+; the build depend on where the payload happened to be staged: it worked for the workflow, which
+; puts it in dist/, and failed anywhere else with "Could not read ... LICENSE" - a message naming
+; the file and not the reason. The licence belongs to the repository, so it is found from the
+; repository.
+LicenseFile=..\..\LICENSE
 OutputDir=.\out
 OutputBaseFilename=sentin-npu-setup-{#Version}
 Compression=lzma2/max
