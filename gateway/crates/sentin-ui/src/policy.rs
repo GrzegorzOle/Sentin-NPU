@@ -197,7 +197,7 @@ impl ConfigFile {
         // The trap this project hits most often, and it degrades silently: a relative path
         // resolves against the *service's* working directory, so the audit trail is written
         // somewhere nobody looks and the gateway reports no error at all.
-        if Path::new(path).is_relative() {
+        if !looks_absolute(path) {
             return Err(PolicyError::Shape(
                 "the audit path must be absolute: a relative one resolves against the service's \
                  working directory, so the file is written somewhere nobody is looking and nothing \
@@ -461,6 +461,31 @@ fn comment_tail(rest: &str) -> String {
     }
 }
 
+/// Whether a path is absolute on *either* platform, rather than on the one running this code.
+///
+/// `Path::is_absolute` answers for the host, and a configuration file is a document that can
+/// legitimately describe the other one: `C:\ProgramData\Sentin-NPU\audit.jsonl` is not absolute to
+/// a Linux build, and `/var/log/sentin-npu/audit.jsonl` is not absolute to a Windows one. Deciding
+/// by host would make the console refuse a perfectly good installed configuration whenever it is
+/// opened from the other side - which is how this first turned up, as a test that passed on
+/// Windows and failed on Linux.
+///
+/// The thing actually being guarded against is a *relative* path, and both platforms agree on what
+/// that looks like.
+fn looks_absolute(path: &str) -> bool {
+    if Path::new(path).is_absolute() || path.starts_with('/') || path.starts_with('\\') {
+        return true;
+    }
+    // A drive letter with a separator behind it. `C:audit.jsonl` is deliberately not accepted:
+    // Windows reads it as relative to that drive's current directory, which is exactly the class
+    // of path this check exists to reject.
+    let mut chars = path.chars();
+    matches!(
+        (chars.next(), chars.next(), chars.next()),
+        (Some(letter), Some(':'), Some('\\' | '/')) if letter.is_ascii_alphabetic()
+    )
+}
+
 /// A double-quoted YAML scalar, with backslashes and quotes escaped.
 ///
 /// Windows paths are the reason this exists: `C:\ProgramData\...` inside double quotes is a string
@@ -608,10 +633,36 @@ audit:
     #[test]
     fn a_relative_audit_path_is_refused() {
         let mut file = sample();
+        for relative in ["audit.jsonl", "./logs/audit.jsonl", "logs\\audit.jsonl"] {
+            let err = file
+                .set_audit_path(relative)
+                .expect_err("relative paths degrade silently");
+            assert!(format!("{err}").contains("absolute"), "{relative}: {err}");
+        }
+        // `C:audit.jsonl` has a drive letter and is still relative - to that drive's current
+        // directory. It is the one shape that reads as absolute at a glance and is not.
         let err = file
-            .set_audit_path("audit.jsonl")
-            .expect_err("relative paths degrade silently");
+            .set_audit_path("C:audit.jsonl")
+            .expect_err("a drive letter is not a root");
         assert!(format!("{err}").contains("absolute"), "{err}");
+    }
+
+    #[test]
+    fn both_platforms_agree_on_what_absolute_means() {
+        // `Path::is_absolute` answers for the host, so this test passed on Windows and failed on
+        // Linux: a Windows path is not absolute to a Linux build, and a POSIX one is not absolute
+        // to a Windows build. A console that opens an installed configuration should not refuse it
+        // for having been written on the other platform.
+        for absolute in [
+            "C:\\ProgramData\\Sentin-NPU\\audit.jsonl",
+            "D:/logs/sentin/audit.jsonl",
+            "/var/log/sentin-npu/audit.jsonl",
+            "\\\\server\\share\\audit.jsonl",
+        ] {
+            let mut file = sample();
+            file.set_audit_path(absolute).expect(absolute);
+            assert_eq!(file.audit_jsonl().expect("parses").1, absolute);
+        }
     }
 
     #[test]
