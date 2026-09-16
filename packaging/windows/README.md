@@ -196,7 +196,7 @@ OpenVINO runtime, the model, the Wazuh files and the documentation.
 ## Silent installation
 
 ```powershell
-sentin-npu-setup-0.4.1.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+sentin-npu-setup-0.4.2.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 Silent mode takes every default, including installing and starting the service. To deploy a
@@ -212,8 +212,8 @@ Needs a Windows machine with [Inno Setup 6](https://jrsoftware.org/isinfo.php) a
 (what `scripts/make-release.sh` produces):
 
 ```powershell
-iscc /DVersion=0.4.1 `
-     /DPayload=..\..\dist\sentin-npu-diag-0.4.1-windows-x64 `
+iscc /DVersion=0.4.2 `
+     /DPayload=..\..\dist\sentin-npu-diag-0.4.2-windows-x64 `
      sentin-npu.iss
 ```
 
@@ -229,8 +229,8 @@ use it. The workflow publishes unsigned Windows assets and `scripts/sign-windows
 from the machine that holds the card:
 
 ```bash
-scripts/sign-windows.sh 0.4.1            # sign and verify, change nothing on the release
-scripts/sign-windows.sh 0.4.1 --upload   # then replace the assets and the two checksum lines
+scripts/sign-windows.sh 0.4.2            # sign and verify, change nothing on the release
+scripts/sign-windows.sh 0.4.2 --upload   # then replace the assets and the two checksum lines
 ```
 
 It signs the four binaries, rebuilds the bundle zip around them, compiles the installer from the
