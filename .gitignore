@@ -28,3 +28,8 @@ docs/benchmarks/raw/
 # *.jsonl rule silently swallows tests/fixtures/*.jsonl, which must be committed.
 /sentin-audit.jsonl
 *-audit.jsonl
+
+# The installer ISCC writes beside its own script. A quarter of a gigabyte, rebuilt from the
+# bundle whenever it is needed, and one `git add -A` away from the public repository - which is
+# how it was noticed.
+packaging/windows/out/
