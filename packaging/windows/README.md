@@ -13,6 +13,30 @@ Download `sentin-npu-setup-<version>.exe` from the
 [latest release](https://github.com/GrzegorzOle/Sentin-NPU/releases/latest), check it against
 `SHA256SUMS.txt`, and run it. It needs administrator rights, because it installs a service.
 
+## The signature, and what it does not do
+
+From 0.4.1 the installer and all four binaries are signed with an Open Source Developer certificate
+issued by Certum to the author, and every signature is timestamped, so it keeps verifying after the
+certificate expires. Check it before running anything:
+
+```powershell
+Get-AuthenticodeSignature .\sentin-npu-setup-<version>.exe | Format-List Status, SignerCertificate
+```
+
+`Status` must be `Valid` and the subject must read `Open Source Developer Grzegorz Robert Oleksy`.
+The properties dialog shows the same thing under "Digital Signatures".
+
+**It does not make SmartScreen go away, and nothing about this release claims it does.** The
+certificate is OV class, not EV, so Windows still has no reputation for it and may show the blue
+screen anyway. What changes is what that screen says: a publisher's name instead of "Unknown
+publisher", so "More info" leads to a decision rather than to a guess. Reputation accrues against
+the certificate as downloads accumulate, and every release signed with the same key adds to the same
+count. Only an EV certificate buys reputation on day one.
+
+The signature covers the service binary and the console too, not only the downloaded file. That is
+the difference visible where it matters most: the UAC prompt the console raises when it needs to
+write the configuration, and the service running as LocalSystem.
+
 ## What the wizard asks
 
 Only the questions whose wrong answers are silent:
@@ -168,7 +192,7 @@ OpenVINO runtime, the model, the Wazuh files and the documentation.
 ## Silent installation
 
 ```powershell
-sentin-npu-setup-0.4.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+sentin-npu-setup-0.4.1.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 Silent mode takes every default, including installing and starting the service. To deploy a
@@ -184,8 +208,8 @@ Needs a Windows machine with [Inno Setup 6](https://jrsoftware.org/isinfo.php) a
 (what `scripts/make-release.sh` produces):
 
 ```powershell
-iscc /DVersion=0.4.0 `
-     /DPayload=..\..\dist\sentin-npu-diag-0.4.0-windows-x64 `
+iscc /DVersion=0.4.1 `
+     /DPayload=..\..\dist\sentin-npu-diag-0.4.1-windows-x64 `
      sentin-npu.iss
 ```
 
@@ -193,6 +217,28 @@ CI does this on every tag, from the bundle already published for that release, s
 the zip carry byte-identical binaries. The script is also compiled against a stand-in payload on
 every push to `packaging/` (`.github/workflows/packaging.yml`), because a typo found during a
 release is found at the worst possible moment.
+
+### Signing, which happens after the workflow and not inside it
+
+The signing key is on a cryptographic card in a reader, and it asks for a PIN, so a CI runner cannot
+use it. The workflow publishes unsigned Windows assets and `scripts/sign-windows.sh` replaces them
+from the machine that holds the card:
+
+```bash
+scripts/sign-windows.sh 0.4.1            # sign and verify, change nothing on the release
+scripts/sign-windows.sh 0.4.1 --upload   # then replace the assets and the two checksum lines
+```
+
+It signs the four binaries, rebuilds the bundle zip around them, compiles the installer from the
+*signed* payload and signs that too - in that order, because an installer built first would carry
+unsigned copies of binaries that are signed everywhere else. The zip is rewritten entry by entry
+from the published archive rather than zipped up afresh, so the only difference between the two
+archives is the four files that changed.
+
+Two consequences worth knowing. `SHA256SUMS.txt` is rewritten for the Windows zip and the installer,
+so between the workflow finishing and this script running, those two published checksums describe
+assets that are about to be replaced. And the Linux bundle and the AppImage stay unsigned: nothing
+in this chain signs them, and saying so is cheaper than letting somebody infer it.
 
 ## Uninstalling
 

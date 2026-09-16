@@ -77,7 +77,10 @@ model; it is never in the request path.
 carries the gateway, the console, the OpenVINO runtime, the model, the diagnostics and the Wazuh
 integration. The wizard asks for the port, the bind address, the upstreams and the audit path,
 writes `config.yaml` from the answers, and installs a Windows service that starts at boot. Nothing
-is downloaded during installation. Details, silent installation and service commands:
+is downloaded during installation. From 0.4.1 the installer and the binaries inside it are signed
+and timestamped (Certum, Open Source Developer) - which names the publisher on the SmartScreen and
+UAC prompts but does not silence them, since an OV certificate earns its reputation over time.
+Details, silent installation and service commands:
 [`packaging/windows/`](packaging/windows/README.md).
 
 **Linux.** `Sentin-NPU-<version>-x86_64.AppImage` is one executable that runs on any x86-64
