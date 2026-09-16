@@ -35,12 +35,15 @@ jobs:
           # resolves and every [Code] procedure compiles.
           mkdir -p dist/payload/lib dist/payload/models/seq128 dist/payload/wazuh dist/payload/docs
           touch dist/payload/sentin-gateway.exe \
+                dist/payload/sentin-ui.exe \
                 dist/payload/sentin-doctor.exe \
                 dist/payload/sentin-bench.exe \
                 dist/payload/README.txt \
                 dist/payload/lib/openvino.dll \
                 dist/payload/models/seq128/openvino_model.xml \
-                dist/payload/wazuh/README.md \n                dist/payload/docs/install-windows.md \n                dist/payload/docs/events.md
+                dist/payload/wazuh/README.md \
+                dist/payload/docs/install-windows.md \
+                dist/payload/docs/events.md
 
       - name: Compile the installer script
         shell: bash
@@ -87,14 +90,13 @@ jobs:
         run: |
           # No binaries, no OpenVINO, no model - the point is that the layout, the metadata and
           # appimagetool itself all work. The real payload only changes the size.
-          mkdir -p stage/lib stage/models/seq128 stage/wazuh stage/docs stage/docs
+          mkdir -p stage/lib stage/models/seq128 stage/wazuh stage/docs
           printf '#!/bin/sh\necho stub\n' > stage/sentin-gateway
           cp stage/sentin-gateway stage/sentin-doctor
           cp stage/sentin-gateway stage/sentin-bench
+          cp stage/sentin-gateway stage/sentin-ui
           chmod +x stage/sentin-*
           touch stage/lib/libopenvino_c.so.2630 stage/models/seq128/openvino_model.xml
-          echo 'schema' > stage/docs/events.md
-          echo 'rules' > stage/wazuh/sentin_npu_rules.xml
           echo 'schema' > stage/docs/events.md
           echo 'rules' > stage/wazuh/sentin_npu_rules.xml
           ./packaging/linux/build-appimage.sh stage 0.0.0-ci dist
@@ -111,4 +113,8 @@ jobs:
           ./squashfs-root/AppRun --docs /tmp/extracted-docs
           test -f /tmp/extracted-docs/events.md
           test -f /tmp/extracted-docs/wazuh/sentin_npu_rules.xml
+          # The console has to be reachable from the dispatch table and not only from the usage
+          # text. A subcommand documented and not wired up is this project's recurring shape of bug.
+          ./squashfs-root/AppRun --console | grep -q stub
+          ./squashfs-root/AppRun --report /dev/null | grep -q stub
           echo "AppRun works from inside the image, and hands over its documentation"

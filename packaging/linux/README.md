@@ -5,8 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # Linux AppImage
 
-One executable file carrying the gateway, the OpenVINO runtime, the quantized model, the
-diagnostics and the Wazuh integration. It runs on any x86-64 distribution with glibc 2.31 or newer,
+One executable file carrying the gateway, the settings console, the OpenVINO runtime, the
+quantized model, the diagnostics and the Wazuh integration. It runs on any x86-64 distribution with glibc 2.31 or newer,
 and installs nothing: **no Python, no Rust, no OpenVINO**.
 
 ```bash
@@ -60,12 +60,26 @@ That writes a **user** unit, so no root is involved. Two consequences worth know
 ## The rest of the commands
 
 ```bash
+./Sentin-NPU-*.AppImage --console         # the settings window
+./Sentin-NPU-*.AppImage --report ~/.local/state/sentin-npu/audit.jsonl report.html
 ./Sentin-NPU-*.AppImage --docs            # copy the documentation and the Wazuh files out
 ./Sentin-NPU-*.AppImage --doctor          # what this machine can run the model on, per device
 ./Sentin-NPU-*.AppImage --bench --m2b-only --device CPU
 ./Sentin-NPU-*.AppImage --config /etc/sentin-npu/config.yaml
 ./Sentin-NPU-*.AppImage --help
 ```
+
+`--console` is the desktop entry's command, so clicking the icon opens the window rather than
+starting a gateway in a terminal. It edits `~/.config/sentin-npu/config.yaml` line by line, leaving
+comments and anything it does not know about untouched, then restarts the user service so the
+change takes effect - the gateway reads its configuration once, at startup, and a console that
+saved and stopped there would leave you believing a setting had applied. Each detector is offered
+only the verdicts its evidence supports: refusing a request needs a checksum, so an email address
+cannot be set to it.
+
+`--report` turns the audit trail into one self-contained HTML file with charts. It is what a SIEM
+would answer if there were one. It needs no network, and it cannot disclose an identifier, because
+the audit trail has no field that could hold one.
 
 `--doctor` is what to attach to an `npu-report` issue if you have Intel hardware: it compiles and
 runs the real model on every device and reports what each one said.
@@ -78,7 +92,7 @@ not the person holding this file.
 ## What is inside
 
 ```
-usr/bin/          sentin-gateway, sentin-doctor, sentin-bench
+usr/bin/          sentin-gateway, sentin-ui, sentin-doctor, sentin-bench
 usr/lib/          the OpenVINO runtime, with the unversioned soname symlinks dlopen needs
 usr/share/sentin-npu/models/seq128, seq512    the quantized IR and its tokenizer
 usr/share/sentin-npu/wazuh/                   rules, dashboard and deployment guide

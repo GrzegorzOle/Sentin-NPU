@@ -38,6 +38,12 @@ build_linux() {
     docker run --rm -v "${REPO}":/w:z -w /w/gateway \
         -e CARGO_TARGET_DIR=/w/gateway/target-bullseye rust:1-bullseye \
         cargo build --release -p sentin-proxy --bin sentin-gateway --bin sentin-bench
+    # The desktop console. No X11, Wayland or OpenGL headers are installed in this container and
+    # none are needed: winit and glow reach libX11, libxkbcommon and libGL through dlopen, which is
+    # also what lets one binary run on both a Wayland and an X11 desktop.
+    docker run --rm -v "${REPO}":/w:z -w /w/gateway \
+        -e CARGO_TARGET_DIR=/w/gateway/target-bullseye rust:1-bullseye \
+        cargo build --release -p sentin-ui --bin sentin-ui
 }
 
 build_windows() {
@@ -64,6 +70,12 @@ DOCKERFILE
         -e CARGO_TARGET_DIR=/w/gateway/target-win sentin-winbuild \
         cargo build --release --target x86_64-pc-windows-gnu \
         -p sentin-proxy --bin sentin-gateway --bin sentin-bench
+    # The console cross-compiles too, which is why its window toolkit is egui with the glow
+    # backend: glow loads opengl32.dll at run time, so nothing here needs a Windows SDK or an MSVC
+    # toolchain, and the console comes off the same build as every other binary in the bundle.
+    docker run --rm -v "${REPO}":/w:z -w /w/gateway \
+        -e CARGO_TARGET_DIR=/w/gateway/target-win sentin-winbuild \
+        cargo build --release --target x86_64-pc-windows-gnu -p sentin-ui --bin sentin-ui
 }
 
 copy_models() {
@@ -90,15 +102,17 @@ copy_models() {
 write_readme() {
     local dir="$1" platform="$2" cmd="$3" dbg="$4"
     # The platform string is prose ("Linux x86-64 (glibc 2.30+)"); the docs filename is not.
-    local platform_slug=linux
-    case "${platform}" in Windows*) platform_slug=windows ;; esac
+    local platform_slug=linux ui_cmd="./sentin-ui" ui_listing="sentin-ui        "
+    case "${platform}" in
+        Windows*) platform_slug=windows; ui_cmd="sentin-ui.exe"; ui_listing="sentin-ui.exe    " ;;
+    esac
     cat > "${dir}/README.txt" <<EOF
 Sentin-NPU ${VERSION} (test build) - ${platform}
 ================================================
 
 Self-contained. Nothing needs installing: no Rust, no Python, no OpenVINO, no network.
-The gateway, the diagnostics, the OpenVINO runtime, the quantized model and the Wazuh
-integration are all in this directory.
+The gateway, the console, the diagnostics, the OpenVINO runtime, the quantized model
+and the Wazuh integration are all in this directory.
 
 
 WHAT IS IN HERE
@@ -106,6 +120,7 @@ WHAT IS IN HERE
 
   docs/            everything below is documented there, in full
   wazuh/           rules, dashboard and the guide for a Wazuh administrator
+  ${ui_listing}the settings window and the report builder
   config.yaml      the gateway's configuration, pointing at the bundled model
   models/          the quantized IR and its tokenizer
   lib/             the OpenVINO runtime
@@ -142,6 +157,25 @@ detectors are working and the NER model is not.
 
 An installer that does all of this for you, and registers a service, is published
 alongside this archive on the releases page. See docs/install-${platform_slug}.md.
+
+
+WITHOUT EDITING YAML: THE CONSOLE
+---------------------------------
+
+    ${ui_cmd}
+
+A window for the person who has to decide what is protected and does not want to
+learn a configuration format to do it. It edits the same config.yaml in place, offers
+each detector only the verdicts its evidence can actually support, restarts the
+gateway so the change takes effect, and says whether layer 2 came back up.
+
+It also builds a report:
+
+    ${ui_cmd} --report <audit file> [output.html]
+
+One self-contained HTML file with charts - what was found, what happened to it and
+where it was going. It is what a SIEM would answer if there were one, for the
+machines where there is not.
 
 
 AND: THE AUDIT TRAIL
@@ -220,6 +254,7 @@ stage_linux() {
 
     cp "${REPO}/gateway/target-bullseye/release/sentin-gateway" "${stage}/sentin-gateway"
     cp "${REPO}/gateway/target-bullseye/release/sentin-bench" "${stage}/sentin-bench"
+    cp "${REPO}/gateway/target-bullseye/release/sentin-ui" "${stage}/sentin-ui"
     mkdir -p "${stage}/systemd"
     cp "${REPO}/packaging/systemd/sentin-npu.service" "${stage}/systemd/"
     cp "${REPO}/scripts/install.sh" "${stage}/install.sh"
@@ -237,7 +272,8 @@ stage_linux() {
     copy_models "${stage}/models"
     cp "${REPO}/scripts/run-diagnostics.sh" "${stage}/run.sh"
     chmod +x "${stage}/run.sh" "${stage}/install.sh" "${stage}/sentin-doctor" \
-             "${stage}/sentin-doctor-debug" "${stage}/sentin-gateway" "${stage}/sentin-bench"
+             "${stage}/sentin-doctor-debug" "${stage}/sentin-gateway" "${stage}/sentin-bench" \
+             "${stage}/sentin-ui"
     write_readme "${stage}" "Linux x86-64 (glibc 2.30+)" \
         "./run.sh              # device report
     ./run.sh --power      # also energy per device" "sentin-doctor-debug"
@@ -260,6 +296,8 @@ stage_windows() {
        "${stage}/sentin-gateway.exe"
     cp "${REPO}/gateway/target-win/x86_64-pc-windows-gnu/release/sentin-bench.exe" \
        "${stage}/sentin-bench.exe"
+    cp "${REPO}/gateway/target-win/x86_64-pc-windows-gnu/release/sentin-ui.exe" \
+       "${stage}/sentin-ui.exe"
 
     if [ -n "${OV_WINDOWS}" ] && [ -d "${OV_WINDOWS}" ]; then
         cp -a "${OV_WINDOWS}"/*.dll "${stage}/lib/"

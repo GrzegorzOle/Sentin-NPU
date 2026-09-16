@@ -30,7 +30,7 @@ mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/lib" "$APPDIR/usr/share/sentin-npu" \
          "$APPDIR/usr/share/applications" "$APPDIR/usr/share/icons/hicolor/128x128/apps"
 
 echo "== payload"
-for binary in sentin-gateway sentin-doctor sentin-bench; do
+for binary in sentin-gateway sentin-doctor sentin-bench sentin-ui; do
     if [ -f "$STAGE/$binary" ]; then
         install -m 755 "$STAGE/$binary" "$APPDIR/usr/bin/$binary"
     else
@@ -69,9 +69,11 @@ Type=Application
 Name=Sentin-NPU
 GenericName=LLM privacy gateway
 Comment=Detects and masks identifiers before a prompt leaves this machine
-Exec=AppRun
+# Clicking an icon opens the settings window, not a gateway in a terminal. Someone who wants the
+# gateway itself runs the file from a shell, where the usage text is in front of them.
+Exec=AppRun --console
 Icon=sentin-npu
-Terminal=true
+Terminal=false
 Categories=Utility;Security;Network;
 Keywords=DLP;privacy;LLM;NPU;OpenVINO;
 DESKTOP

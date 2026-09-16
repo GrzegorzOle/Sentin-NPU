@@ -21,6 +21,14 @@ say "installing to ${PREFIX}"
 mkdir -p "${PREFIX}" "${BIN_DIR}"
 cp -a "${HERE}/lib" "${HERE}/models" "${PREFIX}/"
 cp "${HERE}/sentin-gateway" "${HERE}/sentin-doctor" "${PREFIX}/"
+# The console is missing only from bundles cut before it existed; where it is present it installs
+# with everything else, because the person it is for is the least likely to go looking for a
+# separate step. `if` and not `[ -f ] && cp`: under `set -e` that form aborts the whole script the
+# first time the optional file is absent, which is how make-release.sh once stopped packing halfway
+# and left a stale archive behind.
+if [ -f "${HERE}/sentin-ui" ]; then
+    cp "${HERE}/sentin-ui" "${PREFIX}/"
+fi
 if [ -f "${PREFIX}/config.yaml" ]; then
     say "keeping the existing config.yaml"
 else
@@ -33,7 +41,8 @@ fi
 
 # A wrapper rather than a symlink: the binary needs the bundled OpenVINO on its library path, and
 # expecting every user to remember that is a support burden nobody needs.
-for tool in sentin-gateway sentin-doctor; do
+for tool in sentin-gateway sentin-doctor sentin-ui; do
+    [ -f "${PREFIX}/${tool}" ] || continue
     cat > "${BIN_DIR}/${tool}" <<EOF
 #!/usr/bin/env bash
 export LD_LIBRARY_PATH="${PREFIX}/lib:\${LD_LIBRARY_PATH:-}"
@@ -74,6 +83,12 @@ cat <<EOF
 Installed. To start:
 
     sentin-gateway ${PREFIX}/config.yaml
+
+To change what is protected without editing YAML, and to build a report out of the
+audit trail on a machine with no SIEM:
+
+    sentin-ui ${PREFIX}/config.yaml
+    sentin-ui --report <audit file> [report.html]
 
 Then point an agent at it:
 

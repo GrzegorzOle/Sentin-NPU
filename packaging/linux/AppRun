@@ -31,6 +31,8 @@ usage() {
 Sentin-NPU - local privacy gateway for LLM traffic
 
   $(basename "$SELF")                 run the gateway with $CONFIG
+  $(basename "$SELF") --console       open the settings window
+  $(basename "$SELF") --report F [OUT] build an HTML report from an audit trail
   $(basename "$SELF") --setup         write that configuration, asking what it needs
   $(basename "$SELF") --install-service  install and start a systemd *user* service
   $(basename "$SELF") --uninstall-service
@@ -209,6 +211,16 @@ case "${1:-}" in
     --install-service) do_install_service ;;
     --uninstall-service) do_uninstall_service ;;
     --help|-h) usage ;;
+    --console|--ui)
+        # The settings window. It is handed the configuration path rather than left to guess,
+        # because the AppImage keeps its config somewhere the binary has no way to know about.
+        shift
+        exec "$HERE/usr/bin/sentin-ui" "$CONFIG" "$@"
+        ;;
+    --report)
+        shift
+        exec "$HERE/usr/bin/sentin-ui" --report "$@"
+        ;;
     --doctor)
         shift
         exec "$HERE/usr/bin/sentin-doctor" --model "$MODEL_DIR/openvino_model.xml" "$@"

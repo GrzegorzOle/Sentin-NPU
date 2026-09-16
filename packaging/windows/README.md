@@ -5,9 +5,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # Windows installer
 
-One `.exe` that carries the gateway, the OpenVINO runtime, the quantized model, the diagnostics and
-the Wazuh integration. Nothing is downloaded during installation and nothing else has to be on the
-machine: no Rust, no Python, no OpenVINO.
+One `.exe` that carries the gateway, the settings console, the OpenVINO runtime, the quantized
+model, the diagnostics and the Wazuh integration. Nothing is downloaded during installation and
+nothing else has to be on the machine: no Rust, no Python, no OpenVINO.
 
 Download `sentin-npu-setup-<version>.exe` from the
 [latest release](https://github.com/GrzegorzOle/Sentin-NPU/releases/latest), check it against
@@ -36,7 +36,8 @@ this project has hit more often than any other.
 ## What lands where
 
 ```
-C:\Program Files\Sentin-NPU\        sentin-gateway.exe, sentin-doctor.exe, sentin-bench.exe
+C:\Program Files\Sentin-NPU\        sentin-gateway.exe, sentin-ui.exe,
+                                    sentin-doctor.exe, sentin-bench.exe
                             lib\    OpenVINO runtime
                             models\ the quantized IR and its tokenizer
                             wazuh\  rules, dashboard, deployment guide
@@ -53,6 +54,46 @@ which is `lib\`, so the service ran with layer 2 missing and nothing said so.
 The Start Menu group links the installation guide, the audit event schema and the Wazuh deployment
 guide, so nobody has to know they are on disk. The same material is published on its own as
 `sentin-npu-docs-<version>.zip`, which is what to send to whoever runs your SIEM.
+
+## The console
+
+**Start Menu: *Sentin-NPU*.** A window for the person who has to decide what is protected and
+should not have to learn a configuration format to do it. It installs with the gateway rather than
+as an optional component, on the grounds that whoever needs it is the least likely to go looking for
+an extra tick box.
+
+It does three things and nothing else:
+
+- **Sets each detector.** Modes are named by their consequence - *Record only*, *Warn*, *Hide before
+  sending*, *Refuse the request* - and a detector is offered only the modes its evidence can
+  actually support. Refusing a request on an email address is not on the menu, because the pipeline
+  would clamp it to masking at every request and the operator would have been told one thing and
+  sold another. A detector nobody has set is shown as *not set - only recorded*, which is exactly
+  what it does.
+- **Builds a report** out of `audit.jsonl`: one self-contained HTML file with charts, showing what
+  was found, what happened to it, which models the data was heading for, and how much arrived inside
+  attachments. It exists for the stations with no SIEM to answer the same question. Nothing in it
+  reaches the network and nothing in it can carry a detected identifier, because the audit trail has
+  no field that could hold one.
+- **Says whether layer 2 is running**, beside the service state, because those are different facts
+  and this project has shipped the first without the second more than once.
+
+Saving is not applying: the gateway reads its configuration once, at startup, so the console
+restarts the service and then reports what came back up. That needs administrator rights; started
+without them it says so and offers to restart itself elevated. The previous file is kept as
+`config.yaml.bak`.
+
+Edits are made **line by line in the file you already have**. Comments, ordering and any setting the
+console does not know about survive untouched, because a console that rewrote the file from its own
+model of it would quietly delete whatever it had not been taught.
+
+From a command line, it also builds a report without opening a window:
+
+```powershell
+"C:\Program Files\Sentin-NPU\sentin-ui.exe" --report "C:\ProgramData\Sentin-NPU\audit.jsonl" report.html
+```
+
+`--lang en` or `--lang pl` overrides the language, which otherwise follows the Windows locale.
 
 ## The service
 

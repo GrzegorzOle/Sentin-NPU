@@ -43,3 +43,37 @@ jobs:
         run: cargo doc --workspace --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
+
+  # Every Windows binary this project ships is cross-compiled from Linux with mingw - the
+  # windows-latest job above builds with MSVC and proves nothing about the release path. A crate
+  # that only builds under MSVC would therefore pass CI and break a release twenty minutes into
+  # building one, which is the worst moment to find out. This job builds exactly the binaries that
+  # go into the bundle, on the toolchain that puts them there.
+  cross-windows:
+    name: cross-compile for Windows (mingw)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gateway
+          key: windows-gnu
+      - name: Install mingw
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mingw-w64
+      - name: The shipped binaries
+        run: |
+          cargo build --release --target x86_64-pc-windows-gnu \
+            -p sentin-diag --bin sentin-doctor
+          cargo build --release --target x86_64-pc-windows-gnu \
+            -p sentin-proxy --bin sentin-gateway --bin sentin-bench
+          # The console links no window toolkit at build time: egui with the glow backend loads
+          # opengl32 at run time, which is what lets it come off this build rather than needing a
+          # second, MSVC-only one.
+          cargo build --release --target x86_64-pc-windows-gnu \
+            -p sentin-ui --bin sentin-ui

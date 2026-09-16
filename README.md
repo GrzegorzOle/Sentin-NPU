@@ -50,8 +50,9 @@ only on unambiguous policy violations.
 ![The agent talks to a gateway on localhost; the gateway inspects the request with checksum detectors and NER on the NPU, decides, masks, forwards the masked request to the provider, and sends metadata-only events to the SIEM](docs/architecture.svg)
 
 The gateway itself is **Rust** (`gateway/`, a Cargo workspace: `sentin-core`, `sentin-detect`,
-`sentin-proxy`, `sentin-audit`) - that is what gets deployed. **Python** (`tools/`) is the offline
-model toolchain that converts and quantizes the NER model; it is never in the request path.
+`sentin-extract`, `sentin-proxy`, `sentin-audit`, `sentin-diag` and `sentin-ui`) - that is what gets
+deployed. **Python** (`tools/`) is the offline model toolchain that converts and quantizes the NER
+model; it is never in the request path.
 
 **Design principles**
 
@@ -73,10 +74,10 @@ model toolchain that converts and quantizes the NER model; it is never in the re
 ### Installers - one file, everything inside
 
 **Windows.** [`sentin-npu-setup-<version>.exe`](https://github.com/GrzegorzOle/Sentin-NPU/releases/latest)
-carries the gateway, the OpenVINO runtime, the model, the diagnostics and the Wazuh integration.
-The wizard asks for the port, the bind address, the upstreams and the audit path, writes
-`config.yaml` from the answers, and installs a Windows service that starts at boot. Nothing is
-downloaded during installation. Details, silent installation and service commands:
+carries the gateway, the console, the OpenVINO runtime, the model, the diagnostics and the Wazuh
+integration. The wizard asks for the port, the bind address, the upstreams and the audit path,
+writes `config.yaml` from the answers, and installs a Windows service that starts at boot. Nothing
+is downloaded during installation. Details, silent installation and service commands:
 [`packaging/windows/`](packaging/windows/README.md).
 
 **Linux.** `Sentin-NPU-<version>-x86_64.AppImage` is one executable that runs on any x86-64
@@ -92,6 +93,36 @@ chmod +x Sentin-NPU-*.AppImage
 No Python, no Rust, no OpenVINO installation. Details:
 [`packaging/linux/`](packaging/linux/README.md).
 
+### The console - settings and reports without a YAML file
+
+`sentin-ui` is a small desktop window that ships and installs with the gateway. It exists because
+the most consequential property of the configuration is invisible: **a detector the file does not
+mention falls back to observing**, so the gateway finds the identifier, records it, and forwards it
+anyway. From the outside that is indistinguishable from protection.
+
+```bash
+sentin-ui /path/to/config.yaml                   # the window
+sentin-ui --report audit.jsonl report.html       # just the report
+./Sentin-NPU-*.AppImage --console                # the same, from the AppImage
+```
+
+- **What is protected.** Modes are named by their consequence - record only, warn, hide before
+  sending, refuse the request - and each detector is offered only the modes its evidence can
+  support, so a pattern-only match is never sold as something that can refuse a request. Unset
+  detectors say they are unset.
+- **What was found.** One self-contained HTML file with charts, built from the audit trail: the
+  detectors that fired, what happened to each finding, which models the data was heading for, and
+  how much of it arrived inside attachments. It is what a SIEM would answer, for the machines that
+  do not have one. No network, no external assets, and nothing in it can carry a detected
+  identifier - the audit schema has no field that could hold one.
+- **What is actually running.** The service state *and* whether layer 2 came up, because those are
+  different facts.
+
+Editing is line-surgical: comments, ordering and any key the console does not know about are left
+exactly as they were, and the previous file is kept as `config.yaml.bak`. Saving is followed by a
+service restart, because the gateway reads its configuration once, at startup. The interface is
+English or Polish, following the system locale, overridable with `--lang`.
+
 **The documentation travels with the software.** Every archive carries `docs/` and `wazuh/`; the
 AppImage hands them over with `--docs`; the Windows installer puts them under the program directory
 with Start Menu entries. `sentin-npu-docs-<version>.zip` on the releases page is the same material
@@ -99,8 +130,8 @@ on its own, 160 KB, for reading before a 280 MB download and for handing to whoe
 
 ### From a release bundle - no toolchain needed
 
-The bundle carries the gateway, the diagnostics, the latency harness, the OpenVINO runtime and the
-quantized model. Nothing else is required: no Rust, no Python, no OpenVINO installation. `./run.sh`
+The bundle carries the gateway, the console, the diagnostics, the latency harness, the OpenVINO
+runtime and the quantized model. Nothing else is required: no Rust, no Python, no OpenVINO installation. `./run.sh`
 collects a device report and pipeline latency for NPU, GPU and CPU into one archive.
 
 The bundle filename carries the release version, so the commands below read the newest tag rather
@@ -128,7 +159,7 @@ sentin-gateway ~/.local/share/sentin-npu/config.yaml
 ```
 
 `packaging/systemd/` holds a **user** unit if you want it running as a service. The Windows zip is
-built by the same CI job, carries the same three binaries as the Linux bundle, and **was executed
+built by the same CI job, carries the same binaries as the Linux bundle, and **was executed
 end to end on Windows 11 on 2026-08-31**: it runs with no toolchain present, collects the device
 report and measures pipeline latency per device. On that machine OpenVINO enumerated a discrete
 NVIDIA card through the OpenCL ICD and ran the model at 224.8 ms against 8.7 ms on the CPU, which

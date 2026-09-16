@@ -3,9 +3,10 @@
 ;
 ; Inno Setup script for the Sentin-NPU gateway.
 ;
-; What it produces: one .exe carrying the gateway, the diagnostics, the latency harness, the
-; OpenVINO runtime, the quantized model and the Wazuh integration. Nothing is downloaded at install
-; time and nothing else has to be present on the machine - no Rust, no Python, no OpenVINO.
+; What it produces: one .exe carrying the gateway, the settings console, the diagnostics, the
+; latency harness, the OpenVINO runtime, the quantized model and the Wazuh integration. Nothing is
+; downloaded at install time and nothing else has to be present on the machine - no Rust, no
+; Python, no OpenVINO.
 ;
 ; The wizard asks the questions whose wrong answers are silent: which port, which address, where
 ; the audit trail goes, which upstreams, and whether to run as a service. Every answer is written
@@ -59,13 +60,20 @@ Name: "gateway"; Description: "Gateway only"
 Name: "custom"; Description: "Custom"; Flags: iscustom
 
 [Components]
-Name: "gateway"; Description: "Gateway, OpenVINO runtime and the NER model"; Types: full gateway custom; Flags: fixed
+Name: "gateway"; Description: "Gateway, settings console, OpenVINO runtime and the NER model"; Types: full gateway custom; Flags: fixed
 Name: "tools"; Description: "Diagnostics (sentin-doctor) and latency harness (sentin-bench)"; Types: full
 Name: "wazuh"; Description: "Wazuh rules, dashboard and deployment guide"; Types: full
 Name: "docs"; Description: "Documentation: installation, configuration, the audit event schema"; Types: full gateway custom; Flags: fixed
 
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+
 [Files]
 Source: "{#Payload}\sentin-gateway.exe"; DestDir: "{app}"; Components: gateway; Flags: ignoreversion
+; The console ships with the gateway rather than with the tools, and that is deliberate: it is the
+; only way to change a setting without opening a YAML file, and the people who most need that are
+; the ones least likely to tick an optional component.
+Source: "{#Payload}\sentin-ui.exe"; DestDir: "{app}"; Components: gateway; Flags: ignoreversion
 ; The OpenVINO runtime goes in lib\, and nothing here puts it on any search path: the binaries add
 ; their own lib\ directory themselves at startup. That is deliberate. Windows searches the
 ; executable's directory and PATH, neither of which is lib\, so the first release of this installer
@@ -86,6 +94,10 @@ Source: "{#Payload}\README.txt"; DestDir: "{app}"; Flags: ignoreversion isreadme
 Name: "{commonappdata}\{#AppName}"; Permissions: users-modify
 
 [Icons]
+; First in the group, and it takes the plain name: for most people this is the program, and the
+; files below it are what they open when it cannot answer their question.
+Name: "{group}\{#AppName}"; Filename: "{app}\sentin-ui.exe"; Parameters: """{commonappdata}\{#AppName}\config.yaml"""; WorkingDir: "{app}"
+Name: "{commondesktop}\{#AppName}"; Filename: "{app}\sentin-ui.exe"; Parameters: """{commonappdata}\{#AppName}\config.yaml"""; WorkingDir: "{app}"; Tasks: desktopicon
 Name: "{group}\Sentin-NPU configuration"; Filename: "notepad.exe"; Parameters: """{commonappdata}\{#AppName}\config.yaml"""
 ; The service has no console, so this file is the only place its startup is visible - and the one
 ; line worth finding in it is whether layer 2 loaded.
@@ -100,7 +112,8 @@ Name: "{group}\Documentation"; Filename: "{app}\docs"; Components: docs
 ; check what it did, and an installer that reports success while the service it just registered
 ; failed to start is the exact failure this project exists to complain about.
 [Run]
-Filename: "{app}\sentin-doctor.exe"; Description: "Show what this machine can run the model on"; Flags: postinstall skipifsilent nowait; Components: tools
+Filename: "{app}\sentin-ui.exe"; Parameters: """{commonappdata}\{#AppName}\config.yaml"""; Description: "Open the console and check what is protected"; Flags: postinstall skipifsilent nowait
+Filename: "{app}\sentin-doctor.exe"; Description: "Show what this machine can run the model on"; Flags: postinstall skipifsilent nowait unchecked; Components: tools
 
 [UninstallRun]
 Filename: "{app}\sentin-gateway.exe"; Parameters: "--uninstall-service"; Flags: runhidden; RunOnceId: "RemoveService"
