@@ -1,0 +1,35 @@
+[package]
+name = "sentin-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Desktop console for the Sentin-NPU gateway: policy editing and offline reports."
+
+[[bin]]
+name = "sentin-ui"
+path = "src/main.rs"
+
+[lib]
+name = "sentin_ui"
+path = "src/lib.rs"
+
+[dependencies]
+eframe = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+thiserror = { workspace = true }
+sentin-core = { workspace = true }
+sentin-proxy = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+# The service control manager, reached the same way `sentin-proxy` reaches it. Parsing `sc.exe`
+# output instead would make service control depend on the console's language, and on this machine
+# that console answers in Polish.
+windows-service = "0.8"
+
+[lints]
+workspace = true
