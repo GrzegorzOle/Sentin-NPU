@@ -282,49 +282,84 @@ impl App {
 
         let Some(file) = &mut self.file else { return };
 
+        // One width for every label on this tab, measured rather than guessed, so the pickers and
+        // the text fields all start at the same place. Measuring is what makes it survive the
+        // language button: the Polish and English labels are nothing like the same length.
+        let column = label_column_width(ui, lang);
+
+        // No max_height here. The action bar is a bottom panel of its own, so the height this Ui
+        // reports already excludes it - reserving a second, hand-guessed 120 px for it left a dead
+        // band above the buttons and, worse, cut the last field off at the edge of a viewport that
+        // was shorter than the space available to it.
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
-            .max_height(ui.available_height() - 120.0)
             .show(ui, |ui| {
-                for (heading, group) in [
-                    (lang.group_checksum(), Group::Checksum),
-                    (lang.group_pattern(), Group::Pattern),
-                    (lang.group_model(), Group::Model),
-                ] {
-                    ui.add_space(6.0);
-                    ui.strong(heading);
-                    egui::Grid::new(heading)
-                        .num_columns(2)
-                        .spacing([16.0, 6.0])
-                        .striped(true)
-                        .show(ui, |ui| {
+                // One grid for all three groups, headings included as rows of it. Three grids sized
+                // their first column three times, each to its own widest label, which is what put
+                // the three blocks of pickers at three different left edges.
+                egui::Grid::new("detectors")
+                    .num_columns(2)
+                    .spacing([16.0, 6.0])
+                    .min_col_width(column)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for (heading, group) in [
+                            (lang.group_checksum(), Group::Checksum),
+                            (lang.group_pattern(), Group::Pattern),
+                            (lang.group_model(), Group::Model),
+                        ] {
+                            ui.vertical(|ui| {
+                                ui.add_space(6.0);
+                                ui.strong(heading);
+                            });
+                            ui.end_row();
                             for kind in DataKind::ALL.iter().copied().filter(|k| group.holds(*k)) {
                                 ui.label(lang.detector_label(kind));
                                 detector_combo(ui, lang, file, kind);
                                 ui.end_row();
                             }
-                        });
-                }
+                        }
+                    });
 
                 ui.add_space(14.0);
                 ui.strong(lang.audit_section());
                 ui.label(lang.audit_note());
+                ui.add_space(4.0);
+                // Each switch keeps the field it governs directly beneath it - a grid apiece rather
+                // than both switches and then both fields, which would leave the pairing to be
+                // inferred from the order. The shared column is what keeps them aligned anyway.
                 ui.checkbox(&mut self.audit_enabled, lang.audit_enabled());
-                ui.horizontal(|ui| {
-                    ui.label(lang.audit_path());
-                    ui.add_enabled(
-                        self.audit_enabled,
-                        egui::TextEdit::singleline(&mut self.audit_path).desired_width(420.0),
-                    );
-                });
+                egui::Grid::new("audit-file")
+                    .num_columns(2)
+                    .spacing([16.0, 6.0])
+                    .min_col_width(column)
+                    .show(ui, |ui| {
+                        ui.label(lang.audit_path());
+                        ui.add_enabled(
+                            self.audit_enabled,
+                            egui::TextEdit::singleline(&mut self.audit_path).desired_width(420.0),
+                        );
+                        ui.end_row();
+                    });
+                ui.add_space(4.0);
                 ui.checkbox(&mut self.syslog_enabled, lang.syslog_enabled());
-                ui.horizontal(|ui| {
-                    ui.label(lang.syslog_address());
-                    ui.add_enabled(
-                        self.syslog_enabled,
-                        egui::TextEdit::singleline(&mut self.syslog_address).desired_width(200.0),
-                    );
-                });
+                egui::Grid::new("audit-syslog")
+                    .num_columns(2)
+                    .spacing([16.0, 6.0])
+                    .min_col_width(column)
+                    .show(ui, |ui| {
+                        ui.label(lang.syslog_address());
+                        ui.add_enabled(
+                            self.syslog_enabled,
+                            egui::TextEdit::singleline(&mut self.syslog_address)
+                                .desired_width(240.0),
+                        );
+                        ui.end_row();
+                    });
+                // A scroll area ends exactly where its content does, so without this the last
+                // field sits flush against the bottom edge and reads as cut off even when it is
+                // whole.
+                ui.add_space(12.0);
             });
     }
 
@@ -471,6 +506,53 @@ impl Group {
     }
 }
 
+/// How wide the left-hand column of the protection tab has to be.
+///
+/// Measured from the strings that will actually be drawn, in the language that is actually
+/// selected, because every alternative drifts: a constant goes stale the first time a label is
+/// reworded, and letting each grid size itself is what staggered the three blocks of pickers in the
+/// first place. Headings are measured too - they share the column, so one long heading would widen
+/// it past whatever the labels asked for and the alignment would come apart again.
+fn label_column_width(ui: &egui::Ui, lang: Lang) -> f32 {
+    left_column_labels(lang)
+        .into_iter()
+        .map(|text| text_width(ui, text))
+        .fold(0.0_f32, f32::max)
+}
+
+/// Every string that is drawn in that left-hand column, in one place.
+///
+/// Kept as a list rather than measured where each is drawn, so that adding a row means adding it
+/// here too - a row whose label is wider than the column is the one that would push its own field
+/// out of line and reintroduce exactly the stagger this replaced.
+fn left_column_labels(lang: Lang) -> Vec<&'static str> {
+    DataKind::ALL
+        .iter()
+        .map(|kind| lang.detector_label(*kind))
+        .chain([
+            lang.group_checksum(),
+            lang.group_pattern(),
+            lang.group_model(),
+            lang.audit_path(),
+            lang.syslog_address(),
+        ])
+        .collect()
+}
+
+/// How wide a piece of body text is once laid out.
+fn text_width(ui: &egui::Ui, text: &str) -> f32 {
+    let style = egui::TextStyle::Body.resolve(ui.style());
+    // fonts_mut, not fonts: laying text out memoizes the galley, so the call needs the cache
+    // mutably even though nothing about the fonts themselves changes. That memoization is also why
+    // measuring every label on every frame costs nothing after the first.
+    ui.ctx().fonts_mut(|fonts| {
+        fonts
+            .layout_no_wrap(text.to_owned(), style, egui::Color32::PLACEHOLDER)
+            .size()
+            .x
+    })
+}
+
 /// The mode picker for one detector.
 ///
 /// It offers only what the detector can actually do. Offering "refuse the request" against an email
@@ -611,5 +693,56 @@ impl App {
             || config.audit.jsonl.path != self.audit_path
             || config.audit.syslog_cef.enabled != self.syslog_enabled
             || config.audit.syslog_cef.address != self.syslog_address
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Run one headless frame with real fonts.
+    ///
+    /// Not `egui::__run_test_ui`, which loads an empty font set to save time - every string would
+    /// then measure zero and a width test would pass by measuring nothing.
+    fn with_ui(f: impl FnMut(&mut egui::Ui)) {
+        let ctx = egui::Context::default();
+        ctx.run_ui(egui::RawInput::default(), f)
+            .drop_without_applying_deltas();
+    }
+
+    #[test]
+    fn the_column_holds_every_label_in_both_languages() {
+        with_ui(|ui| {
+            for lang in [Lang::En, Lang::Pl] {
+                let column = label_column_width(ui, lang);
+                assert!(column > 0.0, "{lang:?}: measured nothing");
+                for label in left_column_labels(lang) {
+                    let width = text_width(ui, label);
+                    assert!(
+                        width <= column,
+                        "{lang:?}: {label:?} is {width} wide against a {column} column, so its \
+                         field would sit further right than every other one",
+                    );
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn every_detector_and_both_sink_labels_are_measured() {
+        // The stagger came from a column sized without knowing about some of the rows in it. This
+        // fails if a detector is added to DataKind::ALL and nothing else, which is how it would
+        // come back.
+        for lang in [Lang::En, Lang::Pl] {
+            let labels = left_column_labels(lang);
+            for kind in DataKind::ALL {
+                assert!(
+                    labels.contains(&lang.detector_label(kind)),
+                    "{lang:?}: {kind:?} is drawn in that column and is not measured for it",
+                );
+            }
+            assert!(labels.contains(&lang.audit_path()));
+            assert!(labels.contains(&lang.syslog_address()));
+        }
     }
 }
