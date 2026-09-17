@@ -363,6 +363,24 @@ impl App {
             });
     }
 
+    /// Switch the interface language, and take the report on disk with it.
+    ///
+    /// The report is written in the language the console held when the button was pressed, and it
+    /// is a file, so it does not change afterwards - while every label around it does, including
+    /// the button offering to open it. Somebody who switches to English and opens the report gets
+    /// the Polish one, with nothing on screen saying why. So it is rewritten here.
+    ///
+    /// The path is cleared first and only set again by a successful write: if the audit trail has
+    /// since been moved, emptied or made unreadable, the console stops offering the report rather
+    /// than opening the old one under a label promising the new language.
+    fn switch_language(&mut self) {
+        self.lang = self.lang.other();
+        if self.report_path.take().is_some() {
+            self.report_summary = None;
+            self.build_report();
+        }
+    }
+
     fn ui_report(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
         ui.label(lang.report_intro());
@@ -624,7 +642,7 @@ impl eframe::App for App {
                 ui.selectable_value(&mut self.tab, Tab::Status, self.lang.tab_status());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button(self.lang.other().name()).clicked() {
-                        self.lang = self.lang.other();
+                        self.switch_language();
                     }
                 });
             });
@@ -744,5 +762,45 @@ mod tests {
             assert!(labels.contains(&lang.audit_path()));
             assert!(labels.contains(&lang.syslog_address()));
         }
+    }
+
+    /// One event is enough: the report only has to exist for the language to be readable off it.
+    const AUDIT: &str = r#"{"ts":"2026-09-17T09:00:00Z","event":"pii_detected","detector":"pesel","data_type":"PESEL","decision":"masked","device":"CPU","source":"prompt"}"#;
+
+    #[test]
+    fn switching_the_language_rewrites_the_report_in_it() {
+        // The report is a file, so unlike every label around it, it does not follow the language
+        // button on its own. It was written in Polish, the console was switched to English, and
+        // the button offering to open it opened the Polish one.
+        let dir =
+            std::env::temp_dir().join(format!("sentin-ui-report-lang-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let audit = dir.join("audit.jsonl");
+        std::fs::write(&audit, AUDIT).unwrap();
+        let report = dir.join("sentin-report.html");
+
+        let config =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../config/default.yaml");
+        let mut app = App::new(config, Lang::Pl);
+        app.audit_path = audit.to_string_lossy().into_owned();
+
+        app.build_report();
+        assert!(
+            std::fs::read_to_string(&report)
+                .unwrap()
+                .contains(r#"<html lang="pl">"#),
+            "the report should be written in the language the console was showing",
+        );
+
+        app.switch_language();
+        assert_eq!(app.lang, Lang::En);
+        assert!(
+            std::fs::read_to_string(&report)
+                .unwrap()
+                .contains(r#"<html lang="en">"#),
+            "the report on disk still disagrees with the console that offers to open it",
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
