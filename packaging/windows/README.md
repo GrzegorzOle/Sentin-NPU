@@ -15,9 +15,9 @@ Download `sentin-npu-setup-<version>.exe` from the
 
 ## The signature, and what it does not do
 
-From 0.4.1 the installer and all four binaries are signed with an Open Source Developer certificate
-issued by Certum to the author, and every signature is timestamped, so it keeps verifying after the
-certificate expires. Check it before running anything:
+From 0.4.1 the installer and the binaries it carries are signed with an Open Source Developer
+certificate issued by Certum to the author, and every signature is timestamped, so it keeps
+verifying after the certificate expires. Check it before running anything:
 
 ```powershell
 Get-AuthenticodeSignature .\sentin-npu-setup-<version>.exe | Format-List Status, SignerCertificate
@@ -233,11 +233,17 @@ scripts/sign-windows.sh 0.4.2            # sign and verify, change nothing on th
 scripts/sign-windows.sh 0.4.2 --upload   # then replace the assets and the two checksum lines
 ```
 
-It signs the four binaries, rebuilds the bundle zip around them, compiles the installer from the
-*signed* payload and signs that too - in that order, because an installer built first would carry
-unsigned copies of binaries that are signed everywhere else. The zip is rewritten entry by entry
-from the published archive rather than zipped up afresh, so the only difference between the two
-archives is the four files that changed.
+It signs every executable in the bundle, rebuilds the bundle zip around them, compiles the installer
+from the *signed* payload and signs that too - in that order, because an installer built first would
+carry unsigned copies of binaries that are signed everywhere else. The zip is rewritten entry by
+entry from the published archive rather than zipped up afresh, so the only difference between the
+two archives is the files that changed.
+
+The list of executables lives in one place in the script, in the `BINARIES` array. It used to be
+written out three times - once to sign, once to rewrite the archive, once to verify - and all three
+copies said four while the bundle carried five: `sentin-doctor-debug.exe`, the debug build that
+`scripts/run-diagnostics.ps1 -Debug` runs, shipped unsigned in **0.4.1**. It is signed from 0.4.2
+on. A list that has to be repeated is a list that will disagree with itself.
 
 Two consequences worth knowing. `SHA256SUMS.txt` is rewritten for the Windows zip and the installer,
 so between the workflow finishing and this script running, those two published checksums describe

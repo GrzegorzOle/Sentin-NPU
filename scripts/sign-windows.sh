@@ -19,9 +19,10 @@
 # which is the installer alone - but the gateway runs as a service under LocalSystem and the console
 # asks for elevation, and both of those show the publisher to the person deciding whether to allow
 # them. A chain that stops at the installer leaves "Unknown publisher" on the two dialogs where it
-# is read most carefully. So the four binaries are signed first, the installer is then built from
-# the signed payload, and the bundle zip gets the same signed binaries - which keeps the property
-# the release workflow was built around, that the installer and the zip carry identical binaries.
+# is read most carefully. So every binary in the bundle is signed first, the installer is then
+# built from the signed payload, and the bundle zip gets the same signed binaries - which keeps the
+# property the release workflow was built around, that the installer and the zip carry identical
+# binaries.
 
 set -euo pipefail
 
@@ -38,6 +39,21 @@ SUBJECT="${SENTIN_SIGN_SUBJECT:-Open Source Developer Grzegorz Robert Oleksy}"
 # this certificate stops verifying the day the certificate expires, which for an installer people
 # keep around is the same as never having signed it.
 TIMESTAMP="${SENTIN_SIGN_TIMESTAMP:-http://time.certum.pl}"
+
+# Every executable in the Windows bundle, in one place. It used to be spelled out three times - in
+# the signtool invocation, in the archive rewrite and in the verification loop - and the three
+# agreed on four names while the bundle carried five: `sentin-doctor-debug.exe`, the debug build
+# that `run-diagnostics.ps1 -Debug` runs, went out unsigned in v0.4.1 and would have again. A list
+# that has to be repeated is a list that will disagree with itself, which is a lesson this project
+# has already paid for more than once. Add a binary to the bundle, add it here, and all three steps
+# follow.
+BINARIES=(
+    sentin-gateway.exe
+    sentin-ui.exe
+    sentin-doctor.exe
+    sentin-doctor-debug.exe
+    sentin-bench.exe
+)
 
 say()  { printf '\033[1m==>\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -103,29 +119,28 @@ PAYLOAD_WIN="$(cd "${PAYLOAD}" && pwd -W)"
 DIST_WIN="$(cd "${HERE}/dist" && pwd -W)"
 
 say "signing the binaries"
-# All four in one invocation, because the card asks for the PIN per invocation and four prompts
-# invite the one that gets cancelled halfway.
+# All of them in one invocation, because the card asks for the PIN per invocation and several
+# prompts invite the one that gets cancelled halfway.
+BINARIES_WIN=()
+for name in "${BINARIES[@]}"; do
+    [ -f "${PAYLOAD}/${name}" ] || die "not in the bundle: ${name}"
+    BINARIES_WIN+=("${PAYLOAD_WIN}/${name}")
+done
 "${SIGNTOOL}" sign /n "${SUBJECT}" /a /fd sha256 /tr "${TIMESTAMP}" /td sha256 \
     /d "Sentin-NPU" /du "https://github.com/GrzegorzOle/Sentin-NPU" \
-    "${PAYLOAD_WIN}/sentin-gateway.exe" \
-    "${PAYLOAD_WIN}/sentin-ui.exe" \
-    "${PAYLOAD_WIN}/sentin-doctor.exe" \
-    "${PAYLOAD_WIN}/sentin-bench.exe"
+    "${BINARIES_WIN[@]}"
 
 say "rebuilding the bundle around the signed binaries"
 # Rewritten from the original archive rather than zipped up from the directory: every entry keeps
 # the metadata and the order the release workflow gave it, and the only difference between the two
-# archives is the four files that were signed. A fresh `zip` of the same tree would differ in ways
+# archives is the files that were signed. A fresh `zip` of the same tree would differ in ways
 # nobody could tell apart from tampering.
-python - "${BUNDLE}-unsigned.zip" "${BUNDLE}.zip" "${BUNDLE}" "${DIST_WIN}" <<'PY'
+python - "${BUNDLE}-unsigned.zip" "${BUNDLE}.zip" "${BUNDLE}" "${DIST_WIN}" "${BINARIES[@]}" <<'PY'
 import pathlib, sys, zipfile
 
 source, target, prefix = sys.argv[1], sys.argv[2], sys.argv[3]
 root = pathlib.Path(sys.argv[4])
-signed = {
-    f"{prefix}/{name}"
-    for name in ("sentin-gateway.exe", "sentin-ui.exe", "sentin-doctor.exe", "sentin-bench.exe")
-}
+signed = {f"{prefix}/{name}" for name in sys.argv[5:]}
 replaced = set()
 
 with zipfile.ZipFile(source) as old, zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as new:
@@ -136,7 +151,7 @@ with zipfile.ZipFile(source) as old, zipfile.ZipFile(target, "w", zipfile.ZIP_DE
         else:
             data = old.read(item)
         # The ZipInfo travels with the entry, so timestamps, attributes and the compression choice
-        # survive; only the bytes of the four signed files change.
+        # survive; only the bytes of the signed files change.
         new.writestr(item, data)
 
 missing = signed - replaced
@@ -157,8 +172,7 @@ say "signing the installer"
 say "verifying every signature"
 # Verified rather than assumed: signtool reports success on signing a file it could not timestamp
 # in some configurations, and an untimestamped signature is the failure that only shows up in 2027.
-for file in "${SETUP}" "${PAYLOAD_WIN}/sentin-gateway.exe" "${PAYLOAD_WIN}/sentin-ui.exe" \
-            "${PAYLOAD_WIN}/sentin-doctor.exe" "${PAYLOAD_WIN}/sentin-bench.exe"; do
+for file in "${SETUP}" "${BINARIES_WIN[@]}"; do
     "${SIGNTOOL}" verify /pa /q "${file}" || die "verification failed for ${file}"
     "${SIGNTOOL}" verify /pa /v "${file}" 2>/dev/null | grep -q "signature is timestamped" \
         || die "no timestamp on ${file}"
