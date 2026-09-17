@@ -129,6 +129,11 @@ From a command line, it also builds a report without opening a window:
 
 `--lang en` or `--lang pl` overrides the language, which otherwise follows the Windows locale.
 
+In the window, the report is written in the language the console is showing, and **switching the
+language rewrites it** (from 0.4.4). Before that it did not: a report built in one language stayed
+on disk in that language while every label around it, including the button offering to open it,
+had moved to the other.
+
 ## The service
 
 ```powershell
@@ -202,7 +207,7 @@ OpenVINO runtime, the model, the Wazuh files and the documentation.
 ## Silent installation
 
 ```powershell
-sentin-npu-setup-0.4.3.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+sentin-npu-setup-0.4.4.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 Silent mode takes every default, including installing and starting the service. To deploy a
@@ -218,8 +223,8 @@ Needs a Windows machine with [Inno Setup 6](https://jrsoftware.org/isinfo.php) a
 (what `scripts/make-release.sh` produces):
 
 ```powershell
-iscc /DVersion=0.4.3 `
-     /DPayload=..\..\dist\sentin-npu-diag-0.4.3-windows-x64 `
+iscc /DVersion=0.4.4 `
+     /DPayload=..\..\dist\sentin-npu-diag-0.4.4-windows-x64 `
      sentin-npu.iss
 ```
 
@@ -235,8 +240,8 @@ use it. The workflow publishes unsigned Windows assets and `scripts/sign-windows
 from the machine that holds the card:
 
 ```bash
-scripts/sign-windows.sh 0.4.3            # sign and verify, change nothing on the release
-scripts/sign-windows.sh 0.4.3 --upload   # then replace the assets and the two checksum lines
+scripts/sign-windows.sh 0.4.4            # sign and verify, change nothing on the release
+scripts/sign-windows.sh 0.4.4 --upload   # then replace the assets and the two checksum lines
 ```
 
 It signs every executable in the bundle, rebuilds the bundle zip around them, compiles the installer
