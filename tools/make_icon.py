@@ -9,10 +9,17 @@ as "binary files differ", which is no review at all, while a change here reads a
 committed output still goes into git, because the Windows build needs the file and must not need
 Python to get it.
 
-Two outputs, because they are consumed by two things that cannot read the same format:
+Three outputs, because they are consumed by three things and no two of them read the same format:
 
 ``packaging/windows/sentin-npu.ico``
     the icon resource linked into ``sentin-ui.exe`` and used by the installer and its shortcuts.
+
+``packaging/linux/sentin-npu.png``
+    what the AppImage hands the desktop - its ``.DirIcon`` and the ``Icon=`` of its ``.desktop``
+    entry. It is written from the same 128 px frame that goes into the ``.ico``, byte for byte, so
+    the two platforms cannot end up showing different pictures of the same program. They already
+    had: this file was a 484-byte placeholder from the day the AppImage was first built, and it
+    survived the release that gave Windows a real icon.
 
 ``gateway/crates/sentin-ui/assets/icon-64.rgba``
     raw pixels for the window itself. eframe wants ``IconData`` as plain RGBA, and shipping it that
@@ -41,6 +48,11 @@ WHITE = (0xFF, 0xFF, 0xFF)
 # for the preview pane. The ones between are there so the shell never has to scale one of these
 # down itself, which is where a shield turns to mush.
 SIZES = (256, 128, 64, 48, 32, 24, 16)
+
+# What the AppImage installs, so it has to be one of SIZES: build-appimage.sh puts the file in
+# hicolor/128x128/apps, and a 128x128 directory holding something else is a lie the desktop
+# believes.
+LINUX_SIZE = 128
 
 # Each pixel is sampled this many times per axis. The shield is all curves and diagonals, and at
 # 16 pixels the difference between sampled and not sampled is the difference between a shield and
@@ -148,15 +160,22 @@ def to_ico(frames: list[tuple[int, bytes]]) -> bytes:
 
 
 def main() -> int:
-    """Write both files and say what went where."""
+    """Write all three files and say what went where."""
     repo = pathlib.Path(__file__).resolve().parent.parent
     ico_path = repo / "packaging" / "windows" / "sentin-npu.ico"
+    png_path = repo / "packaging" / "linux" / "sentin-npu.png"
     rgba_path = repo / "gateway" / "crates" / "sentin-ui" / "assets" / "icon-64.rgba"
     rgba_path.parent.mkdir(parents=True, exist_ok=True)
 
     frames = [(size, to_png(size, render(size))) for size in SIZES]
     ico_path.write_bytes(to_ico(frames))
     print(f"{ico_path}  {ico_path.stat().st_size} bytes, {len(SIZES)} sizes")
+
+    # The same bytes that went into the .ico, not a second render of the same drawing. Rendering it
+    # again would produce identical pixels today and would be one edit away from not doing so.
+    png = dict(frames)[LINUX_SIZE]
+    png_path.write_bytes(png)
+    print(f"{png_path}  {len(png)} bytes, {LINUX_SIZE}x{LINUX_SIZE} PNG")
 
     window = render(64)
     rgba_path.write_bytes(window)

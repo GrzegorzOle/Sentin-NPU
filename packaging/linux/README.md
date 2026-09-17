@@ -96,7 +96,14 @@ usr/bin/          sentin-gateway, sentin-ui, sentin-doctor, sentin-bench
 usr/lib/          the OpenVINO runtime, with the unversioned soname symlinks dlopen needs
 usr/share/sentin-npu/models/seq128, seq512    the quantized IR and its tokenizer
 usr/share/sentin-npu/wazuh/                   rules, dashboard and deployment guide
+usr/share/icons/hicolor/128x128/apps/, .DirIcon    the icon the desktop draws
 ```
+
+**The icon is the same picture Windows shows**, from 0.4.3 on. Both files come out of
+`tools/make_icon.py`, which writes the Linux PNG from the same 128 px frame it packs into the
+Windows `.ico` - the same bytes, not a second drawing of the same idea. Until 0.4.3 this was a
+placeholder left from the day the AppImage was first built, so the two platforms showed different
+pictures of the same program, and the release that gave Windows a real icon walked straight past it.
 
 `AppRun` puts `usr/lib` at the front of `LD_LIBRARY_PATH` before exec'ing the binary. That is the
 whole difference between an AppImage that runs anywhere and one that runs only where OpenVINO
