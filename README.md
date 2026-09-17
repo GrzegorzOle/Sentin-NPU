@@ -79,9 +79,10 @@ integration. The wizard asks for the port, the bind address, the upstreams and t
 writes `config.yaml` from the answers, and installs a Windows service that starts at boot. Nothing
 is downloaded during installation. From 0.4.1 the installer and the binaries inside it are signed
 and timestamped (Certum, Open Source Developer) - which names the publisher on the SmartScreen and
-UAC prompts but does not silence them, since an OV certificate earns its reputation over time.
-Details, silent installation and service commands:
-[`packaging/windows/`](packaging/windows/README.md).
+UAC prompts but does not silence them, since an OV certificate earns its reputation over time. From
+0.4.2 that covers **every** executable in the bundle: 0.4.1 signed four of the five, leaving the
+debug build of the diagnostic unsigned inside an archive described as signed. Details, silent
+installation and service commands: [`packaging/windows/`](packaging/windows/README.md).
 
 **Linux.** `Sentin-NPU-<version>-x86_64.AppImage` is one executable that runs on any x86-64
 distribution with glibc 2.31 or newer:
@@ -125,6 +126,10 @@ Editing is line-surgical: comments, ordering and any key the console does not kn
 exactly as they were, and the previous file is kept as `config.yaml.bak`. Saving is followed by a
 service restart, because the gateway reads its configuration once, at startup. The interface is
 English or Polish, following the system locale, overridable with `--lang`.
+
+On Windows the installer offers a desktop shortcut beside the Start Menu entry, and both hand the
+console the installed `C:\ProgramData\Sentin-NPU\config.yaml` - so they open the configuration the
+running service is reading, not whatever an empty command line would make it guess.
 
 **The documentation travels with the software.** Every archive carries `docs/` and `wazuh/`; the
 AppImage hands them over with `--docs`; the Windows installer puts them under the program directory
