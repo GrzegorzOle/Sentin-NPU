@@ -114,7 +114,14 @@ Name: "{group}\Sentin-NPU configuration"; Filename: "notepad.exe"; Parameters: "
 ; line worth finding in it is whether layer 2 loaded.
 Name: "{group}\Service log"; Filename: "notepad.exe"; Parameters: """{commonappdata}\{#AppName}\sentin-gateway.log"""
 Name: "{group}\Device report (sentin-doctor)"; Filename: "{app}\sentin-doctor.exe"; Components: tools
-Name: "{group}\Deployment guide"; Filename: "{app}\wazuh\README.md"; Components: wazuh
+; The SIEM guide follows the language the installer was run in, because the person who opens this
+; entry is the one deploying into Wazuh and there is no reason to hand them the other language. Both
+; files are always installed - the shortcut chooses, the payload does not. No diacritics in these
+; captions: a .iss without a byte order mark is read as ANSI, and the caption is what would break.
+Name: "{group}\Wazuh deployment guide"; Filename: "{app}\docs\wazuh\deployment-en.md"; Components: docs; Languages: english
+Name: "{group}\Wazuh - przewodnik wdrozenia"; Filename: "{app}\docs\wazuh\wdrozenie-pl.md"; Components: docs; Languages: polish
+; And the files that guide tells them to install, which are not in docs\ and are easy to miss.
+Name: "{group}\Wazuh rules and dashboard"; Filename: "{app}\wazuh"; Components: wazuh
 Name: "{group}\Installation and configuration"; Filename: "{app}\docs\install-windows.md"; Components: docs
 Name: "{group}\Audit event schema"; Filename: "{app}\docs\events.md"; Components: docs
 Name: "{group}\Documentation"; Filename: "{app}\docs"; Components: docs

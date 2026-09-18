@@ -95,7 +95,8 @@ not the person holding this file.
 usr/bin/          sentin-gateway, sentin-ui, sentin-doctor, sentin-bench
 usr/lib/          the OpenVINO runtime, with the unversioned soname symlinks dlopen needs
 usr/share/sentin-npu/models/seq128, seq512    the quantized IR and its tokenizer
-usr/share/sentin-npu/wazuh/                   rules, dashboard and deployment guide
+usr/share/sentin-npu/wazuh/                   rules, dashboard, deployment scripts
+usr/share/sentin-npu/docs/wazuh/              deploying into Wazuh step by step, EN and PL
 usr/share/icons/hicolor/128x128/apps/, .DirIcon    the icon the desktop draws
 ```
 

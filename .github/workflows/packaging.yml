@@ -33,8 +33,12 @@ jobs:
         run: |
           # Same shape as a staged bundle, with nothing in it. Enough to prove every [Files] entry
           # resolves and every [Code] procedure compiles.
-          mkdir -p dist/payload/lib dist/payload/models/seq128 dist/payload/wazuh dist/payload/docs
-          touch dist/payload/sentin-gateway.exe \
+          mkdir -p dist/payload/lib dist/payload/models/seq128 dist/payload/wazuh \
+                   dist/payload/docs/wazuh/examples
+          touch dist/payload/docs/wazuh/deployment-en.md \
+                dist/payload/docs/wazuh/wdrozenie-pl.md \
+                dist/payload/docs/wazuh/examples/localfile-windows.conf \
+                dist/payload/sentin-gateway.exe \
                 dist/payload/sentin-ui.exe \
                 dist/payload/sentin-doctor.exe \
                 dist/payload/sentin-bench.exe \
@@ -97,7 +101,10 @@ jobs:
           cp stage/sentin-gateway stage/sentin-ui
           chmod +x stage/sentin-*
           touch stage/lib/libopenvino_c.so.2630 stage/models/seq128/openvino_model.xml
+          mkdir -p stage/docs/wazuh/examples
           echo 'schema' > stage/docs/events.md
+          echo 'guide' > stage/docs/wazuh/deployment-en.md
+          echo 'przewodnik' > stage/docs/wazuh/wdrozenie-pl.md
           echo 'rules' > stage/wazuh/sentin_npu_rules.xml
           ./packaging/linux/build-appimage.sh stage 0.0.0-ci dist
           test -x dist/Sentin-NPU-0.0.0-ci-x86_64.AppImage
@@ -113,6 +120,13 @@ jobs:
           ./squashfs-root/AppRun --docs /tmp/extracted-docs
           test -f /tmp/extracted-docs/events.md
           test -f /tmp/extracted-docs/wazuh/sentin_npu_rules.xml
+          # The deployment guides live under docs/wazuh and the rules under wazuh/, so --docs has to
+          # merge two directories that share a name. Both assertions matter: the first that the
+          # guides came out at all, the second that they did not bury the rules in wazuh/wazuh/,
+          # which is what copying the directory instead of its contents would do.
+          test -f /tmp/extracted-docs/wazuh/deployment-en.md
+          test -f /tmp/extracted-docs/wazuh/wdrozenie-pl.md
+          test ! -e /tmp/extracted-docs/wazuh/wazuh
           # The console has to be reachable from the dispatch table and not only from the usage
           # text. A subcommand documented and not wired up is this project's recurring shape of bug.
           ./squashfs-root/AppRun --console | grep -q stub

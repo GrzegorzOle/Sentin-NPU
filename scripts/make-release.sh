@@ -119,7 +119,9 @@ WHAT IS IN HERE
 ---------------
 
   docs/            everything below is documented there, in full
-  wazuh/           rules, dashboard and the guide for a Wazuh administrator
+  docs/wazuh/      deploying into Wazuh step by step, in English and Polish,
+                   with example files to paste
+  wazuh/           the rules, the dashboard and the scripts you install
   ${ui_listing}the settings window and the report builder
   config.yaml      the gateway's configuration, pointing at the bundled model
   models/          the quantized IR and its tokenizer
@@ -191,8 +193,9 @@ text in UTF-8, UTF-16 or a single-byte code page. One that cannot be read - an
 image, an archive, something encrypted - is reported rather than passed over in
 silence. There is no OCR.
 
-To get those events into Wazuh, hand wazuh/ to whoever runs it: rules, the agent
-collection snippet, a fifteen-panel dashboard and a deployment guide written for
+To get those events into Wazuh, hand wazuh/ and docs/wazuh/ to whoever runs it:
+rules, a fifteen-panel dashboard, and a step-by-step deployment guide in English
+and Polish with the agent snippets and sample events to paste. It is written for
 someone who has never seen this project. No decoder to write.
 
 
@@ -204,7 +207,9 @@ DOCUMENTATION
   docs/overview.md                   what this is and why it is built this way
   docs/benchmarks.md                 every measurement, with the hardware it came from
   docs/npu-compat.md                 per-device compatibility reports
-  wazuh/README.md                    the SIEM integration, end to end
+  docs/wazuh/deployment-en.md        the SIEM integration, end to end
+  docs/wazuh/wdrozenie-pl.md         the same in Polish
+  wazuh/README.md                    what is in the files you deploy
   docs/LICENSE, docs/NOTICE.md       Apache 2.0, and the model's own licence
 
 https://github.com/GrzegorzOle/Sentin-NPU
@@ -223,6 +228,10 @@ stage_docs() {
     cp "${REPO}/docs/npu-compat.md" "${stage}/docs/npu-compat.md"
     cp "${REPO}/LICENSE"          "${stage}/docs/LICENSE"
     cp "${REPO}/NOTICE.md"        "${stage}/docs/NOTICE.md"
+    # The Wazuh deployment guide, in both languages, with its example files. A whole tree rather
+    # than a file list: `examples/` is where a new pasteable snippet gets added, and a list here
+    # would be the fourth place to remember it.
+    cp -R "${REPO}/docs/wazuh"    "${stage}/docs/wazuh"
     case "${platform}" in
         windows) cp "${REPO}/packaging/windows/README.md" "${stage}/docs/install-windows.md" ;;
         linux)   cp "${REPO}/packaging/linux/README.md"   "${stage}/docs/install-linux.md" ;;
@@ -232,9 +241,12 @@ stage_docs() {
 stage_wazuh() {
     local stage="$1"
     mkdir -p "${stage}/wazuh"
+    # build_dashboard.py travels with the rest because both guides tell an administrator to run it
+    # when the rule ids or the index pattern differ from ours, and an instruction naming a file the
+    # download does not contain is worse than no instruction.
     cp "${REPO}/packaging/wazuh/sentin_npu_rules.xml" \
-       "${REPO}/packaging/wazuh/agent-localfile.conf" \
        "${REPO}/packaging/wazuh/sentin-npu-dashboard.ndjson" \
+       "${REPO}/packaging/wazuh/build_dashboard.py" \
        "${REPO}/packaging/wazuh/deploy-manager.sh" \
        "${REPO}/packaging/wazuh/README.md" "${stage}/wazuh/"
     chmod +x "${stage}/wazuh/deploy-manager.sh"
@@ -333,8 +345,14 @@ stage_docs_archive() {
     stage_docs "${dir}" all
     cp "${REPO}/packaging/windows/README.md" "${dir}/docs/install-windows.md"
     cp "${REPO}/packaging/linux/README.md"   "${dir}/docs/install-linux.md"
+    # Flatten before staging the deployables, not after, and merge rather than move. Both halves of
+    # the Wazuh material end up in one `wazuh/` here - the guides from docs/wazuh and the files you
+    # actually install - which is what an administrator holding only this zip wants. `mv` would have
+    # nested one inside the other the moment docs/wazuh appeared, and the order makes the manifest
+    # README of the deployables the one that survives the collision: it is the file that makes sense
+    # beside a rules file, and it names both guides.
+    cp -R "${dir}/docs/." "${dir}/" && rm -rf "${dir}/docs"
     stage_wazuh "${dir}"
-    mv "${dir}/docs"/* "${dir}/" && rmdir "${dir}/docs"
     ( cd "${OUT}" && zip -qr "sentin-npu-docs-${VERSION}.zip" "$(basename "${dir}")" )
     rm -rf "${dir}"
 }

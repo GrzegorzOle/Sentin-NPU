@@ -131,7 +131,8 @@ On Windows the installer offers a desktop shortcut beside the Start Menu entry, 
 console the installed `C:\ProgramData\Sentin-NPU\config.yaml` - so they open the configuration the
 running service is reading, not whatever an empty command line would make it guess.
 
-**The documentation travels with the software.** Every archive carries `docs/` and `wazuh/`; the
+**The documentation travels with the software.** Every archive carries `docs/` - including
+`docs/wazuh/`, the SIEM deployment guide in English and Polish - and `wazuh/`; the
 AppImage hands them over with `--docs`; the Windows installer puts them under the program directory
 with Start Menu entries. `sentin-npu-docs-<version>.zip` on the releases page is the same material
 on its own, 160 KB, for reading before a 280 MB download and for handing to whoever runs your SIEM.
@@ -672,10 +673,14 @@ doing the inspecting) are different fields.
 
 ### Wazuh
 
-A ready-to-deploy integration ships in **[packaging/wazuh/](packaging/wazuh/)** and in every
-release bundle under `wazuh/`: rules, the agent collection snippet, a dashboard with sixteen panels
-and a deployment guide written for a Wazuh administrator who has never seen this project. There is
-no decoder to install - the gateway writes JSON, so Wazuh's own decoder exposes every field.
+A ready-to-deploy integration ships in **[packaging/wazuh/](packaging/wazuh/)** and in every release
+bundle under `wazuh/`: rules and a dashboard with fifteen panels. The step-by-step deployment guide
+is in **[docs/wazuh/](docs/wazuh/)**, in **English and Polish**, with example files to paste - the
+agent's `<localfile>` block for either platform, the centralized `agent.conf` for a group, the
+gateway's own `audit:` block, sample events to feed `wazuh-logtest` before there is real traffic, and
+log rotation for both platforms. It is written for a Wazuh administrator who has never seen this
+project. There is no decoder to install - the gateway writes JSON, so Wazuh's own decoder exposes
+every field.
 
 Two properties the implementation guarantees rather than promises: an emitter that fails - full
 disk, unreachable collector - is logged and skipped, never propagated into the request; and a

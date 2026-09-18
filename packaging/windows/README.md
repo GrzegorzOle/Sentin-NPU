@@ -64,8 +64,10 @@ C:\Program Files\Sentin-NPU\        sentin-gateway.exe, sentin-ui.exe,
                                     sentin-doctor.exe, sentin-bench.exe
                             lib\    OpenVINO runtime
                             models\ the quantized IR and its tokenizer
-                            wazuh\  rules, dashboard, deployment guide
+                            wazuh\  rules, dashboard, deployment scripts
                             docs\   installation, the audit schema, benchmarks, licences
+                            docs\wazuh\  deploying into Wazuh step by step, EN and PL,
+                                         with example files to paste
 C:\ProgramData\Sentin-NPU\  config.yaml, audit.jsonl, sentin-gateway.log
 ```
 

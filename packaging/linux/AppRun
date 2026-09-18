@@ -186,7 +186,14 @@ do_docs() {
     src="$HERE/usr/share/sentin-npu"
     mkdir -p "$target"
     [ -d "$src/docs" ] && cp -a "$src/docs/." "$target/"
-    [ -d "$src/wazuh" ] && cp -a "$src/wazuh" "$target/"
+    # Merge into wazuh/ rather than copying the directory in. docs/ now carries docs/wazuh with the
+    # deployment guides, so `cp -a "$src/wazuh" "$target/"` would have buried the rules in
+    # wazuh/wazuh/ the moment that directory existed. Deployables land last on purpose: their
+    # README is the one that makes sense next to a rules file, and it names both guides.
+    if [ -d "$src/wazuh" ]; then
+        mkdir -p "$target/wazuh"
+        cp -a "$src/wazuh/." "$target/wazuh/"
+    fi
     chmod -R u+w "$target"
     echo "copied to $target" >&2
     echo >&2
@@ -195,7 +202,8 @@ do_docs() {
         [ -e "$entry" ] && printf '  %s\n' "${entry##*/}" >&2
     done
     echo >&2
-    echo "Start with install-linux.md; hand wazuh/ to whoever runs your SIEM." >&2
+    echo "Start with install-linux.md; hand wazuh/ to whoever runs your SIEM - it holds the" >&2
+    echo "rules, the dashboard and a step-by-step guide in English and Polish." >&2
 }
 
 do_uninstall_service() {
