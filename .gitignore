@@ -28,6 +28,12 @@ docs/benchmarks/raw/
 # *.jsonl rule silently swallows tests/fixtures/*.jsonl, which must be committed.
 /sentin-audit.jsonl
 *-audit.jsonl
+# The one place that pattern is wrong. docs/wazuh/examples holds synthetic events an administrator
+# pastes into wazuh-logtest before there is any real traffic, and `sample-audit.jsonl` matched the
+# rule above - so the file the deployment guides tell people to use would have been missing from
+# both the repository and every release bundle, silently. Negated for the whole directory rather
+# than for one name: the next sample added there would hit exactly the same trap.
+!docs/wazuh/examples/*.jsonl
 
 # The installer ISCC writes beside its own script. A quarter of a gigabyte, rebuilt from the
 # bundle whenever it is needed, and one `git add -A` away from the public repository - which is

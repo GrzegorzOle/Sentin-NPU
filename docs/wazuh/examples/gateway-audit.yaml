@@ -1,0 +1,50 @@
+# Copyright 2026 Grzegorz Oleksy
+# SPDX-License-Identifier: Apache-2.0
+#
+# EN - the audit section of the gateway's config.yaml, as a Wazuh deployment wants it. This is a
+# FRAGMENT: merge the audit: block into the existing file, do not replace the whole configuration
+# with it. On Windows the file is C:\ProgramData\Sentin-NPU\config.yaml; the settings console
+# (sentin-ui.exe) edits the same values without opening YAML at all.
+#
+# PL - sekcja audit z pliku config.yaml bramy, w postaci, jakiej oczekuje wdrożenie Wazuha. To jest
+# FRAGMENT: scal blok audit: z istniejącym plikiem, nie zastępuj nim całej konfiguracji. Na Windows
+# plik leży w C:\ProgramData\Sentin-NPU\config.yaml; konsola ustawień (sentin-ui.exe) zmienia te
+# same wartości bez otwierania YAML-a.
+
+audit:
+  # EN - the route this integration is built on. One JSON object per line, read by the agent as
+  # log_format json, which is why the rules need no decoder.
+  # PL - droga, na której oparta jest ta integracja. Jeden obiekt JSON na linię, czytany przez
+  # agenta jako log_format json - dlatego reguły nie potrzebują dekodera.
+  jsonl:
+    enabled: true
+
+    # EN - ABSOLUTE, always. A relative path resolves against the gateway's working directory, so
+    # the file appears somewhere nobody is watching while every check reports success. This is the
+    # single trap this project has hit most often.
+    # PL - ZAWSZE bezwzględna. Ścieżka względna rozwija się względem katalogu roboczego bramy, więc
+    # plik powstaje tam, gdzie nikt nie patrzy, a wszystkie kontrole raportują sukces. To pułapka,
+    # w którą ten projekt wpadał najczęściej.
+    #
+    # Windows: C:\ProgramData\Sentin-NPU\audit.jsonl
+    # Linux:   /var/log/sentin-npu/audit.jsonl
+    path: C:\ProgramData\Sentin-NPU\audit.jsonl
+
+  # EN - the alternative, and the one to reach for only when reading a file is impossible. The rules
+  # shipped in wazuh/ match JSON fields and WILL NOT fire on CEF: Wazuh would need a decoder for it,
+  # which is the honest reason the file route is recommended.
+  # PL - wariant alternatywny, po który sięga się tylko wtedy, gdy czytanie pliku jest niemożliwe.
+  # Reguły dostarczone w wazuh/ dopasowują pola JSON i NIE zadziałają na CEF: Wazuh potrzebowałby do
+  # tego dekodera i to jest uczciwy powód, dla którego zalecana jest droga przez plik.
+  syslog_cef:
+    enabled: false
+    address: 192.168.88.4:514
+    protocol: udp
+
+  # EN - OTLP over HTTP+JSON. Wazuh has no OTLP receiver, so this stays off in a Wazuh deployment.
+  # It is listed here so nobody enables it expecting alerts.
+  # PL - OTLP po HTTP+JSON. Wazuh nie ma odbiornika OTLP, więc we wdrożeniu z Wazuhem zostaje
+  # wyłączone. Jest tu wymienione po to, żeby nikt nie włączył go, licząc na alerty.
+  otlp:
+    enabled: false
+    endpoint: http://127.0.0.1:4318
